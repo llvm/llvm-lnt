@@ -361,28 +361,6 @@ export function SuiteFields({
   )
 }
 
-interface DisplayNameProps {
-  /** What the input shows. */
-  value: string
-  readOnly: boolean
-  className?: string
-  onValue(value: string): void
-}
-
-/**
- * The input of a display name below its label, as a form creating a project has it (AD3). Unlike a
- * name, it is free text, which the server checks when it is sent.
- */
-export function DisplayNameInput(props: DisplayNameProps) {
-  const id = useId()
-  return (
-    <>
-      <label htmlFor={id}>Display name</label>
-      <NameInput id={id} problem={undefined} spellCheck {...props} />
-    </>
-  )
-}
-
 interface NameProps extends Omit<InputHTMLAttributes<HTMLInputElement>, 'onChange'> {
   /** The input's accessible name, unless a `<label>` gives it one. */
   label?: string

@@ -8,6 +8,7 @@ import {
   type FormEvent,
   type RefObject,
 } from 'react'
+import { flushSync } from 'react-dom'
 import { useMutation, useQueryClient, type QueryClient } from '@tanstack/react-query'
 import { Link, useNavigate } from 'react-router'
 import { VisuallyHidden } from 'react-aria-components'
@@ -36,7 +37,7 @@ import { plural } from '../../format'
 import { projectLabel } from '../../labels'
 import { projectPath } from '../../paths'
 import { projectNameProblem } from '../test-suites/schema/schema-editor-model'
-import { DisplayNameInput, NameInput } from '../test-suites/schema/schema-editor-tables'
+import { NameInput } from '../test-suites/schema/schema-editor-tables'
 import { suiteTabPath } from '../test-suites/settings'
 import { CreateSuite } from './create-suite'
 import styles from './admin.module.css'
@@ -51,42 +52,46 @@ import styles from './admin.module.css'
 export function ProjectsTab() {
   const projects = useProjects()
   const navigate = useNavigate()
-  // The project the schema editor creates a suite in, while it shows in place of the tab (TS7).
+  // The project the schema editor creates a suite in, while it shows in place of the tab's content
+  // (TS7), which stays, hidden, so that its "+" can take the focus back.
   const [creatingIn, setCreatingIn] = useState<string | null>(null)
-  // The project whose "+" takes the focus back once the editor has closed.
-  const [closed, setClosed] = useState<string | null>(null)
-  const onRefocused = useCallback(() => setClosed(null), [])
+  const opener = useRef<HTMLButtonElement | null>(null)
+  const tableRef = useRef<HTMLTableElement>(null)
 
-  if (creatingIn !== null) {
-    return (
-      <CreateSuite
-        project={creatingIn}
-        onCancel={() => {
-          setCreatingIn(null)
-          setClosed(creatingIn)
-        }}
-        onCreated={(suite) => navigate(suiteTabPath(suite, 'schema'))}
-      />
-    )
+  // Stable, so that the table's columns need not be built again.
+  const openEditor = useCallback((project: string, button: HTMLButtonElement) => {
+    opener.current = button
+    setCreatingIn(project)
+  }, [])
+  // The focus goes back to the "+" that opened the editor, or to the table when the "+" cannot take
+  // it: gone with its project, renamed or deleted elsewhere meanwhile, or disabled (AD3).
+  const closeEditor = () => {
+    flushSync(() => setCreatingIn(null))
+    const button = opener.current
+    if (button?.isConnected && !button.disabled) button.focus()
+    else tableRef.current?.focus()
   }
+
   return (
     <>
-      <CreateProject />
-      <Loaded
-        data={projects.data}
-        error={projects.error}
-        onRetry={() => void projects.refetch()}
-        label="Loading projects..."
-      >
-        {(data) => (
-          <ProjectsTable
-            projects={data}
-            onNewSuite={setCreatingIn}
-            refocus={closed}
-            onRefocused={onRefocused}
-          />
-        )}
-      </Loaded>
+      {creatingIn !== null && (
+        <CreateSuite
+          project={creatingIn}
+          onCancel={closeEditor}
+          onCreated={(suite) => navigate(suiteTabPath(suite, 'schema'))}
+        />
+      )}
+      <div hidden={creatingIn !== null}>
+        <CreateProject />
+        <Loaded
+          data={projects.data}
+          error={projects.error}
+          onRetry={() => void projects.refetch()}
+          label="Loading projects..."
+        >
+          {(data) => <ProjectsTable projects={data} onNewSuite={openEditor} tableRef={tableRef} />}
+        </Loaded>
+      </div>
     </>
   )
 }
@@ -138,6 +143,7 @@ function CreateProject() {
   const create = useCreateProject()
   const titleId = useId()
   const nameId = useId()
+  const displayNameId = useId()
   const nameRef = useRef<HTMLInputElement>(null)
   const [name, setName] = useState('')
   const [displayName, setDisplayName] = useState('')
@@ -191,9 +197,13 @@ function CreateProject() {
             />
           </div>
           <div className={styles.control}>
-            <DisplayNameInput
+            <label htmlFor={displayNameId}>Display name</label>
+            <NameInput
+              id={displayNameId}
               className={styles.nameInput}
               value={displayName}
+              problem={undefined}
+              spellCheck
               readOnly={create.isPending}
               onValue={setDisplayName}
             />
@@ -210,41 +220,25 @@ function CreateProject() {
 
 interface TableProps {
   projects: Project[]
-  /** Open the schema editor to create a suite in the project `project`. */
-  onNewSuite(project: string): void
-  /**
-   * The project whose "+" takes the focus, once the editor creating a suite in it has closed, or
-   * null. The table takes it when the "+" cannot: once the project is gone, or while the "+" is
-   * disabled.
-   */
-  refocus: string | null
-  onRefocused(): void
+  /** Open the schema editor to create a suite in the project `project`, from its "+", `button`. */
+  onNewSuite(project: string, button: HTMLButtonElement): void
+  tableRef: RefObject<HTMLTableElement | null>
 }
 
 /**
  * The projects, each with its name and display name edited in place, its number of suites, linking
  * to them, its "+" creating a suite in it, and its Delete button (AD3).
  */
-function ProjectsTable({ projects, onNewSuite, refocus, onRefocused }: TableProps) {
+function ProjectsTable({ projects, onNewSuite, tableRef }: TableProps) {
   const queryClient = useQueryClient()
   const { recheck } = useAuth()
-  const tableRef = useRef<HTMLTableElement>(null)
-  // The project whose "+" should take the focus back is gone, deleted or renamed elsewhere while
-  // the editor showed: the table takes it.
-  const refocusGone = refocus !== null && !projects.some((project) => project.name === refocus)
-  useEffect(() => {
-    if (!refocusGone) return
-    tableRef.current?.focus()
-    onRefocused()
-  }, [refocusGone, onRefocused])
   const rowConfirm = useRowConfirm<Project>(tableRef)
   // The project whose deletion is being confirmed, as listed now: once gone, deleted elsewhere,
   // there is nothing left to confirm.
   const deleting = projects.find((project) => project.name === rowConfirm.item?.name)
   const { open, done, close } = rowConfirm
   // The project just renamed, whose row is a new one, and whose name's Edit button takes the focus
-  // once the token has been checked again. A list without it, renamed again or deleted elsewhere
-  // first, means that it is gone, so that a project of that name created later takes nothing.
+  // once the token has been checked again.
   const [renamed, setRenamed] = useState<string | null>(null)
   // The prompt of a project renamed is gone with its old name, and the focus with the project's
   // name, rather than to the table.
@@ -254,13 +248,6 @@ function ProjectsTable({ projects, onNewSuite, refocus, onRefocused }: TableProp
     if (gone) close(!renaming)
   }, [gone, renaming, close])
   const onFocused = useCallback(() => setRenamed(null), [])
-  const [listed, setListed] = useState(projects)
-  if (projects !== listed) {
-    setListed(projects)
-    if (renamed !== null && !projects.some((project) => project.name === renamed)) {
-      setRenamed(null)
-    }
-  }
 
   const names = useMemo(() => projects.map((project) => project.name), [projects])
   const columns = useMemo(
@@ -296,13 +283,7 @@ function ProjectsTable({ projects, onNewSuite, refocus, onRefocused }: TableProp
             >
               {project.suites.length}
             </Link>
-            <NewSuiteButton
-              project={project}
-              focus={project.name === refocus}
-              onFocused={onRefocused}
-              tableRef={tableRef}
-              onClick={onNewSuite}
-            />
+            <NewSuiteButton project={project} onClick={onNewSuite} />
           </span>
         ),
       },
@@ -312,7 +293,7 @@ function ProjectsTable({ projects, onNewSuite, refocus, onRefocused }: TableProp
         cell: (project) => <DeleteButton project={project} onDelete={open} />,
       },
     ],
-    [names, renamed, onFocused, open, refocus, onRefocused, onNewSuite],
+    [names, renamed, onFocused, tableRef, open, onNewSuite],
   )
 
   // A project deleted elsewhere meanwhile is gone all the same: what the user asked for.
@@ -450,30 +431,21 @@ function DisplayNameCell({ project }: { project: Project }) {
 
 interface NewSuiteProps {
   project: Project
-  /** Whether the button takes the focus, the editor it opened having closed. */
-  focus: boolean
-  onFocused(): void
-  tableRef: RefObject<HTMLTableElement | null>
-  onClick(project: string): void
+  onClick(project: string, button: HTMLButtonElement): void
 }
 
 /**
  * The project's "+", which opens the schema editor to create a suite in it (AD3, TS7), and needs
  * `manage` covering the project in full.
  */
-function NewSuiteButton({ project, focus, onFocused, tableRef, onClick }: NewSuiteProps) {
+function NewSuiteButton({ project, onClick }: NewSuiteProps) {
   const gate = useScopeGate('manage', { project: project.name })
-  const ref = useRef<HTMLButtonElement>(null)
-  // The table, shown again, is a new one: the focus goes back to the button, or to the table if it
-  // stays disabled.
-  useFocusOnceChecked(focus, onFocused, ref, tableRef)
   return (
     <button
       type="button"
-      ref={ref}
       {...gate}
       aria-label={`New suite in ${projectLabel(project)}`}
-      onClick={() => onClick(project.name)}
+      onClick={(event) => onClick(project.name, event.currentTarget)}
     >
       +
     </button>
