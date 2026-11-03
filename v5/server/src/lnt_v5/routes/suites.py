@@ -19,9 +19,10 @@ from fastapi import APIRouter, Body, Query, Response
 from pydantic import BaseModel, ConfigDict, Field
 
 from lnt_v5 import examples
-from lnt_v5.auth import BodyRule, Coverage, require_scope
+from lnt_v5.auth import Coverage, require_in_full, require_scope
 from lnt_v5.db import EngineDep, reporting_violation
 from lnt_v5.errors import ApiError, ErrorCode, ErrorEnvelope
+from lnt_v5.keys import ResolvedKey
 from lnt_v5.patching import omit_defaults
 from lnt_v5.responses import Items
 from lnt_v5.scopes import Scope
@@ -221,7 +222,6 @@ def get_suite(
 
 @router.patch(
     "/{suite}",
-    dependencies=[require_scope(Scope.MANAGE, body_rule=BodyRule.MOVE)],
     summary="Rename or move a test suite",
     responses={
         404: {
@@ -239,6 +239,15 @@ def get_suite(
     },
 )
 def patch_suite(
+    # The key, which a move needs, rather than `dependencies=[...]`. First, since dependencies are
+    # solved in order, so that nothing comes before I5's checks, as on a route that declares them.
+    key: Annotated[
+        ResolvedKey | None,
+        require_scope(
+            Scope.MANAGE,
+            note="Moving it to another project also needs that project covered in full.",
+        ),
+    ],
     project: ProjectName,
     name: SuiteName,
     body: Annotated[SuiteUpdate, Body(openapi_examples=_RENAME_EXAMPLES)],
@@ -255,6 +264,9 @@ def patch_suite(
     changes = body.model_dump(exclude_unset=True)
     new_name = changes.get("name", name)
     destination = changes.get("project", project)
+    if destination != project:
+        # Once the body is valid, and before anything is looked up (I5).
+        require_in_full(key, Scope.MANAGE, destination, "Moving a test suite")
     taken = f"A test suite named '{full_name(destination, new_name)}' already exists"
     with (
         reporting_violation(SCHEMA_NAME_CONSTRAINT, ErrorCode.DUPLICATE, taken),

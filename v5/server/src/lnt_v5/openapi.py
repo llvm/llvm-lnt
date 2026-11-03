@@ -192,8 +192,8 @@ def _authorization(requirement: RequireScope, addresses_suite: bool) -> str:
 
     For a scope that can be restricted (I5), it also says what a restricted key needs (I8): to cover
     the suite, on an operation that addresses one; to cover the project in full, on one that says
-    so; and otherwise nothing it can have. An operation whose body can ask for more says that too
-    (see `BodyRule`).
+    so; and otherwise nothing it can have. An operation whose handler checks more says that too
+    (see `RequireScope`).
     """
     scope = requirement.scope
     if scope is Scope.READ:
@@ -201,8 +201,7 @@ def _authorization(requirement: RequireScope, addresses_suite: bool) -> str:
     sentence = f"**Authorization:** requires an API key with the `{scope.value}` scope"
     if scope in UNRESTRICTABLE_SCOPES:
         return f"{sentence}."
-    rule = requirement.body_rule
-    more = "" if rule is None else f" {rule.documentation}"
+    more = "" if requirement.note is None else f" {requirement.note}"
     if addresses_suite:
         return f"{sentence}, unrestricted or covering this test suite.{more}"
     if requirement.coverage is Coverage.PROJECT:

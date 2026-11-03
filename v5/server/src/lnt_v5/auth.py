@@ -15,20 +15,19 @@ one, or it will resolve first and answer 404 where I5 requires 403.
 A restricted key is checked against what the request addresses, which is read off the route's path:
 a suite, for every route under `/api/projects/{project}/suites/{suite}` (see `suite_parameters`), or
 a project, for a route that declares so (see `Coverage`). Any other request needs an instance-wide
-key, so a route that declares nothing fails closed. One route also reads its body, which can ask
-for more (see `BodyRule`): moving a suite. That is only sound because of an invariant no test can
-check: a request that addresses a suite writes only to that suite, plus the destination project of
-a move, and one that addresses a project only to that project (I5). An endpoint that reached
-elsewhere would let a restricted key write where it has only `read`.
+key, so a route that declares nothing fails closed. One handler checks more once it has validated
+its body (see `require_in_full`): moving a suite also needs the destination project in full. That
+is only sound because of an invariant no test can check: a request that addresses a suite writes
+only to that suite, plus the destination project of a move, and one that addresses a project only
+to that project (I5). An endpoint that reached elsewhere would let a restricted key write where it
+has only `read`.
 """
 
 from __future__ import annotations
 
-import email.message
 import logging
 import re
 from collections.abc import Iterator, Sequence
-from dataclasses import dataclass
 from enum import Enum
 from typing import Annotated, Any
 
@@ -159,85 +158,6 @@ def _last_use(request: Request) -> LastUseRecorder:
     return recorder
 
 
-class BodyRule(Enum):
-    """What a route's body can ask a restricted key to cover beyond what its path addresses (I5).
-
-    I5 decides it from the body, before the body is validated: a request is a move when its body has
-    a `project` other than the path's, whatever that value is. A body that is not a JSON object asks
-    for nothing more, and is refused once validated.
-    """
-
-    # `PATCH /api/projects/{project}/suites/{suite}`: a move also needs the destination project
-    # covered in full.
-    MOVE = "move"
-
-    @property
-    def documentation(self) -> str:
-        """What I8's document adds to the sentence saying what an operation needs (I8)."""
-        return "Moving it to another project also needs that project covered in full."
-
-    def requirement(
-        self, required: Scope, project: str, body: dict[str, Any]
-    ) -> BodyRequirement | None:
-        """What `body`, sent to a route requiring `required` and addressing the project `project`,
-        asks for, if anything."""
-        scope = f"the '{required.value}' scope"
-        if "project" not in body or body["project"] == project:
-            return None
-        destination = body["project"]
-        if not isinstance(destination, str):
-            # Not a project name, so nothing a restricted key can cover.
-            return BodyRequirement(
-                None,
-                f"Moving a test suite requires {scope} covering the project it is moved to in full",
-            )
-        return BodyRequirement(
-            destination,
-            f"Moving a test suite to project '{destination}' requires {scope} covering that "
-            "project in full",
-        )
-
-
-@dataclass(frozen=True)
-class BodyRequirement:
-    """What a restricted key must cover, beyond what the request's path addresses, for what its body
-    asks (see `BodyRule`): a project in full, or with None, the instance. `refusal` says why a key
-    that does not is refused, to be followed by what it is restricted to."""
-
-    project: str | None
-    refusal: str
-
-
-def _is_json(content_type: str | None) -> bool:
-    """Whether FastAPI reads a body sent with `content_type` as JSON: `application/json`, or a
-    subtype ending in `+json`. Without a content type, it does not (its strict content types).
-
-    This must agree with FastAPI: turning off `strict_content_type` anywhere would have FastAPI
-    validate a body sent without a content type as JSON, which this would not read, so that a move
-    sent that way would be authorized as no move at all."""
-    if not content_type:
-        return False
-    message = email.message.Message()
-    message["content-type"] = content_type
-    subtype = message.get_content_subtype()
-    return message.get_content_maintype() == "application" and (
-        subtype == "json" or subtype.endswith("+json")
-    )
-
-
-async def _json_object(request: Request) -> dict[str, Any] | None:
-    """The request's body, if FastAPI reads it as JSON and it is an object, and None otherwise.
-
-    FastAPI has read and parsed the body before solving the route's dependencies, and refused one
-    that does not parse, so `request.json()` returns what it parsed. Anything else is left to the
-    body's validation, after authorization.
-    """
-    if not _is_json(request.headers.get("content-type")) or not await request.body():
-        return None
-    body = await request.json()
-    return body if isinstance(body, dict) else None
-
-
 class RequireScope:
     """The scope an endpoint requires, as a dependency.
 
@@ -249,11 +169,14 @@ class RequireScope:
     needs to know who is calling can depend on this directly rather than resolve the token twice.
     """
 
-    body_rule: BodyRule | None = None
-
-    def __init__(self, scope: Scope, coverage: Coverage = Coverage.INSTANCE) -> None:
+    def __init__(
+        self, scope: Scope, coverage: Coverage = Coverage.INSTANCE, note: str | None = None
+    ) -> None:
         self.scope = scope
         self.coverage = coverage
+        # What I8's document adds to the sentence saying what the operation needs: what its handler
+        # checks on top of this (see `require_in_full`). Documentation only.
+        self.note = note
 
     # Declared before the token, since dependencies are solved in order: I5 lets I3's refusal of a
     # query parameter come before authentication, and the header may itself be a 401.
@@ -351,54 +274,32 @@ def _covered(key: ResolvedKey) -> str:
     return ", ".join(str(entry) for entry in key.restricted_to)
 
 
-class RequireScopeAndBody(RequireScope):
-    """`RequireScope`, on a route whose body can ask a restricted key for more (see `BodyRule`)."""
-
-    def __init__(self, scope: Scope, coverage: Coverage, body_rule: BodyRule) -> None:
-        super().__init__(scope, coverage)
-        self.body_rule = body_rule
-
-    # The base's parameters, which FastAPI reads off the signature, and the body. Overriding with
-    # one more parameter is what mypy objects to; `test_auth.py` drives every scoped route, both
-    # kinds included, so that a parameter added to one and not the other fails there.
-    def __call__(  # type: ignore[override]
-        self,
-        request: Request,
-        _query: Annotated[None, Depends(reject_unknown_query_parameters)],
-        engine: EngineDep,
-        last_use: Annotated[LastUseRecorder, Depends(_last_use)],
-        token: TokenDep,
-        body: Annotated[dict[str, Any] | None, Depends(_json_object)],
-    ) -> ResolvedKey | None:
-        key = super().__call__(request, _query, engine, last_use, token)
-        # Only once the path is covered, which `super()` checks, so that a key not covering it is
-        # refused for that.
-        if key is None or key.restricted_to is None or body is None:
-            return key
-        project, _ = _addressed(request, self.coverage)
-        assert project is not None and self.body_rule is not None
-        wanted = self.body_rule.requirement(self.scope, project, body)
-        if wanted is not None and not key.grants(self.scope, wanted.project, None):
-            raise ApiError(
-                ErrorCode.FORBIDDEN,
-                f"{wanted.refusal}, and this API key is restricted to: {_covered(key)}.",
-            )
-        return key
+def require_in_full(key: ResolvedKey | None, required: Scope, project: str, doing: str) -> None:
+    """Refuse `key` unless it grants `required` on the project `project` in full: what a handler
+    checks once the body is valid, for what the request needs beyond what its path addresses (I5).
+    `doing` names what needs it, as the refusal's subject.
+    """
+    # Only an endpoint requiring `read` lets an anonymous caller through.
+    assert key is not None
+    if not key.grants(required, project, None):
+        raise ApiError(
+            ErrorCode.FORBIDDEN,
+            f"{doing} requires the '{required.value}' scope covering project '{project}' in full, "
+            f"and this API key is restricted to: {_covered(key)}.",
+        )
 
 
 def require_scope(
-    scope: Scope, coverage: Coverage = Coverage.INSTANCE, body_rule: BodyRule | None = None
+    scope: Scope, coverage: Coverage = Coverage.INSTANCE, note: str | None = None
 ) -> Any:
     """Declare the scope an endpoint requires, for its `dependencies=[...]`, and what a restricted
     key must cover to be granted it there, unless the endpoint addresses a suite (see `Coverage`),
-    and with `body_rule`, what the request's body can ask it to cover as well (see `BodyRule`).
+    and a `note` for its documentation (see `RequireScope`).
 
     Returns `Any` because that is how FastAPI types `Depends` -- it has to be assignable to a
     parameter of any annotated type.
     """
-    if body_rule is None:
-        return Depends(RequireScope(scope, coverage))
-    return Depends(RequireScopeAndBody(scope, coverage, body_rule))
+    return Depends(RequireScope(scope, coverage, note))
 
 
 def iter_routes(routes: Sequence[BaseRoute]) -> Iterator[RouteContext]:

@@ -584,8 +584,8 @@ class TestProjectRestriction:
 
 
 class TestMoves:
-    """I5: what the body of a move asks of a restricted key, decided from the body before it is
-    validated."""
+    """I5: what a move asks of a restricted key beyond covering the suite, checked once the body is
+    valid."""
 
     MOVE = "/api/projects/libcxx/suites/nts"
 
@@ -612,36 +612,76 @@ class TestMoves:
         listed = api_client.get("/api/auth", headers=suite_key).json()["key"]["restricted_to"]
         assert listed == [{"project": "libcxx", "suite": "bench"}]
 
-    @pytest.mark.parametrize("destination", ["llvm", "missing", "Not A Name", 5, None, "x\u0000"])
-    def test_a_move_needs_the_destination_covered_in_full_whatever_it_is(
-        self, api_client: TestClient, suite_key: dict[str, str], destination: Any
+    @pytest.mark.parametrize(
+        "body",
+        [
+            {"project": "llvm"},
+            {"project": "missing"},
+            {"project": "Not A Name"},
+            # Not the path's project, though it differs only by case.
+            {"project": "LIBCXX"},
+            # A rename does not make a move need less.
+            {"name": "bench", "project": "llvm"},
+        ],
+    )
+    def test_a_move_needs_the_destination_covered_in_full(
+        self, api_client: TestClient, suite_key: dict[str, str], body: dict[str, Any]
     ) -> None:
-        # Refused before the body is validated or the destination looked up (I5), so a 403 even
-        # where an instance-wide key would get a 400 or a 404.
-        response = api_client.patch(self.MOVE, json={"project": destination}, headers=suite_key)
+        # Refused before the destination is looked up (I5), so a 403 even where an instance-wide
+        # key would get a 404.
+        response = api_client.patch(self.MOVE, json=body, headers=suite_key)
 
         assert response.status_code == 403, response.text
         assert "Moving a test suite" in response.json()["error"]["message"]
         assert api_client.get(self.MOVE).status_code == 200
 
+    def test_a_move_is_refused_before_the_suite_is_looked_up(
+        self,
+        api_client: TestClient,
+        restricted_key: Callable[..., str],
+        bearer: Callable[[str], dict[str, str]],
+    ) -> None:
+        # The key covers whatever its project holds, so only the destination refuses it, and that
+        # comes before the 404 for a suite that does not exist (I5).
+        headers = bearer(restricted_key(Scope.MANAGE, keys.Entry("libcxx", None)))
+
+        response = api_client.patch(
+            "/api/projects/libcxx/suites/missing", json={"project": "llvm"}, headers=headers
+        )
+
+        assert response.status_code == 403, response.text
+        assert "Moving a test suite" in response.json()["error"]["message"]
+
     @pytest.mark.parametrize(
-        ("destination", "code"),
-        [("missing", "not_found"), ("Not A Name", "not_found"), (5, "invalid_request")],
+        "body",
+        [
+            {"project": 5},
+            {"project": None},
+            # D3: psycopg could not even look it up.
+            {"project": "x\u0000"},
+            # The whole body is validated before the destination is checked.
+            {"project": "llvm", "name": "bad name"},
+        ],
     )
-    def test_an_unrestricted_key_gets_the_answer_for_the_destination(
-        self, api_client: TestClient, manage: dict[str, str], destination: Any, code: str
+    def test_an_invalid_move_is_a_400_whatever_the_key(
+        self,
+        api_client: TestClient,
+        suite_key: dict[str, str],
+        manage: dict[str, str],
+        body: dict[str, Any],
+    ) -> None:
+        for headers in (suite_key, manage):
+            assert code_of(api_client.patch(self.MOVE, json=body, headers=headers)) == (
+                "invalid_request"
+            )
+
+    @pytest.mark.parametrize("destination", ["missing", "Not A Name"])
+    def test_an_unrestricted_key_gets_a_404_for_a_missing_destination(
+        self, api_client: TestClient, manage: dict[str, str], destination: str
     ) -> None:
         response = api_client.patch(self.MOVE, json={"project": destination}, headers=manage)
 
-        assert code_of(response) == code
-
-    def test_a_nul_in_the_destination_is_a_400(
-        self, api_client: TestClient, manage: dict[str, str]
-    ) -> None:
-        # D3: psycopg could not even look it up.
-        response = api_client.patch(self.MOVE, json={"project": "x\u0000"}, headers=manage)
-
-        assert code_of(response) == "invalid_request"
+        assert code_of(response) == "not_found"
 
     def test_a_key_covering_the_suite_and_the_destination_in_full_moves_it(
         self,
@@ -670,38 +710,6 @@ class TestMoves:
 
         assert response.status_code == 403
         assert "in test suite 'libcxx/nts'" in response.json()["error"]["message"]
-
-    @pytest.mark.parametrize(
-        ("content_type", "content"),
-        [
-            ("text/plain", '{"project": "llvm"}'),
-            (None, '{"project": "llvm"}'),
-            ("application/json", '[{"project": "llvm"}]'),
-            ("application/json", "null"),
-        ],
-    )
-    def test_a_body_that_is_no_json_object_asks_for_nothing_more(
-        self,
-        api_client: TestClient,
-        suite_key: dict[str, str],
-        content_type: str | None,
-        content: str,
-    ) -> None:
-        # It is no move, so the suite key is let through, and the body refused once validated.
-        headers = suite_key | ({} if content_type is None else {"Content-Type": content_type})
-
-        response = api_client.patch(self.MOVE, content=content, headers=headers)
-
-        assert code_of(response) == "invalid_request"
-
-    def test_a_json_subtype_is_read_as_json(
-        self, api_client: TestClient, suite_key: dict[str, str]
-    ) -> None:
-        headers = suite_key | {"Content-Type": "application/merge-patch+json"}
-
-        response = api_client.patch(self.MOVE, content='{"project": "llvm"}', headers=headers)
-
-        assert response.status_code == 403
 
 
 class TestRevocation:
