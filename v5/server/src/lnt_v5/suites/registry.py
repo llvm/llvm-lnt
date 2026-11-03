@@ -195,8 +195,8 @@ class SuiteRegistry:
     def _suite(row: _Row, previous: Suite | None) -> Suite | None:
         """The suite `row` describes, from `previous` where it can be, or None if it does not parse
         and there is no copy of it to keep."""
-        assert row.suite_id is not None and row.namespace is not None
-        assert row.schema_json is not None
+        assert row.suite_id is not None and row.suite_name is not None
+        assert row.namespace is not None and row.schema_json is not None
         if previous is not None and previous.tables.namespace != row.namespace:
             previous = None
         if previous is not None and previous.schema_json == row.schema_json:
@@ -208,7 +208,7 @@ class SuiteRegistry:
         except ValidationError:
             logger.warning(
                 "Could not parse the stored schema for suite %r; %s",
-                full_name(row.project, row.suite_name or ""),
+                full_name(row.project, row.suite_name),
                 "keeping the copy already loaded" if previous else "skipping it",
                 exc_info=True,
             )
@@ -289,7 +289,10 @@ def get_registry(request: Request) -> SuiteRegistry:
 # What an endpoint writes to reach the suites:
 #
 #     def endpoint(db: EngineDep, registry: RegistryDep) -> Thing:
-#         with db.connect() as connection, suite_scope(registry, connection, name) as suite:
+#         with (
+#             db.connect() as connection,
+#             suite_scope(registry, connection, project, name) as suite,
+#         ):
 #             ...
 #
 # The dependency hands over the registry without touching the database; the freshness check happens

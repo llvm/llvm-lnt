@@ -154,11 +154,8 @@ class RequireScope:
     needs to know who is calling can depend on this directly rather than resolve the token twice.
     """
 
-    def __init__(self, scope: Scope, note: str | None = None) -> None:
+    def __init__(self, scope: Scope) -> None:
         self.scope = scope
-        # What I8's document adds to the sentence saying what the operation needs: what its handler
-        # checks on top of this (see `require_in_full`). Documentation only.
-        self.note = note
 
     # Declared before the token, since dependencies are solved in order: I5 lets I3's refusal of a
     # query parameter come before authentication, and the header may itself be a 401.
@@ -269,14 +266,13 @@ def require_in_full(key: ResolvedKey | None, required: Scope, project: str, doin
         )
 
 
-def require_scope(scope: Scope, note: str | None = None) -> Any:
-    """Declare the scope an endpoint requires, for its `dependencies=[...]`, and a `note` for its
-    documentation (see `RequireScope`).
+def require_scope(scope: Scope) -> Any:
+    """Declare the scope an endpoint requires, for its `dependencies=[...]` (see `RequireScope`).
 
     Returns `Any` because that is how FastAPI types `Depends` -- it has to be assignable to a
     parameter of any annotated type.
     """
-    return Depends(RequireScope(scope, note))
+    return Depends(RequireScope(scope))
 
 
 def iter_routes(routes: Sequence[BaseRoute]) -> Iterator[RouteContext]:
@@ -291,13 +287,7 @@ def iter_routes(routes: Sequence[BaseRoute]) -> Iterator[RouteContext]:
 
 
 def required_scope(route: RouteContext) -> Scope | None:
-    """The scope a route requires, or None if it declares none (or is not an endpoint)."""
-    requirement = route_requirement(route)
-    return None if requirement is None else requirement.scope
-
-
-def route_requirement(route: RouteContext) -> RequireScope | None:
-    """What a route requires, or None if it declares nothing (or is not an endpoint).
+    """The scope a route requires, or None if it declares none (or is not an endpoint).
 
     Walks the whole dependency tree rather than only its top level, so that a scope declared
     through a dependency of a dependency is still found -- a guard that reports "unprotected"
@@ -312,6 +302,6 @@ def route_requirement(route: RouteContext) -> RequireScope | None:
         dependency = pending.pop()
         call = dependency.call
         if isinstance(call, RequireScope):
-            return call
+            return call.scope
         pending.extend(dependency.dependencies)
     return None

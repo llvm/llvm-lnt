@@ -241,13 +241,7 @@ def get_suite(
 def patch_suite(
     # The key, which a move needs, rather than `dependencies=[...]`. First, since dependencies are
     # solved in order, so that nothing comes before I5's checks, as on a route that declares them.
-    key: Annotated[
-        ResolvedKey | None,
-        require_scope(
-            Scope.MANAGE,
-            note="Moving it to another project also needs that project covered in full.",
-        ),
-    ],
+    key: Annotated[ResolvedKey | None, require_scope(Scope.MANAGE)],
     project: ProjectName,
     name: SuiteName,
     body: Annotated[SuiteUpdate, Body(openapi_examples=_RENAME_EXAMPLES)],
@@ -259,7 +253,7 @@ def patch_suite(
     Only names change: the suite keeps all of its data. Its old name isn't kept: every URL of the
     suite changes, and the old ones answer 404. API keys that list the suite keep covering it. A
     move takes the suite away from the keys that list its old project as a whole, and gives it to
-    those that list the new one.
+    those that list the new one, so it also needs the new project covered in full.
     """
     changes = body.model_dump(exclude_unset=True)
     new_name = changes.get("name", name)

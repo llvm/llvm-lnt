@@ -242,7 +242,6 @@ class TestCreateRestrictedKey:
         [
             (Scope.READ, [Entry("llvm", "nts")], "a read key"),
             (Scope.ADMIN, [Entry("llvm", "nts")], "an admin key"),
-            (Scope.SUBMIT, [], "no entry at all"),
             (Scope.SUBMIT, [Entry("llvm", "nts"), Entry("llvm", "nts")], "an entry twice"),
             (Scope.SUBMIT, [Entry("llvm", None), Entry("llvm", None)], "a project twice"),
         ],

@@ -23,7 +23,7 @@ from sqlalchemy import Connection, Engine, select, text, update
 
 from lnt_v5.suites import migrations
 from lnt_v5.suites.schema import SuiteSchema
-from lnt_v5.suites.store import StoredSuite
+from lnt_v5.suites.store import StoredSuite, full_name
 from lnt_v5.tables import project, schema
 
 # Inside the package rather than beside it, because the Dockerfile copies only `server/src` and
@@ -160,7 +160,8 @@ def _upgrade_suites(connection: Connection) -> tuple[str, ...]:
         rows = connection.execute(
             select(
                 schema.c.id,
-                (project.c.name + "/" + schema.c.name).label("full_name"),
+                project.c.name.label("project"),
+                schema.c.name,
                 schema.c.migration_version,
                 schema.c.schema_json,
             )
@@ -168,7 +169,9 @@ def _upgrade_suites(connection: Connection) -> tuple[str, ...]:
             .order_by(project.c.name, schema.c.name)
         ).all()
 
-    for _, name, version, schema_json in rows:
+    names = {row.id: full_name(row.project, row.name) for row in rows}
+    for row in rows:
+        name, version = names[row.id], row.migration_version
         if version > head:
             raise MigrationError(
                 f"test suite '{name}' is at migration version {version}, but this build only knows "
@@ -176,7 +179,7 @@ def _upgrade_suites(connection: Connection) -> tuple[str, ...]:
             )
         if version < head:
             try:
-                SuiteSchema.model_validate_json(schema_json)
+                SuiteSchema.model_validate_json(row.schema_json)
             except ValidationError as error:
                 # The registry skips a suite it cannot parse and serves the others, but here we
                 # have to stop: the steps need the schema, and if we skipped the suite, it would be
@@ -187,9 +190,9 @@ def _upgrade_suites(connection: Connection) -> tuple[str, ...]:
                 ) from error
 
     migrated: list[str] = []
-    for id_, name, version, _ in rows:
-        if version < head and _upgrade_suite(connection, id_, head):
-            migrated.append(name)
+    for row in rows:
+        if row.migration_version < head and _upgrade_suite(connection, row.id, head):
+            migrated.append(names[row.id])
     return tuple(migrated)
 
 
