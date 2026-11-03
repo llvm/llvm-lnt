@@ -15,6 +15,7 @@ from sqlalchemy import (
     Engine,
     Inspector,
     MetaData,
+    PrimaryKeyConstraint,
     Select,
     Table,
     event,
@@ -33,10 +34,14 @@ def composed_names(table: Table) -> set[str]:
     """Every constraint and index name the naming convention composed for a table.
 
     Indexes are gathered alongside constraints because `ix_...` is the longest template the
-    convention has, and a plain index is not a constraint.
+    convention has, and a plain index is not a constraint. A table without a primary key still
+    carries an empty one, which names nothing in the database.
     """
     return {
-        str(constraint.name) for constraint in table.constraints if constraint.name is not None
+        str(constraint.name)
+        for constraint in table.constraints
+        if constraint.name is not None
+        and not (isinstance(constraint, PrimaryKeyConstraint) and not constraint.columns)
     } | {str(index.name) for index in table.indexes if index.name is not None}
 
 

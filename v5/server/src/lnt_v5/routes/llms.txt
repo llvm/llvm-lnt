@@ -184,8 +184,10 @@ every lower one. `read` endpoints allow anonymous access, so send no header if
 you only read. A header that carries no usable Bearer token, or an unknown or
 revoked one, is 401 even on a `read` endpoint, and too little scope is 403. A
 key may be restricted to some suites (its `suites` list), and then has its scope
-only in those. To check a token before relying on it, `GET /api/auth` returns
-the key it belongs to, including the scope it grants and its `suites`.
+only in those. Deleting a suite removes it from the keys restricted to it, and a
+suite created later under its name is not covered. To check a token before
+relying on it, `GET /api/auth` returns the key it belongs to, including the
+scope it grants and its `suites`.
 
 ## Workflows
 

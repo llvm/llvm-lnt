@@ -36,6 +36,13 @@ describe('grants', () => {
     expect(granted('other')).toEqual(['read'])
     expect(granted(null)).toEqual(['read'])
   })
+
+  it('grants only read to a key whose suites were all deleted', () => {
+    const key = { scope: 'manage' as const, suites: [] }
+
+    expect(SCOPES.filter((scope) => grants(key, scope, 'nts'))).toEqual(['read'])
+    expect(SCOPES.filter((scope) => grants(key, scope, null))).toEqual(['read'])
+  })
 })
 
 describe('useScopeGate', () => {
@@ -115,6 +122,23 @@ describe('useScopeGate', () => {
       "Needs an instance-wide API token with the 'triage' scope. The token in Settings has the " +
         "'triage' scope only in suites 'libcxx', 'nts'.",
     )
+  })
+
+  it('enables no control above read for a token whose suites were all deleted', async () => {
+    signIn('triage', [])
+    const { result } = renderHook(
+      () => ({ auth: useAuth(), gate: useScopeGate('triage', 'nts') }),
+      providers(),
+    )
+
+    await waitFor(() => expect(result.current.auth.status.state).toBe('valid'))
+    expect(result.current.gate).toEqual({
+      disabled: true,
+      title:
+        "Needs an API token with the 'triage' scope in suite 'nts'. The token in Settings has " +
+        "the 'triage' scope in no suite: the suites it was restricted to have been deleted, so it " +
+        'can only read.',
+    })
   })
 
   it('says why a control is disabled when the check failed', async () => {

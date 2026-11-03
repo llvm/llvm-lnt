@@ -18,7 +18,7 @@ from sqlalchemy.exc import OperationalError
 
 from conftest import TOKEN_PATTERN, store_suite
 from introspection import namespace_of
-from lnt_v5 import cli, migrate
+from lnt_v5 import cli, keys, migrate
 from lnt_v5.config import get_settings
 from lnt_v5.scopes import Scope
 from lnt_v5.suites import migrations as suite_migrations
@@ -404,7 +404,8 @@ class TestCreateRestrictedKey:
 
         assert "libcxx, nts only" in capsys.readouterr().err
         with configured_database.connect() as connection:
-            assert connection.execute(select(api_key.c.suites)).scalar_one() == ["libcxx", "nts"]
+            (key,) = keys.list_keys(connection)
+        assert key.suites == ("libcxx", "nts")
 
     def test_says_a_key_without_suites_is_valid_in_every_one(
         self, configured_database: Engine, capsys: pytest.CaptureFixture[str]

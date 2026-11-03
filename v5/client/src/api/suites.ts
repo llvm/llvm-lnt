@@ -60,7 +60,8 @@ export async function updateSuite(queryClient: QueryClient, schema: SuiteSchema)
 /**
  * Forget the deleted `suite`: cancel a list of suites on its way, which may still hold it, drop it
  * from the cached list, and drop everything read from inside it, so that a suite created later
- * under the same name starts afresh.
+ * under the same name starts afresh. The list of API keys goes too, since the suite is gone from
+ * the keys restricted to it (I5), which would otherwise still show it.
  */
 export async function removeSuite(queryClient: QueryClient, suite: string): Promise<void> {
   await queryClient.cancelQueries({ queryKey: queryKeys.suites })
@@ -69,4 +70,6 @@ export async function removeSuite(queryClient: QueryClient, suite: string): Prom
     (list) => list && { items: list.items.filter((entry) => entry.name !== suite) },
   )
   queryClient.removeQueries({ queryKey: queryKeys.suite(suite) })
+  queryClient.removeQueries({ queryKey: queryKeys.apiKeys, type: 'inactive' })
+  void queryClient.invalidateQueries({ queryKey: queryKeys.apiKeys })
 }

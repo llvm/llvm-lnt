@@ -30,10 +30,12 @@ from sqlalchemy.exc import DBAPIError
 from conftest import code_of, entry, run_payload
 from introspection import counted, counting_statements, namespace_of
 from lnt_v5.errors import ApiError, ErrorCode
+from lnt_v5.keys import UnknownSuitesError, create_key, resolve_token
 from lnt_v5.routes.commits import COMMITS_PATH, Commits
 from lnt_v5.routes.machines import Machines
 from lnt_v5.routes.regressions import REGRESSIONS_PATH, IndicatorObject, Regressions
 from lnt_v5.routes.runs import RUNS_PATH, Runs
+from lnt_v5.scopes import Scope
 from lnt_v5.suites import inactivity
 from lnt_v5.suites import tables as suite_tables
 from lnt_v5.suites.concurrency import resolve_names
@@ -41,8 +43,10 @@ from lnt_v5.suites.registry import Suite, SuiteRegistry
 from lnt_v5.suites.schema import SuiteSchema
 from lnt_v5.suites.scope import suite_scope
 from lnt_v5.suites.states import RegressionState
+from lnt_v5.suites.store import locked_suite, suite_write
 from lnt_v5.suites.submission import SubmittedCommit, SubmittedMachine
 from lnt_v5.suites.tables import SuiteTables
+from lnt_v5.tables import schema as schema_table
 
 # A suite with a field of two different types on each entity, so that reconciliation is exercised
 # against something other than text, and one metric because D5 gives every suite a sample table.
@@ -1321,3 +1325,66 @@ class TestInactivityDeletion:
             "The machine this submission names was deleted from this test suite while the "
             "submission was being stored. Retry."
         )
+
+
+class TestKeyCreationRacingSuiteDeletion:
+    """E11: a key created while a suite it lists is deleted either gets 404, or is created and
+    loses the suite with the deletion -- never a 500, and never a key listing a deleted suite."""
+
+    @pytest.fixture(autouse=True)
+    def suites(self, db_engine: Engine) -> None:
+        # Rows alone: neither side reaches the suite's tables.
+        with db_engine.begin() as connection:
+            for name in ("libcxx", "nts"):
+                schema = SuiteSchema.model_validate({"name": name})
+                connection.execute(
+                    insert(schema_table).values(
+                        name=name,
+                        namespace=name,
+                        schema_json=schema.model_dump_json(),
+                        migration_version=0,
+                    )
+                )
+
+    @staticmethod
+    def delete_nts(connection: Connection) -> None:
+        """What deleting a suite does to its row (see `routes/suites.py`)."""
+        locked_suite(connection, "nts")
+        connection.execute(delete(schema_table).where(schema_table.c.name == "nts"))
+
+    def test_a_key_created_during_the_deletion_is_refused(
+        self, db_engine: Engine, background: Callable[..., Future[Any]]
+    ) -> None:
+        # Without the creation locking the suites it lists, it would read `nts` as still there,
+        # and fail on the foreign key of its restriction rows once the deletion commits: a 500.
+        losing = raced(
+            db_engine,
+            background,
+            self.delete_nts,
+            lambda connection: create_key(connection, "bot", Scope.SUBMIT, ["libcxx", "nts"]),
+        )
+
+        with pytest.raises(UnknownSuitesError) as raised:
+            losing.result(timeout=BLOCK_TIMEOUT)
+        assert raised.value.names == ("nts",)
+
+    def test_a_deletion_during_the_creation_removes_the_suite_from_the_key(
+        self, db_engine: Engine, background: Callable[..., Future[Any]]
+    ) -> None:
+        def delete_nts() -> None:
+            with suite_write(db_engine, "nts") as connection:
+                self.delete_nts(connection)
+
+        # The deletion waits for the key to be stored, well within its lock timeout, and then
+        # succeeds. Not `raced`, whose loser runs on a plain connection: the deletion runs as the
+        # route does, under `suite_write`'s lock timeout, which the wait must not exceed.
+        with db_engine.connect() as creating:
+            with creating.begin():
+                token = create_key(creating, "bot", Scope.SUBMIT, ["libcxx", "nts"]).token
+                deleting = background(delete_nts)
+                until_blocked(db_engine)
+            deleting.result(timeout=BLOCK_TIMEOUT)
+
+            key = resolve_token(creating, token)
+        assert key is not None
+        assert key.suites == ("libcxx",)

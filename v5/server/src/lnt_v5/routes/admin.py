@@ -50,7 +50,8 @@ class ApiKey(BaseModel):
         description=(
             "The test suites the key is restricted to, sorted by name. Null if it isn't "
             "restricted. A restricted key has its scope only in these suites, and can only read "
-            "everywhere else."
+            "everywhere else. A suite that is deleted is removed from the list, so the list is "
+            "empty once all of them are: the key then can only read."
         ),
         examples=[[examples.SUITE]],
     )
@@ -144,8 +145,10 @@ def create_api_key(
     Keys can't be changed and don't expire. To change a key's scope or test suites, create a new key
     and revoke the old one.
 
-    The test suites in `suites` must exist when the key is created. A key keeps naming a suite
-    that is deleted later, and so also applies to a suite created again with the same name.
+    The test suites in `suites` must exist when the key is created. A suite that is deleted later
+    is removed from the key, and a suite created again with the same name is a different suite,
+    which the key doesn't cover. A key whose suites have all been deleted stays restricted, and can
+    only read.
     """
     try:
         with engine.begin() as connection:

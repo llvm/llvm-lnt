@@ -384,6 +384,29 @@ describe('sorting the keys', () => {
     expect(store.requests).toHaveLength(1)
   })
 
+  it('shows Nothing for a key whose suites were all deleted, and sorts it last', async () => {
+    const orphan = apiKey('submit', {
+      prefix: '7d1e40aa',
+      name: 'swift-bot',
+      suites: [],
+      created_at: '2026-08-02T16:40:10Z',
+    })
+    const { list } = await renderKeys({ keys: [...KEYS.slice(0, 3), orphan, KEYS[3]] })
+
+    expect(rowsOf(list)[3]).toBe(
+      '7d1e40aa | swift-bot | submit | Nothing | 2026-08-02, 4:40:10 PM | Never | Yes | Revoke',
+    )
+    expect(within(list).getByText('Nothing')).toHaveAttribute(
+      'title',
+      'The suites it was restricted to have been deleted, so it can only read.',
+    )
+
+    fireEvent.click(within(list).getByRole('button', { name: 'Suites' }))
+    expect(prefixes(list)).toEqual(['229d78c5', 'aaaaaaaa', '135f502b', '3f0ac112', '7d1e40aa'])
+    fireEvent.click(within(list).getByRole('button', { name: /Suites/ }))
+    expect(prefixes(list)).toEqual(['7d1e40aa', '3f0ac112', '135f502b', '229d78c5', 'aaaaaaaa'])
+  })
+
   it('keeps the sort in the URL, leaving out the default one', async () => {
     const { list } = await renderKeys()
     expect(currentUrl()).toBe('/admin')
