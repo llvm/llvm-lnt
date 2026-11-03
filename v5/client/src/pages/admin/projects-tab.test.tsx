@@ -240,7 +240,7 @@ describe('gating (AR17)', () => {
     expect(deleteButton('swift')).toBeEnabled()
     const llvm =
       "Needs an API token with the 'manage' scope covering project 'llvm' in full. The token in " +
-      "Settings has the 'manage' scope, covering only 'Swift' (all)."
+      "Settings has the 'manage' scope, covering only 'Swift (all)'."
     const controls = ['Edit Display name of llvm', 'Edit Name of llvm', 'Delete project llvm']
     for (const control of controls) {
       expect(screen.getByRole('button', { name: control })).toHaveAttribute('title', llvm)

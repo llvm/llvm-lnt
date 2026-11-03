@@ -208,7 +208,7 @@ describe('useScopeGate', () => {
     await waitFor(() => expect(result.current.auth.status.state).toBe('valid'))
     expect(result.current.project.title).toBe(
       "Needs an API token with the 'manage' scope covering project 'LLVM' in full. The token in " +
-        "Settings has the 'manage' scope, covering only 'LLVM › gone', 'LLVM › libcxx', 'Swift' (all).",
+        "Settings has the 'manage' scope, covering only 'LLVM › gone', 'LLVM › libcxx', 'Swift (all)'.",
     )
   })
 
@@ -224,7 +224,7 @@ describe('useScopeGate', () => {
       disabled: true,
       title:
         "Needs an API token with the 'triage' scope in suite 'llvm › nts'. The token in Settings " +
-        "has the 'triage' scope, covering nothing: what it was restricted to has been deleted, so it " +
+        "has the 'triage' scope, covering nothing. What it was restricted to has been deleted, so it " +
         'can only read.',
     })
   })

@@ -242,7 +242,7 @@ function coversTree(projects: readonly Project[]) {
     return {
       value: project.name,
       label,
-      summary: `${label} (all)`,
+      summary: entryLabel({ project, suite: null }),
       note: project.suites.length === 0 ? '(no suites)' : undefined,
       children: project.suites.map((suite) => {
         const value = fullName(refOf(suite))
@@ -329,7 +329,7 @@ function CoversChoice({
 type SortColumn = (typeof KEY_SORT_COLUMNS)[number]
 
 /** What the hover of a key restricted to nothing says (AD1). */
-const NOTHING_HOVER = `${RESTRICTED_TO_NOTHING[0].toUpperCase()}${RESTRICTED_TO_NOTHING.slice(1)}.`
+const NOTHING_HOVER = `${RESTRICTED_TO_NOTHING}.`
 
 /**
  * Every column but the last, which holds each active key's Revoke button. `Covers` names what a key
