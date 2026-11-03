@@ -503,7 +503,7 @@ test.describe('the Projects tab', () => {
       )
       expect(shown).toMatchObject({ name: renamed, display_name: 'E2E project', suites: [] })
 
-      // Its suites, of which it has none, on the Test Suites page (TS1).
+      // Its suites, of which it has none, on the Projects page (TS1).
       await row(renamed).getByRole('link', { name: '0 suites of E2E project' }).click()
       await expect(page).toHaveURL(`/projects/${renamed}`)
       await expect(page.getByRole('main')).toContainText('No test suites.')

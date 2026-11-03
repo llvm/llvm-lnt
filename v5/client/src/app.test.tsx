@@ -23,7 +23,7 @@ describe('navbar', () => {
     renderAt('/')
 
     expect(screen.getByRole('link', { name: 'LNT' })).toHaveAttribute('href', '/')
-    expect(screen.getByRole('link', { name: 'Test Suites' })).toHaveAttribute('href', '/projects')
+    expect(screen.getByRole('link', { name: 'Projects' })).toHaveAttribute('href', '/projects')
     expect(screen.getByRole('link', { name: 'Graph' })).toHaveAttribute('href', '/graph')
     expect(screen.getByRole('link', { name: 'Compare' })).toHaveAttribute('href', '/compare')
     expect(screen.getByRole('link', { name: 'Profiles' })).toHaveAttribute('href', '/profiles')
@@ -37,7 +37,7 @@ describe('navbar', () => {
   ])('passes the suite of %s on to the suite-agnostic pages (AR4)', (url) => {
     renderAt(url)
 
-    expect(screen.getByRole('link', { name: 'Test Suites' })).toHaveAttribute(
+    expect(screen.getByRole('link', { name: 'Projects' })).toHaveAttribute(
       'href',
       '/projects/llvm/suites/nts',
     )
@@ -55,12 +55,23 @@ describe('navbar', () => {
     )
   })
 
+  // On the path alone, so that a project that does not exist stays where it is too.
+  it.each([['/projects/llvm'], ['/projects/nope']])(
+    'leads from the page of a project to that page again (AR4)',
+    (url) => {
+      renderAt(url)
+
+      expect(screen.getByRole('link', { name: 'Projects' })).toHaveAttribute('href', url)
+      expect(screen.getByRole('link', { name: 'Graph' })).toHaveAttribute('href', '/graph')
+    },
+  )
+
   it.each([['/graph?project=llvm&suite=nts'], ['/admin']])(
     'passes no suite on from the suite-agnostic page %s',
     (url) => {
       renderAt(url)
 
-      expect(screen.getByRole('link', { name: 'Test Suites' })).toHaveAttribute('href', '/projects')
+      expect(screen.getByRole('link', { name: 'Projects' })).toHaveAttribute('href', '/projects')
       expect(screen.getByRole('link', { name: 'Graph' })).toHaveAttribute('href', '/graph')
     },
   )
@@ -129,9 +140,9 @@ describe('footer', () => {
 describe('routing', () => {
   it.each([
     ['/', 'Dashboard'],
-    ['/projects', 'Test Suites'],
-    ['/projects/llvm', 'Test Suites'],
-    ['/projects/llvm/suites/nts', 'Test Suites'],
+    ['/projects', 'Projects'],
+    ['/projects/llvm', 'Projects'],
+    ['/projects/llvm/suites/nts', 'Projects'],
     ['/projects/llvm/suites/nts/machines/linux-x86_64', 'Machine: linux-x86_64'],
     ['/projects/llvm/suites/nts/runs/550e8400-e29b-41d4-a716-446655440000', 'Run: 550e8400'],
     ['/projects/llvm/suites/nts/commits/abc123', 'Commit: abc123'],

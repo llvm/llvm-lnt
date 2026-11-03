@@ -9,6 +9,7 @@ import { BARE_SUITE, PROJECT, REF, SUITE, cursorPage } from '../../../test/fixtu
 import { answerLeaving, unloadAsks } from '../../../test/leave'
 import { errorResponse, mockApi } from '../../../test/mock-api'
 import {
+  chipLink,
   currentUrl,
   gate,
   main,
@@ -202,12 +203,6 @@ describe('opening the editor on a suite', () => {
 })
 
 describe('leaving the tab', () => {
-  function card(name: string) {
-    return within(screen.getByRole('navigation', { name: 'Test suites' })).getByRole('link', {
-      name,
-    })
-  }
-
   const CODE_SIZE = { name: 'Display name of metric code_size' }
 
   function codeSize() {
@@ -289,8 +284,9 @@ describe('leaving the tab', () => {
 
     await openChanged()
     const confirm = answerLeaving(true)
-    fireEvent.click(card('nts'))
-    await waitFor(() => expect(currentUrl()).toBe('/projects/llvm/suites/nts'))
+    // The other suite's chip keeps the Schema tab (TS1).
+    fireEvent.click(chipLink('Test suites', 'nts'))
+    await waitFor(() => expect(currentUrl()).toBe('/projects/llvm/suites/nts?tab=schema'))
     expect(confirm).toHaveBeenCalledOnce()
     browser('back')
     await waitFor(() => expect(currentUrl()).toBe('/projects/llvm/suites/libcxx?tab=schema'))
@@ -302,11 +298,11 @@ describe('leaving the tab', () => {
     expectEditor()
     confirm.mockReturnValue(true)
     browser('forward')
-    await waitFor(() => expect(currentUrl()).toBe('/projects/llvm/suites/nts'))
+    await waitFor(() => expect(currentUrl()).toBe('/projects/llvm/suites/nts?tab=schema'))
     expect(confirm).toHaveBeenCalledTimes(3)
 
-    fireEvent.click(card('libcxx'))
-    fireEvent.click(await screen.findByRole('tab', { name: 'Schema' }))
+    fireEvent.click(chipLink('Test suites', 'libcxx'))
+    await waitFor(() => expect(currentUrl()).toBe('/projects/llvm/suites/libcxx?tab=schema'))
     await changeAgain()
     confirm.mockReturnValue(false)
     browser('back')
@@ -314,7 +310,7 @@ describe('leaving the tab', () => {
     expectEditor()
     confirm.mockReturnValue(true)
     browser('back')
-    await waitFor(() => expect(currentUrl()).toBe('/projects/llvm/suites/nts'))
+    await waitFor(() => expect(currentUrl()).toBe('/projects/llvm/suites/nts?tab=schema'))
     expect(confirm).toHaveBeenCalledTimes(5)
     browser('forward')
     await waitFor(() => expect(currentUrl()).toBe('/projects/llvm/suites/libcxx?tab=schema'))
@@ -322,17 +318,18 @@ describe('leaving the tab', () => {
     await expectViewer()
   })
 
-  it("by the suite's own card, or the navbar, asks first", async () => {
+  it("by the navbar asks first, and the suite's own chip goes nowhere", async () => {
     await openChanged()
     const confirm = answerLeaving(false)
 
-    fireEvent.click(card('libcxx'))
+    fireEvent.click(chipLink('Test suites', 'libcxx'))
+    expect(confirm).not.toHaveBeenCalled()
     fireEvent.click(navbarLink('Graph'))
-    expect(confirm).toHaveBeenCalledTimes(2)
+    expect(confirm).toHaveBeenCalledOnce()
     expectEditor()
 
     confirm.mockReturnValue(true)
-    fireEvent.click(navbarLink('Test Suites'))
+    fireEvent.click(navbarLink('Projects'))
     await waitFor(() => expect(currentUrl()).toBe('/projects/llvm/suites/libcxx'))
     expect(editor()).not.toBeInTheDocument()
     fireEvent.click(screen.getByRole('tab', { name: 'Schema' }))
@@ -769,15 +766,13 @@ describe('saving', () => {
     })
     typeInto(screen.getByRole('textbox', { name: 'Display name of metric code_size' }), 'Odd')
     fireEvent.click(saveButton())
-    const card = within(screen.getByRole('navigation', { name: 'Test suites' })).getByRole('link', {
-      name: 'nts',
-    })
-    card.focus()
+    const chip = chipLink('Test suites', 'nts')
+    chip.focus()
 
     await act(async () => reply.open())
 
     expect(await main().findByText("Test suite 'llvm/libcxx' not found.")).not.toHaveFocus()
-    expect(card).toHaveFocus()
+    expect(chip).toHaveFocus()
   })
 
   it('has the list of suites fetched again when an entry was added meanwhile', async () => {

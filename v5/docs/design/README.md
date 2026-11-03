@@ -73,7 +73,7 @@ e.g. `D5`, `I4` or `GR8`.
 |----------|----------|----------|
 | [Architecture](client/architecture.md) | AR | SPA design, client-side routing, navigation bar, conventions shared by every page, projects and suites in the UI |
 | [Dashboard](client/dashboard.md) | DA | Landing page with sparkline trend overview across test suites, grouped by project |
-| [Test Suites](client/test-suites.md) | TS | Test Suites page (suite picker grouped by project + tabs): Runs, Machines, Commits, Regressions, Schema (viewer, editor, renaming and moving) |
+| [Projects](client/test-suites.md) | TS | Projects page (project and suite chips + a suite's tabs): Runs, Machines, Commits, Regressions, Schema (viewer, editor, renaming and moving) |
 | [Detail Pages](client/details.md) | DT | Machine Detail, Run Detail, Commit Detail, and Regression Detail entity pages |
 | [Graph](client/graph.md) | GR | Time-series visualization: multi-machine, lazy loading, test selection, baselines, point details, regression annotations, highlighted commits |
 | [Compare](client/compare.md) | CP | Side-by-side comparison of two commits: selection panel, comparison table, ratio chart, geomean summary, shadow traces, adding to a regression |

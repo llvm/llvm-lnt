@@ -41,8 +41,8 @@ test('the Machines tab links to the page of each machine, whose trail leads back
   await trail.getByRole('link', { name: 'libc++', exact: true }).click()
   await expect(page).toHaveURL('/projects/libcxx')
   await expect(
-    page.getByRole('navigation', { name: 'Test suites' }).getByRole('heading'),
-  ).toHaveText(['libc++'])
+    page.getByRole('navigation', { name: 'Projects' }).getByRole('link', { name: 'libc++' }),
+  ).toHaveAttribute('aria-current', 'page')
 })
 
 test('shows the machine and its active regressions, and links to all of them', async ({
@@ -279,7 +279,7 @@ test('a machine deleted is not shown again when the history leads back to its pa
 }, testInfo) => {
   await ownSuite(request, tokenFor, testInfo, RUNS, async (suite) => {
     await signIn(page, 'manage')
-    // The machine's page, its run's, then the machine's again. The Test Suites page is not visited,
+    // The machine's page, its run's, then the machine's again. The Projects page is not visited,
     // so that its code is still to be loaded when the deletion leaves for it.
     await page.goto(`${suitePath(suite)}/machines/m1`)
     await table(page, 'Run history').getByRole('link').first().click()

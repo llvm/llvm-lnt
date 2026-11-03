@@ -1,36 +1,41 @@
-# v5 Web UI: Test Suites
+# v5 Web UI: Projects page
 
-Page specifications for the Test Suites page (suite picker + tabs), including the Schema tab and
-the schema editor.
+Page specifications for the Projects page (project and suite chips + a suite's tabs), including
+the Schema tab and the schema editor.
 
 
-## TS1: Test Suites -- `/projects`, `/projects/{p}` and `/projects/{p}/suites/{s}`
+## TS1: Projects -- `/projects`, `/projects/{p}` and `/projects/{p}/suites/{s}`
 
 The primary entry point for browsing test suite data, and for maintaining a
-suite's schema (see TS6). The page shows a suite picker, which depends on the
-path:
+suite's schema (see TS6). The page, titled "Projects", shows a row of chips, one
+per project, those without suites included, labelled and ordered as AR22 says.
+Below it, a row of chips for the suites of the selected project, each by its own
+label, in AR22's order. What is selected depends on the path:
 
-- `/projects` shows the suites of every project, each project under a heading
-  with its label, linking to `/projects/{p}` (see AR22). A project without
-  suites says that it has none. When there are no projects, the page says so.
-- `/projects/{p}` shows the suites of that project alone, under its heading,
-  with no suite selected and no tabs. When the project has no suites, it says
-  so instead. When `{p}` names no project, the page says that the project was
-  not found.
-- `/projects/{p}/suites/{s}` shows the suites of project `{p}`, as
-  `/projects/{p}` does, with `{s}` selected, plus the tabbed content for that
-  suite. When `{p}` names no project, the page says that the project was not
-  found, as on `/projects/{p}`. When `{s}` names no suite of the project, the
-  page shows the picker and says that the suite was not found.
+- `/projects` goes to `/projects/{p}`, without query parameters, for the first
+  project, once the projects have loaded. That page takes the place of
+  `/projects` in the history rather than adding an entry (an exception to AR2
+  "State"). When there are no projects, the page says so.
+- `/projects/{p}` selects the project `{p}`, and no suite. When the project
+  has no suites, the page says so in place of the row of suites.
+- `/projects/{p}/suites/{s}` selects the project `{p}` and its suite `{s}`, and
+  shows the tabbed content for that suite below the chips.
 
-Except on `/projects` itself, an "All projects" link above the picker leads to
-`/projects`. Only a failure to load the list of projects in the first place
-takes the place of the page, with a way to try again; when the list is fetched
-again and that fails, the page keeps showing what it shows (see AR7).
+When `{p}` names no project, on either path, the page shows the row of projects,
+none selected, and says that the project was not found. When `{s}` names no
+suite of the project, the page shows both rows, no suite selected, and says that
+the suite was not found. Only a failure to load the list of projects in the
+first place takes the place of the page, with a way to try again; when the list
+is fetched again and that fails, the page keeps showing what it shows (see AR7).
 
-**Suite picker**: A row of prominent card/button elements, one per test suite,
-labelled and ordered as AR22 says. Clicking a card selects it (highlighted) and
-shows the tab bar below, navigating to `/projects/{p}/suites/{name}`.
+**Chips**: Each chip is a link (see AR2 "Routing"), and the selected one says to
+assistive technology that it is the current one. A project's chip leads to
+`/projects/{p}`. A suite's chip leads to the tab shown, in its default state, of
+that suite: picking another suite keeps the tab, but clears the search, the
+filters and the pagination position, as switching tabs does. Away from a suite's
+tabs, a suite's chip leads to its default tab. Clicking the selected chip does
+nothing, though a modified click still opens it in a new tab. The chips look
+like the Regressions tab's state chips (see TS5 and AR5).
 
 **Tabs**: [Runs] [Machines] [Commits] [Regressions] [Schema]. Default tab is Runs.
 Switching tabs clears the search, the filters and the pagination position.
@@ -127,8 +132,8 @@ fields (see O4).
 
 ## TS5: Regressions tab
 
-The Regressions tab embeds the full regression triage UI directly in the Test
-Suites page.
+The Regressions tab embeds the full regression triage UI directly in the Projects
+page.
 
 **Filters** (control panel above table):
 - State: multi-select chips (detected, active, not_to_be_fixed, fixed,

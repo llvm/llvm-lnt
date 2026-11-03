@@ -145,7 +145,7 @@ The table has a row for each project, those without suites included, in AR22's o
 - `Display name` is edited in place (see AR12), and shows `--` when the project has none.
   Emptying it clears the display name. Saving is not confirmed. It requires `manage` covering the
   project in full (see I5).
-- `Suites` is the number of the project's suites, linking to them on the Test Suites page
+- `Suites` is the number of the project's suites, linking to them on the Projects page
   (`/projects/{p}`, see TS1).
 - A red Delete button, which requires `manage` covering the project in full, is disabled while
   the project has suites, saying why on hover. Clicking it asks for a plain confirmation (see AR16),

@@ -217,7 +217,7 @@ test('leads from a suite that shows no metric to its schema, where one is chosen
   })
 })
 
-test('groups the suites by project, under headings leading to the Test Suites page', async ({
+test('groups the suites by project, under headings leading to the Projects page', async ({
   page,
 }) => {
   await page.goto('/')

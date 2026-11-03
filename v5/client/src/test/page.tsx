@@ -75,6 +75,26 @@ export function trailLink(name: string) {
   return trail().getByRole('link', { name })
 }
 
+/** A row of chips of the Projects page (TS1): those of the projects, or those of the suites. */
+type ChipRow = 'Projects' | 'Test suites'
+
+/** Queries within the row of chips `row`. */
+export function chipRow(row: ChipRow) {
+  return within(screen.getByRole('navigation', { name: row }))
+}
+
+/** The chip of `row` named `name`. */
+export function chipLink(row: ChipRow, name: string) {
+  return chipRow(row).getByRole('link', { name })
+}
+
+/** The texts of the chips of `row`. */
+export function chipTexts(row: ChipRow) {
+  return chipRow(row)
+    .getAllByRole('link')
+    .map((link) => link.textContent)
+}
+
 export function currentUrl() {
   return screen.getByTestId('url').textContent
 }

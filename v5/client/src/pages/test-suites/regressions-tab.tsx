@@ -17,6 +17,7 @@ import { hasMachine } from '../../api/machines'
 import { LinkableText } from '../../components/linkable-text'
 import { useMachineSuggestions } from '../../components/machine-suggestions'
 import { CursorPager } from '../../components/pagination'
+import { isPlainClick } from '../../components/plain-click'
 import { StateBadge, StateChips } from '../../components/regression-state'
 import { Select } from '../../components/select'
 import { useRowConfirm } from '../../components/use-row-confirm'
@@ -110,7 +111,7 @@ export function RegressionsTab({ schema, search, onSearch, filters, onFilters: u
   // something of its own (its links and its Delete button), a modified click, which AR2 "Routing"
   // leaves to the browser, and a click that ends selecting the row's text.
   const openRow = (regression: Regression) => (event: MouseEvent) => {
-    if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey) return
+    if (!isPlainClick(event)) return
     if ((event.target as Element).closest('a, button')) return
     // Not a click in a commit's card, which React passes up from its portal.
     if (!event.currentTarget.contains(event.target as Node)) return

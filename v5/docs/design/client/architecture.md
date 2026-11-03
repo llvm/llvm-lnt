@@ -21,7 +21,7 @@ within the UI causes a full page reload.
 
 - **Routing**: Simple path-based client-side router. No full page reload when
   navigating within the SPA. Modified clicks (Cmd+Click, Ctrl+Click,
-  Shift+Click, middle-click) bypass the SPA router and let the browser handle
+  Shift+Click, Alt+Click, middle-click) bypass the SPA router and let the browser handle
   them natively (e.g. open in a new tab).
 - **Serving**: The server returns the SPA's `index.html` for any path that is
   not `/api/...`, `/llms.txt`, `/robots.txt`, `/healthz`, or a static asset.
@@ -67,9 +67,9 @@ within the UI causes a full page reload.
 
 ```
 /                                             Dashboard (landing page -- sparkline trend overview)
-/projects                                     Test Suites (every project's suites; see TS1)
-/projects/{p}                                 Test Suites (the suites of one project)
-/projects/{p}/suites/{s}                      Test Suites (browsing tabs and schema of the selected suite)
+/projects                                     Projects (goes to the first project's page; see TS1)
+/projects/{p}                                 Projects (the suites of one project)
+/projects/{p}/suites/{s}                      Projects (browsing tabs and schema of the selected suite)
 /projects/{p}/suites/{s}/machines/{name}      Machine Detail
 /projects/{p}/suites/{s}/runs/{uuid}          Run Detail
 /projects/{p}/suites/{s}/commits/{value}      Commit Detail
@@ -86,7 +86,7 @@ A path that matches no page shows a "page not found" page.
 ## AR4: Navigation Bar
 
 ```
-[LNT] [Test Suites] [Graph] [Compare] [Profiles] [API]  <---->  [Admin] [Settings]
+[LNT] [Projects] [Graph] [Compare] [Profiles] [API]  <---->  [Admin] [Settings]
 ```
 
 All navbar links use SPA navigation. There is no full page reload anywhere in
@@ -98,9 +98,11 @@ a new tab -- that is a separate document, not an SPA route.
 
 Graph, Compare, and Profiles links append `?project={p}&suite={s}` /
 `?project_a={p}&suite_a={s}` when navigated from a suite-scoped page,
-pre-filling the current suite. The Test Suites link targets
-`/projects/{p}/suites/{s}` when followed from a page of that suite, to preserve
-the suite context, and `/projects` otherwise (see TS1).
+pre-filling the current suite. The Projects link targets
+`/projects/{p}/suites/{s}` when followed from a page of that suite,
+`/projects/{p}` when followed from the page of project `{p}`, to preserve the
+context, and `/projects` otherwise (see TS1). The target depends on the path
+alone: a path naming a project or a suite that does not exist leads to itself.
 
 Every page ends with a footer in small, muted text, `LNT v5 · {revision}`, where
 the revision is the API index's `revision` (E1), linking to
@@ -225,7 +227,7 @@ samples. The rows it filters, and any chart that depends on them, may update
 just after.
 
 Inputs that search the server rather than filter data already loaded -- the
-Test Suites tabs' searches (TS1), commit pickers (AR15) and the regression
+suite tabs' searches (TS1), commit pickers (AR15) and the regression
 picker (CP9) -- ask the server again as the user types (debounced), from the
 first page. A response for earlier text never replaces the one for the current
 text, though the previous results may stay up until the current ones arrive.
@@ -538,7 +540,8 @@ has one (see D4 and D7), and with its `name` otherwise, including until its
 display name is known. A suite's *full label* is its project's label and its
 own, separated by a `/` (`libc++/Benchmarks`). It names the suite wherever its
 project is not named beside it, such as a dropdown's selected suite, a chip or a
-prompt. Under the heading of its project, a suite is named by its own label.
+prompt. Under the heading of its project, or beside its project's selected chip
+on the Projects page (TS1), a suite is named by its own label.
 Links, URLs, API requests, the text typed to confirm a deletion (AR16), and the
 old and new names of a suite or a project in the prompts confirming that it is
 renamed or moved (TS6, AD3) use names rather than labels.
@@ -554,8 +557,8 @@ both are listed (as in what a key covers). Labels are compared
 case-insensitively and in the order of the browser's language, and ties are
 broken by name.
 
-**Grouping.** A control that picks a suite lists the suites under a heading for
-each project (see AR5), and leaves out the projects without suites. A control
-or a page that picks, lists or manages projects shows every project, including
-those without suites, which say that they have none where the page shows a
-project's suites.
+**Grouping.** A dropdown or a combobox that picks a suite lists the suites under
+a heading for each project (see AR5), and leaves out the projects without
+suites. A control or a page that picks, lists or manages projects shows every
+project, including those without suites, which say that they have none where
+the page shows a project's suites.

@@ -4,7 +4,7 @@ import { lazy } from 'react'
 // components rather than lazy routes, which would keep the page left, and its URL, until the new
 // page's code has loaded.
 export const Dashboard = lazy(() => import('./dashboard'))
-export const TestSuites = lazy(() => import('./test-suites'))
+export const Projects = lazy(() => import('./test-suites'))
 export const MachineDetail = lazy(() => import('./details/machine-detail'))
 export const RunDetail = lazy(() => import('./details/run-detail'))
 export const CommitDetail = lazy(() => import('./details/commit-detail'))

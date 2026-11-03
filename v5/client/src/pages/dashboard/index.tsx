@@ -105,7 +105,7 @@ export default function Dashboard() {
 
 /**
  * A project's section (DA1): its suites' sections, under a heading with its label linking to its
- * suites on the Test Suites page, or that it has none.
+ * suites on the Projects page, or that it has none.
  */
 function ProjectSection({ project, range }: { project: Project; range: number }) {
   const headingId = useId()

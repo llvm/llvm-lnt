@@ -1,0 +1,26 @@
+/*
+ * The look of a chip that can be selected (AR5): the Regressions tab's state chips (TS5), and the
+ * Projects page's chips of projects and suites (TS1). A chip's owner gives it the rest of a
+ * button's look. Selected, it takes the colours of `--chip-bg`, `--chip-fg` and `--chip-border`,
+ * the accent's unless its owner sets them.
+ */
+/* A row of chips. */
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--lnt-space-1);
+}
+
+.chip {
+  border-radius: 999px;
+  font-size: 0.85rem;
+}
+
+.chip[aria-pressed='true'],
+.chip[aria-pressed='true']:hover:not(:disabled),
+.chip[aria-current]:not([aria-current='false']) {
+  border-color: var(--chip-border, var(--lnt-accent));
+  background: var(--chip-bg, color-mix(in srgb, var(--lnt-accent) 12%, var(--lnt-bg)));
+  /* Not bold: a wider label would shift the chips after it. */
+  color: var(--chip-fg, var(--lnt-accent));
+}

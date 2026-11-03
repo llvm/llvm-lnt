@@ -4,11 +4,13 @@
 
 import { expect, REAL_RUN, test } from './fixtures.ts'
 
+/** The page of a project, where `/projects` goes on to, for the first project (TS1). */
+const A_PROJECT = /^[^?]*\/projects\/[^/?]+$/
+
 test.describe('routing', () => {
   for (const [url, heading] of [
-    ['/projects', 'Test Suites'],
-    ['/projects/libcxx', 'Test Suites'],
-    ['/projects/libcxx/suites/benchmarks', 'Test Suites'],
+    ['/projects/libcxx', 'Projects'],
+    ['/projects/libcxx/suites/benchmarks', 'Projects'],
     [`/projects/libcxx/suites/benchmarks/runs/${REAL_RUN}`, `Run: ${REAL_RUN}`],
     ['/graph?project=libcxx&suite=benchmarks', 'Graph'],
   ]) {
@@ -22,14 +24,20 @@ test.describe('routing', () => {
     })
   }
 
+  test('a deep link to /projects goes on to the first project', async ({ page }) => {
+    await page.goto('/projects')
+    await expect(page).toHaveURL(A_PROJECT)
+    await expect(page.getByRole('heading', { level: 1 })).toHaveText('Projects')
+  })
+
   test('the navbar navigates without reloading the page', async ({ page }) => {
     await page.goto('/')
     // A full page load would start from a fresh document, without this.
     await page.evaluate(() => (document.documentElement.dataset.loadedOnce = 'yes'))
 
-    const navbar = page.getByRole('navigation')
+    const navbar = page.getByRole('navigation').first()
     for (const [link, url, heading] of [
-      ['Test Suites', '/projects', 'Test Suites'],
+      ['Projects', A_PROJECT, 'Projects'],
       ['Graph', '/graph', 'Graph'],
       ['Compare', '/compare', 'Compare'],
       ['Profiles', '/profiles', 'Profiles'],
