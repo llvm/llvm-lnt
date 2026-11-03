@@ -1,4 +1,12 @@
-import { useId, useLayoutEffect, useRef, useState, type KeyboardEvent, type ReactNode } from 'react'
+import {
+  useId,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type KeyboardEvent,
+  type ReactNode,
+  type RefObject,
+} from 'react'
 import { VisuallyHidden } from 'react-aria-components'
 import type { ScopeGate } from '../auth/scope'
 import { MISSING } from '../format'
@@ -68,6 +76,8 @@ interface Props {
    * prevents. The input closes once it resolves, and stays open, saying why, if it rejects.
    */
   onSave(text: string | null): Promise<unknown>
+  /** The Edit button, for its owner to focus, as once the field shows another value. */
+  editRef?: RefObject<HTMLButtonElement | null>
 }
 
 /**
@@ -92,6 +102,7 @@ export function InlineEdit({
   describedBy,
   confirm,
   onSave,
+  editRef,
 }: Props) {
   const [editing, setEditing] = useState(false)
   const [text, setText] = useState('')
@@ -104,7 +115,8 @@ export function InlineEdit({
   const [error, setError] = useState<unknown>(null)
   const reasonId = useId()
   const gateId = useId()
-  const editButton = useRef<HTMLButtonElement>(null)
+  const ownEditButton = useRef<HTMLButtonElement>(null)
+  const editButton = editRef ?? ownEditButton
   const form = useRef<HTMLFormElement>(null)
   // Whether the focus goes to the input, or back to Edit, once the editor has opened or closed.
   const refocus = useRef(false)
@@ -116,7 +128,7 @@ export function InlineEdit({
     refocus.current = false
     if (editing) focusInput()
     else editButton.current?.focus()
-  }, [editing])
+  }, [editing, editButton])
 
   const term = text.trim()
   const reason = term === '' ? required : invalid?.(term)

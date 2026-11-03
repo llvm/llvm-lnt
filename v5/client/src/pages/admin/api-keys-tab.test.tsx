@@ -218,12 +218,15 @@ describe('the Admin page', () => {
     expect(await screen.findByRole('heading', { level: 1 })).toHaveTextContent('Admin')
     expect(screen.getAllByRole('tab').map((tab) => tab.textContent)).toEqual([
       'API Keys',
+      'Projects',
       'Test Suites',
     ])
     expect(screen.getByRole('tab', { name: 'API Keys' })).toHaveAttribute('aria-selected', 'true')
 
     fireEvent.click(screen.getByRole('tab', { name: 'Test Suites' }))
     await waitFor(() => expect(currentUrl()).toBe('/admin?tab=suites'))
+    fireEvent.click(screen.getByRole('tab', { name: 'Projects' }))
+    await waitFor(() => expect(currentUrl()).toBe('/admin?tab=projects'))
     fireEvent.click(screen.getByRole('tab', { name: 'API Keys' }))
     await waitFor(() => expect(currentUrl()).toBe('/admin'))
   })

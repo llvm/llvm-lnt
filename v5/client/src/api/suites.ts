@@ -1,5 +1,5 @@
 import { queryOptions, useQuery, type QueryClient } from '@tanstack/react-query'
-import { api, unwrap, type Schemas } from './client'
+import { api, ApiError, unwrap, type Schemas } from './client'
 import { compareProjects, compareSuites, fullLabelOf } from '../labels'
 import { forgetSuite, queryKeys } from './keys'
 import { suiteRef, type SuiteRef } from './suite-ref'
@@ -134,6 +134,17 @@ async function editProjects(
 }
 
 /**
+ * Fetch the list of projects again if `error`, a write's failure, says that it is out of date: that
+ * what the write named was deleted elsewhere, or that a name it gave was taken there. The list then
+ * shows it gone, or the name check says so.
+ */
+export function refetchProjectsIfOutdated(queryClient: QueryClient, error: unknown): void {
+  if (error instanceof ApiError && (error.code === 'not_found' || error.code === 'duplicate')) {
+    refetchProjects(queryClient)
+  }
+}
+
+/**
  * Put `schema`, as the API returned it after a write, in the list of projects, as a suite of the
  * project `project`: in place of the suite's schema, or as a new suite of the project, once the
  * suite `from`, if given, is taken out of its project (see `editProjects`). A list that does not
@@ -239,5 +250,76 @@ export async function removeSuite(queryClient: QueryClient, suite: SuiteRef): Pr
     outdated: false,
   }))
   queryClient.removeQueries({ queryKey: queryKeys.suite(suite) })
+  forgetApiKeys(queryClient)
+}
+
+/** A project as the API returns it, with its suites' schemas (E13). */
+type ProjectSchema = Schemas['Project']
+
+/**
+ * Put `project`, as the API returned it after a write, in the list of projects: in place of the
+ * project `from`, its old name, or as a new project without `from` (see `editProjects`). An entry
+ * already under its name, a project deleted elsewhere since the list was fetched, goes. A list that
+ * does not hold `from`, deleted elsewhere since it was fetched, is asked for again.
+ */
+async function putProject(
+  queryClient: QueryClient,
+  project: ProjectSchema,
+  from?: string,
+): Promise<void> {
+  await editProjects(queryClient, (list) => ({
+    items: [...list.filter((entry) => entry.name !== project.name && entry.name !== from), project],
+    outdated: from !== undefined && !list.some((entry) => entry.name === from),
+  }))
+}
+
+/**
+ * Add the created `project` to the list of projects, and drop everything read from inside the
+ * suites of an earlier project of the same name, deleted elsewhere, so that the new one starts
+ * afresh.
+ */
+export async function addProject(queryClient: QueryClient, project: ProjectSchema): Promise<void> {
+  await putProject(queryClient, project)
+  queryClient.removeQueries({ queryKey: queryKeys.projectSuites(project.name) })
+}
+
+/** Put `project`, whose display name changed, in the list of projects. */
+export async function updateProject(
+  queryClient: QueryClient,
+  project: ProjectSchema,
+): Promise<void> {
+  await putProject(queryClient, project, project.name)
+}
+
+/**
+ * Put the project `from`, renamed (D7), in the list of projects, as the API returned it, and drop
+ * everything read from inside its suites under the old name, so that it is never shown for whatever
+ * later takes that name (AR16), and from inside the suites of an earlier project of the new name,
+ * deleted elsewhere. Dropping them outright is safe: every page of a suite reads the suite from the
+ * list of projects, so once the list holds the new name, a page still under the old one says that
+ * the suite was not found, and stops reading from it. The list of API keys goes too, since it names
+ * the projects and suites the keys list by their names.
+ */
+export async function renameProject(
+  queryClient: QueryClient,
+  from: string,
+  project: ProjectSchema,
+): Promise<void> {
+  await putProject(queryClient, project, from)
+  queryClient.removeQueries({ queryKey: queryKeys.projectSuites(from) })
+  queryClient.removeQueries({ queryKey: queryKeys.projectSuites(project.name) })
+  forgetApiKeys(queryClient)
+}
+
+/**
+ * Forget the deleted project `name`: drop it from the cached list of projects, once a list on its
+ * way, which may still hold it, is cancelled (see `editProjects`). The list of API keys goes too,
+ * since the project is gone from the keys that listed it (I5), which would otherwise still show it.
+ */
+export async function removeProject(queryClient: QueryClient, name: string): Promise<void> {
+  await editProjects(queryClient, (list) => ({
+    items: list.filter((entry) => entry.name !== name),
+    outdated: false,
+  }))
   forgetApiKeys(queryClient)
 }

@@ -1,10 +1,10 @@
 import { useEffect, useId, useRef, useState, type FormEvent } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { ApiError, authedApi, unwrap, type Schemas } from '../../api/client'
+import { authedApi, unwrap, type Schemas } from '../../api/client'
 import {
   addSuite,
   findSuite,
-  refetchProjects,
+  refetchProjectsIfOutdated,
   suiteOfFullName,
   suiteRef,
   useProjects,
@@ -255,11 +255,7 @@ function useCreateSuite() {
         }),
       ),
     onSuccess: (schema, { project }) => addSuite(queryClient, project, schema),
-    onError: (error) => {
-      if (error instanceof ApiError && (error.code === 'duplicate' || error.code === 'not_found')) {
-        refetchProjects(queryClient)
-      }
-    },
+    onError: (error) => refetchProjectsIfOutdated(queryClient, error),
   })
 }
 

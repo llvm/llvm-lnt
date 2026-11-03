@@ -5,6 +5,7 @@ import { enumParam, tabSettings } from '../../url-state'
 
 export const TABS = [
   { id: 'api-keys', label: 'API Keys' },
+  { id: 'projects', label: 'Projects' },
   { id: 'suites', label: 'Test Suites' },
 ] as const
 
@@ -38,5 +39,6 @@ export const PARAMS = {
  */
 export const { reset: resetSettings, unused: unusedSettings } = tabSettings(PARAMS, {
   'api-keys': ['sort'],
+  projects: [],
   suites: [],
 })

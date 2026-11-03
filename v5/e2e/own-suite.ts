@@ -19,6 +19,14 @@ export interface OwnRun {
 }
 
 /**
+ * A name of the test's own, one that no other test uses, that D7 allows for a project or a suite,
+ * at most `length` characters long, so that a suffix can follow it.
+ */
+export function ownName(testInfo: TestInfo, length: number): string {
+  return `e2e-${testInfo.testId.toLowerCase().replace(/[^a-z0-9]/g, '-')}`.slice(0, length)
+}
+
+/**
  * Create a project of the test's own, one that no other test uses, and call `use` with a suite of
  * the test's own in it, to create: the project is named after the test, and the suite after the
  * project, with `-s` after it, so that a client mixing up the two names cannot pass. Once `use`
@@ -31,7 +39,7 @@ export async function withOwnSuite(
   testInfo: TestInfo,
   use: (suite: SuiteRef) => Promise<void>,
 ) {
-  const project = `e2e-${testInfo.testId.toLowerCase().replace(/[^a-z0-9]/g, '-')}`.slice(0, 62)
+  const project = ownName(testInfo, 62)
   const suite = { project, suite: `${project}-s` }
   const headers = { Authorization: `Bearer ${manageToken}` }
   const created = await request.post('/api/projects', { headers, data: { name: project } })

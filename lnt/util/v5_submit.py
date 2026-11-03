@@ -163,8 +163,9 @@ def _create_suite(client: Client, project: str, suite: str, full: str,
         raise SubmitError("suite '%s' already exists; submit to it without "
                           '--create-suite' % full)
     if response.status_code == 404:
-        raise SubmitError("there is no project '%s'; create it first, "
-                          'with POST /api/projects' % project)
+        raise SubmitError("there is no project '%s'; create it first, from "
+                          "the Admin page's Projects tab or with "
+                          'POST /api/projects' % project)
     if response.status_code != 201:
         raise SubmitError("suite '%s' could not be created: %s"
                           % (full, _message(response)))

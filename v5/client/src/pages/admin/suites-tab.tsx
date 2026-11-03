@@ -20,7 +20,7 @@ export function SuitesTab() {
   const list = projects.data
   const reason =
     list?.length === 0
-      ? 'There are no projects to create a suite in.'
+      ? 'There are no projects to create a suite in. Create one in the Projects tab.'
       : refusalInEvery('manage', list, status, list)
   const navigate = useNavigate()
   const [creating, setCreating] = useState(false)

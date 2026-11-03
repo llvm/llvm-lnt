@@ -2,10 +2,11 @@ import { useEffect } from 'react'
 import { Tabs } from '../../components/tabs'
 import { useUrlState } from '../../url-state'
 import { ApiKeysTab } from './api-keys-tab'
+import { ProjectsTab } from './projects-tab'
 import { PARAMS, TABS, resetSettings, unusedSettings, type TabId } from './settings'
 import { SuitesTab } from './suites-tab'
 
-/** The Admin page: its API Keys (AD1) and Test Suites (AD2) tabs. */
+/** The Admin page: its API Keys (AD1), Projects (AD3) and Test Suites (AD2) tabs. */
 export default function Admin() {
   const [settings, update] = useUrlState(PARAMS)
   const { tab, sort } = settings
@@ -22,11 +23,11 @@ export default function Admin() {
     <section>
       <h1>Admin</h1>
       <Tabs label="Admin tools" tabs={TABS} selected={tab} onSelect={select}>
-        {tab === 'api-keys' ? (
+        {tab === 'api-keys' && (
           <ApiKeysTab sort={sort} onSort={(value) => update({ sort: value })} />
-        ) : (
-          <SuitesTab />
         )}
+        {tab === 'projects' && <ProjectsTab />}
+        {tab === 'suites' && <SuitesTab />}
       </Tabs>
     </section>
   )
