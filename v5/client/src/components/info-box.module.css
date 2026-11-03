@@ -1,6 +1,8 @@
 .box {
   display: grid;
   grid-template-columns: max-content minmax(0, 1fr);
+  /* A label in line with its value's first line, or with the text of an input in its place. */
+  align-items: baseline;
   gap: var(--lnt-space-1) var(--lnt-space-4);
   margin: 0 0 var(--lnt-space-3);
   padding: var(--lnt-space-3);

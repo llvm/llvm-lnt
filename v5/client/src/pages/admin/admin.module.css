@@ -59,6 +59,12 @@
   overflow-wrap: anywhere;
 }
 
+/* "Start from" and "Import JSON", above the suite the schema editor creates (TS7). */
+.editorStart {
+  composes: fields;
+  margin-bottom: var(--lnt-space-2);
+}
+
 /* "Import JSON": the document, and what loads and sends it. */
 .importJson {
   display: flex;

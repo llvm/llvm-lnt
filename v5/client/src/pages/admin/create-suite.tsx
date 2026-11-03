@@ -27,11 +27,7 @@ import {
   schemaOf,
   suiteNameProblem,
 } from '../test-suites/schema/schema-editor-model'
-import {
-  DisplayNameInput,
-  NameInput,
-  SchemaEditorTables,
-} from '../test-suites/schema/schema-editor-tables'
+import { SchemaEditorTables, SuiteFields } from '../test-suites/schema/schema-editor-tables'
 import { EditorFooter } from '../test-suites/schema/editor-footer'
 import styles from './admin.module.css'
 
@@ -57,7 +53,6 @@ export function CreateSuite({ project, onCancel, onCreated }: Props) {
   // The project, while it is listed: once deleted or renamed elsewhere, it is not.
   const listed = list?.find((candidate) => candidate.name === project)
   const titleId = useId()
-  const nameId = useId()
   const formId = useId()
   // The suite's own, like its name, and so neither part of the draft nor copied by Start from.
   const [name, setName] = useState('')
@@ -114,57 +109,28 @@ export function CreateSuite({ project, onCancel, onCreated }: Props) {
 
   return (
     <section aria-labelledby={titleId}>
-      {/* A form, so that Enter in the suite name creates the suite. Its submit button is Create,
-          below the tables. */}
-      <form id={formId} className={styles.createForm} aria-labelledby={titleId} onSubmit={submit}>
-        <strong id={titleId} className={styles.formTitle}>
-          New suite in {projectLabel(projectNamed(list, project))}
-        </strong>
-        <div className={styles.fields}>
-          {!importing && (
-            <>
-              <div className={styles.control}>
-                <label htmlFor={nameId}>Suite name</label>
-                <NameInput
-                  id={nameId}
-                  className={styles.nameInput}
-                  value={name}
-                  problem={nameProblem}
-                  ref={nameRef}
-                  readOnly={busy}
-                  onValue={setName}
-                />
-              </div>
-              <div className={styles.control}>
-                <DisplayNameInput
-                  className={styles.nameInput}
-                  value={displayName}
-                  readOnly={busy}
-                  onValue={setDisplayName}
-                />
-              </div>
-              <Select
-                label="Start from"
-                options={(suites ?? []).map(suiteOption)}
-                value={null}
-                placeholder="Select a suite"
-                onChange={startFrom}
-                listPicksOnly
-                isDisabled={!suites?.length}
-                isPending={busy}
-              />
-            </>
-          )}
-          <ActionButton
-            className={styles.toggle}
-            aria-pressed={importing}
-            busy={busy}
-            onClick={() => setImporting(!importing)}
-          >
-            Import JSON
-          </ActionButton>
-        </div>
-      </form>
+      <div className={styles.editorStart}>
+        {!importing && (
+          <Select
+            label="Start from"
+            options={(suites ?? []).map(suiteOption)}
+            value={null}
+            placeholder="Select a suite"
+            onChange={startFrom}
+            listPicksOnly
+            isDisabled={!suites?.length}
+            isPending={busy}
+          />
+        )}
+        <ActionButton
+          className={styles.toggle}
+          aria-pressed={importing}
+          busy={busy}
+          onClick={() => setImporting(!importing)}
+        >
+          Import JSON
+        </ActionButton>
+      </div>
       {importing ? (
         <ImportJson
           text={text}
@@ -175,9 +141,29 @@ export function CreateSuite({ project, onCancel, onCreated }: Props) {
           onSend={() => send.mutate({ project, text }, created)}
         />
       ) : (
-        <SchemaEditorTables draft={draft} onChange={setDraft} busy={busy} />
+        <>
+          {/* A form, so that Enter in the suite's name or display name creates the suite. Its
+              submit button is Create, below the tables. */}
+          <form id={formId} aria-labelledby={titleId} onSubmit={submit}>
+            <SuiteFields
+              project={projectLabel(projectNamed(list, project))}
+              name={name}
+              nameProblem={nameProblem}
+              onName={setName}
+              nameRef={nameRef}
+              displayName={displayName}
+              onDisplayName={setDisplayName}
+              readOnly={busy}
+            />
+          </form>
+          <SchemaEditorTables draft={draft} onChange={setDraft} busy={busy} />
+        </>
       )}
-      <EditorFooter>
+      <EditorFooter
+        title={
+          <strong id={titleId}>New suite in {projectLabel(projectNamed(list, project))}</strong>
+        }
+      >
         <ActionButton busy={busy} onClick={onCancel}>
           Cancel
         </ActionButton>

@@ -75,7 +75,7 @@ function editor() {
 }
 
 function suiteNameInput() {
-  return screen.getByRole('textbox', { name: 'Suite name' })
+  return screen.getByRole('textbox', { name: 'Name' })
 }
 
 function displayNameInput() {
@@ -147,7 +147,7 @@ describe('opening the editor', () => {
     )
     fireEvent.click(newSuiteButton('Swift'))
     const sent = mockCreate(store)
-    typeInto(await screen.findByRole('textbox', { name: 'Suite name' }), 'fresh')
+    typeInto(await screen.findByRole('textbox', { name: 'Name' }), 'fresh')
     fireEvent.click(createButton())
 
     await waitFor(() => expect(currentUrl()).toBe('/projects/swift/suites/fresh?tab=schema'))
@@ -162,6 +162,9 @@ describe('opening the editor', () => {
     expect(screen.queryByRole('table', { name: 'Projects' })).not.toBeInTheDocument()
     expect(screen.queryByRole('form', { name: 'New project' })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /Project/ })).not.toBeInTheDocument()
+    // The suite, laid out as the viewer's, its project fixed (TS7).
+    expect(screen.getByRole('group', { name: 'Suite' })).toHaveTextContent(/^ProjectSwiftName/)
+    expect(screen.getByRole('textbox', { name: 'Display name' })).toHaveValue('')
     expect(suiteNameInput()).toHaveFocus()
     // It starts empty.
     expect(rowsOf(await table('Metrics'))).toEqual(['No metrics.'])
@@ -189,7 +192,7 @@ describe('opening the editor', () => {
     expect(currentUrl()).toBe('/admin?tab=projects')
 
     fireEvent.click(newSuiteButton('Swift'))
-    expect(await screen.findByRole('textbox', { name: 'Suite name' })).toHaveValue('')
+    expect(await screen.findByRole('textbox', { name: 'Name' })).toHaveValue('')
     expect(rowsOf(await table('Metrics'))).toEqual(['No metrics.'])
   })
 
@@ -862,7 +865,7 @@ describe('Import JSON', () => {
 
     fireEvent.click(importToggle())
     expect(importToggle()).toHaveAttribute('aria-pressed', 'true')
-    expect(screen.queryByRole('textbox', { name: 'Suite name' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('group', { name: 'Suite' })).not.toBeInTheDocument()
     expect(screen.queryByRole('table', { name: 'Metrics' })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Create' })).not.toBeInTheDocument()
     typeInto(documentInput(), DOCUMENT)

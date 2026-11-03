@@ -247,7 +247,7 @@ test.describe("the Projects tab's suite creation", () => {
         /^Needs an API token with the 'manage' scope covering project 'libc\+\+' in full\./,
       )
       const editor = await newSuite(page, suite.project)
-      await editor.getByRole('textbox', { name: 'Suite name' }).fill(suite.suite)
+      await editor.getByRole('textbox', { name: 'Name', exact: true }).fill(suite.suite)
       await editor.getByRole('button', { name: 'Create', exact: true }).click()
 
       await expect(page).toHaveURL(`${suitePath(suite)}?tab=schema`)
@@ -263,7 +263,7 @@ test.describe("the Projects tab's suite creation", () => {
     await withOwnSuite(request, await tokenFor('manage'), testInfo, async (suite) => {
       await signIn(page, 'manage')
       const editor = await newSuite(page, suite.project)
-      await editor.getByRole('textbox', { name: 'Suite name' }).fill(suite.suite)
+      await editor.getByRole('textbox', { name: 'Name', exact: true }).fill(suite.suite)
       await editor.getByRole('textbox', { name: 'Display name', exact: true }).fill(' E2E suite ')
       await pickSuite(editor, 'Start from', 'libc++', 'Microbenchmarks')
       await editor.getByRole('button', { name: '+ Add machine field' }).click()
@@ -341,7 +341,7 @@ test.describe("the Projects tab's suite creation", () => {
     await withOwnSuite(request, token, testInfo, async (suite) => {
       await signIn(page, 'manage')
       const creator = await newSuite(page, suite.project)
-      await creator.getByRole('textbox', { name: 'Suite name' }).fill(suite.suite)
+      await creator.getByRole('textbox', { name: 'Name', exact: true }).fill(suite.suite)
       for (const metric of ['execution_time', 'compile_time']) {
         await creator.getByRole('button', { name: '+ Add metric' }).click()
         await creator.getByRole('textbox', { name: /^Name of metric \d+$/ }).last().fill(metric)

@@ -175,7 +175,7 @@ function SuiteTabs({ schema }: { schema: Suite }) {
   // Whether the user is still on the suite's page, whichever its tab: these tabs are its page.
   const mounted = useMounted()
 
-  // Once the suite is renamed or moved from its Schema tab, the page leaves for the Schema tab of the
+  // Once the suite is renamed or moved from its schema editor, the page leaves for the Schema tab of the
   // new names, in place of itself in the history, unless the user has left it meanwhile (TS6,
   // AR16). Before it does, the list of projects holds the suite under its new names, so that the
   // old ones never show it as gone, and what was read under the old names is forgotten, the page's
@@ -192,19 +192,19 @@ function SuiteTabs({ schema }: { schema: Suite }) {
     }
   }
   // Arriving from the old names: what the page read there, which it has stopped observing, is
-  // dropped rather than shown if the history leads back to them, and "Rename or move" takes the
-  // focus, as once its panel has closed. Only once: the state is taken out of the history entry,
-  // so that a reload or Back does not do it again.
+  // dropped rather than shown if the history leads back to them, and "Edit schema" takes the focus,
+  // as once the editor has closed. Only once: the state is taken out of the history entry, so that
+  // a reload or Back does not do it again.
   const movedFrom = (location.state as Moved | null)?.movedFrom
-  const [focusMove, setFocusMove] = useState(movedFrom !== undefined)
+  const [focusEdit, setFocusEdit] = useState(movedFrom !== undefined)
   useEffect(() => {
     if (movedFrom === undefined) return
     forgetUnobserved(queryClient, suiteOfFullName(movedFrom))
     navigate(`${location.pathname}${location.search}`, { replace: true, state: null })
   }, [movedFrom, queryClient, navigate, location.pathname, location.search])
-  const onMoveFocused = useCallback(() => setFocusMove(false), [])
+  const onEditFocused = useCallback(() => setFocusEdit(false), [])
   // Another tab, chosen before the token has been checked, keeps what it chose.
-  if (focusMove && tab !== 'schema') setFocusMove(false)
+  if (focusEdit && tab !== 'schema') setFocusEdit(false)
 
   // Once the suite is deleted from its Schema tab, the page leaves for the project's suites, in place
   // of itself in the history, unless the user has left it meanwhile (TS6, AR16). Read first, since the suite
@@ -248,8 +248,8 @@ function SuiteTabs({ schema }: { schema: Suite }) {
           schema={schema}
           onDeleted={onDeleted}
           onMoved={onMoved}
-          focusMove={focusMove}
-          onMoveFocused={onMoveFocused}
+          focusEdit={focusEdit}
+          onEditFocused={onEditFocused}
         />
       )}
     </Tabs>

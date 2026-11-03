@@ -547,46 +547,54 @@ test.describe('the Schema tab', () => {
       )
       try {
         await signIn(page, 'manage')
-        // From another page, for Back to have an entry of the SPA to go back to.
-        await page.goto(`/projects/${suite.project}`)
+        // From another page, for Back to have an entry of the SPA to go back to: that of a project
+        // without suites, which does not go on to a suite's.
+        await page.goto('/projects/swift')
         await page.goto(`${suitePath(suite)}?tab=schema`)
-        const move = page.getByRole('button', { name: 'Rename or move' })
-        const panel = page.getByRole('form', { name: 'Rename or move' })
+        const edit = page.getByRole('button', { name: 'Edit schema' })
+        const editor = page.getByRole('region', { name: /^Editing / })
+        const box = editor.getByRole('group', { name: 'Suite' })
         const prompt = page.getByRole('form', { name: 'Confirmation' })
 
-        await move.click()
-        await panel.getByRole('textbox', { name: 'Name' }).fill('renamed')
-        await panel.getByRole('button', { name: 'Save' }).click()
+        // A display name and a name, saved at once: the schema, then the rename.
+        await edit.click()
+        await box.getByRole('textbox', { name: 'Name', exact: true }).fill('renamed')
+        await box.getByRole('textbox', { name: 'Display name', exact: true }).fill('Renamed suite')
+        await editor.getByRole('button', { name: 'Save', exact: true }).click()
         await expect(prompt).toContainText(
           `Rename the test suite ${suite.project}/${suite.suite} to ${suite.project}/renamed?`,
         )
         await expect(prompt).toContainText('API keys are unaffected.')
-        await prompt.getByRole('button', { name: 'OK' }).click()
+        await prompt.getByRole('button', { name: 'Save' }).click()
 
         // The page of the new names takes the place of the old one in the history (AR16).
         await expect(page).toHaveURL(`${suitePath(renamed)}?tab=schema`)
-        await expect(move).toBeFocused()
+        await expect(editor).toBeHidden()
+        await expect(page.getByRole('group', { name: 'Suite' })).toHaveText(
+          `Project${suite.project}NamerenamedDisplay nameRenamed suite`,
+        )
+        await expect(edit).toBeFocused()
         await page.goBack()
-        await expect(page).toHaveURL(`/projects/${suite.project}`)
+        await expect(page).toHaveURL('/projects/swift')
         await page.goto(`${suitePath(suite)}?tab=schema`)
         await expect(page.getByRole('alert')).toHaveText(
           `Test suite '${suite.project}/${suite.suite}' not found.`,
         )
 
         await page.goto(`${suitePath(renamed)}?tab=schema`)
-        await move.click()
-        await pickOption(panel, 'Project', other)
-        await panel.getByRole('button', { name: 'Save' }).click()
+        await edit.click()
+        await pickOption(box, 'Project', other)
+        await editor.getByRole('button', { name: 'Save', exact: true }).click()
         await expect(prompt).toContainText(
           `API keys listing the project '${suite.project}' as a whole will no longer cover the ` +
             `suite, those listing the project '${other}' as a whole will`,
         )
-        await prompt.getByRole('button', { name: 'OK' }).click()
+        await prompt.getByRole('button', { name: 'Save' }).click()
 
         await expect(page).toHaveURL(`${suitePath(moved)}?tab=schema`)
-        await expect(move).toBeFocused()
+        await expect(edit).toBeFocused()
         const picker = page.getByRole('navigation', { name: 'Test suites' })
-        await expect(picker.getByRole('link', { name: 'renamed', exact: true })).toBeVisible()
+        await expect(picker.getByRole('link', { name: 'Renamed suite', exact: true })).toBeVisible()
         expect((await request.get(`/api${suitePath(moved)}`)).status()).toBe(200)
       } finally {
         await request.delete(`/api${suitePath(moved)}?confirm=true`, { headers })
