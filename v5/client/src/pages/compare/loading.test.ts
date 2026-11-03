@@ -11,7 +11,7 @@ function side(id: 'a' | 'b', overrides: Partial<SideProgress> = {}): SideProgres
     schema: SUITE,
     selected: new Set(['1']),
     wanted: ['llvm/libcxx/1'],
-    runs: { isError: false },
+    runs: { data: [], error: null },
     ...overrides,
   }
 }
@@ -68,8 +68,11 @@ describe('waiting', () => {
   it('shows nothing once what it could not load is reported', () => {
     const failed = new Map([['llvm/libcxx/1', state({ error: new Error('no') })]])
     expect(waiting(side('a'), side('b'), failed, READY)).toEqual({ kind: 'failed' })
-    const unlisted = side('b', { runs: { isError: true } })
+    const unlisted = side('b', { runs: { data: undefined, error: new Error('no') } })
     expect(waiting(side('a'), unlisted, LOADED, READY)).toEqual({ kind: 'failed' })
+    // Runs listed before, and fetched again in vain, are kept (AR7).
+    const kept = side('b', { runs: { data: [], error: new Error('no') } })
+    expect(waiting(side('a'), kept, LOADED, READY)).not.toEqual({ kind: 'failed' })
   })
 
   it('waits for the runs, then counts the runs whose samples have arrived, each once', () => {

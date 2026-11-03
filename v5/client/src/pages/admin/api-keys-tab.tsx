@@ -90,14 +90,14 @@ function ApiKeys({ accepted, ownPrefix, ...sorting }: KeysProps) {
     <>
       <CreateKey />
       <Loaded
-        isPending={keys.isPending}
+        data={keys.data}
         error={keys.error}
         // A retry while the token is checked would be sent without it.
         onRetry={() => {
           if (accepted) void keys.refetch()
         }}
       >
-        {keys.data && <KeysTable keys={keys.data} ownPrefix={ownPrefix} {...sorting} />}
+        {(data) => <KeysTable keys={data} ownPrefix={ownPrefix} {...sorting} />}
       </Loaded>
     </>
   )

@@ -77,12 +77,8 @@ function MachineContent({ schema, name }: { schema: Suite; name: string }) {
   const machine = useMachine(suite, name)
   // The sections are shown once the machine is, so that one that does not exist shows only that.
   return (
-    <Loaded
-      isPending={machine.isPending}
-      error={machine.error}
-      onRetry={() => void machine.refetch()}
-    >
-      {machine.data && <MachineSections schema={schema} machine={machine.data} />}
+    <Loaded data={machine.data} error={machine.error} onRetry={() => void machine.refetch()}>
+      {(data) => <MachineSections schema={schema} machine={data} />}
     </Loaded>
   )
 }
@@ -291,15 +287,15 @@ function ActiveRegressions({ suite, name }: { suite: SuiteRef; name: string }) {
     <>
       <h2 className={styles.heading}>Active Regressions</h2>
       <Loaded
-        isPending={regressions.isPending}
+        data={regressions.data}
         error={regressions.error}
         onRetry={() => void regressions.refetch()}
       >
-        {regressions.data && (
+        {(data) => (
           <RegressionsTable
             suite={suite}
             label="Active regressions"
-            regressions={regressions.data.items}
+            regressions={data.items}
             empty="No active regressions on this machine."
           />
         )}
@@ -321,12 +317,11 @@ function RunHistory({ schema, name }: { schema: Suite; name: string }) {
     queryKey: [...queryKeys.runs(suite), query],
     fetchPage: (cursor, signal) => fetchRunPage(suite, { ...query, cursor }, signal),
   })
-  const page = pager.page
   return (
     <>
       <h2 className={styles.heading}>Run History</h2>
-      <Loaded isPending={pager.isPending} error={pager.error} onRetry={pager.retry}>
-        {page && (
+      <Loaded data={pager.page} error={pager.error} onRetry={pager.retry}>
+        {(page) => (
           <>
             <DataTable
               label="Run history"

@@ -20,9 +20,8 @@ performance trends across all test suites, grouped by project (see D7).
   AR22), linking to the project's suites on the Projects page
   (`/projects/{p}`, see TS1). Projects are in AR22's order. A project with no
   suites says so in its section. When there are no projects, the page says so.
-  Only a failure to load the list of projects in the first place takes the
-  place of the sections, with a way to try again; when the list is fetched
-  again and that fails, the page keeps showing what it shows (see AR7).
+  When the list of projects cannot be loaded, the page says so in place of the
+  sections, with a way to try again (see AR7).
 - Within a project's section, one section per suite of the project, in AR22's
   order, under a heading with the suite's label.
 - Each suite section contains a responsive grid of sparkline cards -- one card

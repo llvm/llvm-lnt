@@ -186,6 +186,11 @@ This also applies outside tables: when a page cannot fetch something it needs,
 it says what could not be loaded, offers a way to try again, and keeps showing
 everything else it can.
 
+A failed refetch of what is shown leaves it in place. The error takes its place
+only when nothing of what was asked for is shown yet (rows kept from another
+page or search while the new ones load are not what was asked for), or when it
+says that what was asked for no longer exists (I4's `not_found`).
+
 When the cursor of a later page is rejected with `invalid_cursor` (I2),
 whatever fetches the pages of a paginated endpoint starts again from the first
 page rather than report a failure: a table shown a page at a time goes back to

@@ -1,6 +1,7 @@
 import { useId, useRef, useState, type ReactNode } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { api, ApiError, authedApi, unwrap, type Schemas } from '../../../api/client'
+import { api, authedApi, unwrap, type Schemas } from '../../../api/client'
+import { isMissing } from '../../../api/shown-data'
 import {
   fullName,
   refetchProjectsIfOutdated,
@@ -16,7 +17,7 @@ import { refusal, useScopeGate } from '../../../auth/scope'
 import { useAuth } from '../../../auth/use-auth'
 import { ActionButton } from '../../../components/action-button'
 import { Confirmation } from '../../../components/confirmation'
-import { ErrorMessage, Loaded } from '../../../components/feedback'
+import { ErrorMessage, Loading } from '../../../components/feedback'
 import { Select } from '../../../components/select'
 import { useMounted } from '../../../components/use-mounted'
 import { useUnsavedChanges } from '../../../components/use-unsaved-changes'
@@ -67,7 +68,7 @@ export function EditSchema({ suite, onClose, onMoved }: Props) {
       } catch (error) {
         // The suite was deleted elsewhere: it goes from the list of suites, and the page says that
         // it was not found, in place of its tabs and the editor (TS1).
-        if (error instanceof ApiError && error.code === 'not_found') {
+        if (isMissing(error)) {
           await removeSuite(queryClient, suite)
         }
         throw error
@@ -82,14 +83,11 @@ export function EditSchema({ suite, onClose, onMoved }: Props) {
   }
   return (
     <Frame suite={suite} buttons={<ActionButton onClick={onClose}>Cancel</ActionButton>}>
-      <Loaded
-        isPending={fresh.isPending}
-        error={fresh.error}
-        onRetry={() => void fresh.refetch()}
-        label="Loading the schema..."
-      >
-        {null}
-      </Loaded>
+      {fresh.isError ? (
+        <ErrorMessage error={fresh.error} onRetry={() => void fresh.refetch()} />
+      ) : (
+        <Loading label="Loading the schema..." />
+      )}
     </Frame>
   )
 }

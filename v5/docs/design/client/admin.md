@@ -149,8 +149,7 @@ The table has a row for each project, those without suites included, in AR22's o
   which says that API keys listing the project lose it, and that a key left with nothing grants
   only `read` (see I5). On success, the row is removed.
 
-Only a failure to load the list of projects in the first place takes the place of the table, with
-a way to try again; when the list is fetched again and that fails, the table stays as it is (see
-AR7).
+When the list of projects cannot be loaded, the tab says so in place of the table, with a way to
+try again (see AR7).
 
 Anyone can view the tab.

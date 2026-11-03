@@ -60,16 +60,16 @@ function RegressionContent({ schema, uuid }: { schema: Suite; uuid: string }) {
   const regression = useRegression(refOf(schema), uuid)
   return (
     <Loaded
-      isPending={regression.isPending}
+      data={regression.data}
       error={regression.error}
       onRetry={() => void regression.refetch()}
     >
-      {regression.data && (
+      {(data) => (
         <>
-          <RegressionInfo schema={schema} regression={regression.data} />
-          <Actions suite={refOf(schema)} regression={regression.data} />
+          <RegressionInfo schema={schema} regression={data} />
+          <Actions suite={refOf(schema)} regression={data} />
           <AddIndicators schema={schema} uuid={uuid} />
-          <RegressionIndicators schema={schema} regression={regression.data} />
+          <RegressionIndicators schema={schema} regression={data} />
         </>
       )}
     </Loaded>

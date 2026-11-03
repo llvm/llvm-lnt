@@ -113,7 +113,7 @@ export function sideStatus({
   run: string
   /** The run to select, once the runs are listed. */
   runPick: string | undefined
-  /** Whether listing the runs failed, and the page should report it (see `runsListFailed`). */
+  /** Whether listing the runs failed, and the page should report it (see `useProfileSide`). */
   runsFailed: boolean
   /** The profiles of the run `run`. */
   profiles: Fetched<unknown>

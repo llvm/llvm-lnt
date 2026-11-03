@@ -73,16 +73,14 @@ export function ProjectsTab() {
     <>
       <CreateProject />
       <Loaded
-        isPending={projects.isPending}
-        // A list fetched again that fails, after a name found taken, say, leaves the table shown,
-        // and any field being edited in it.
-        error={projects.data ? null : projects.error}
+        data={projects.data}
+        error={projects.error}
         onRetry={() => void projects.refetch()}
         label="Loading projects..."
       >
-        {projects.data && (
+        {(data) => (
           <ProjectsTable
-            projects={projects.data}
+            projects={data}
             onNewSuite={setCreatingIn}
             refocus={closed}
             onRefocused={onRefocused}

@@ -13,18 +13,17 @@ interface Options<Page extends Paged> {
   queryKey: QueryKey
   /** Fetch the page at `cursor`, the first one when it is null. */
   fetchPage: (cursor: string | null, signal: AbortSignal) => Promise<Page>
-  /** While false, nothing is fetched, and `isPending` stays true. */
+  /** While false, nothing is fetched, and there is no page. */
   enabled?: boolean
 }
 
 export interface CursorPagerState<Page> {
   /**
-   * The page shown: the previous one while the one asked for loads, and none when it failed or is
-   * being tried again, so that the failure is not shown next to rows for another page or search.
+   * The page shown: the previous one while the one asked for loads, and none when the one asked for
+   * failed or is being tried again, so that the failure is not shown next to rows for another page
+   * or search. A page fetched again in vain is kept (AR7).
    */
   page: Page | undefined
-  /** There is no page to show, and no failure: the first page, or a retry, is on its way. */
-  isPending: boolean
   /** The page shown is not the one asked for, which is on its way. */
   isUpdating: boolean
   error: Error | null
@@ -41,10 +40,11 @@ export interface CursorPagerState<Page> {
  * forward-only (I2), so Previous returns to a page already visited, which comes from the cache. The
  * position is component state rather than part of the URL, so a reload shows the first page again.
  *
- * When a page fails to load, the pager has no page to show, only the error and `retry`. A cursor
- * the server rejects (see `rejectsCursor`) starts the pager again from a first page fetched afresh,
- * since a cached one would only hand out the same cursor again -- unless no later page has loaded
- * since starting again, in which case the rejection is shown like any other failure (AR7).
+ * When the page asked for fails to load, the pager has no page to show, only the error and
+ * `retry`. A cursor the server rejects (see `rejectsCursor`) starts the pager again from a first
+ * page fetched afresh, since a cached one would only hand out the same cursor again -- unless no
+ * later page has loaded since starting again, in which case the rejection is shown like any other
+ * failure (AR7).
  */
 export function useCursorPager<Page extends Paged>({
   queryKey,
@@ -91,7 +91,6 @@ export function useCursorPager<Page extends Paged>({
   const nextCursor = isPlaceholderData ? null : (data?.cursor.next ?? null)
   return {
     page,
-    isPending: page === undefined && error === null,
     isUpdating: isPlaceholderData,
     error,
     retry: () => void refetch(),

@@ -8,6 +8,7 @@ import type { UseQueryResult } from '@tanstack/react-query'
 import { findSuite, NO_SUITE, type Suite, type SuiteRef } from '../api/suites'
 import { useDropUnusable } from '../url-state'
 import { hasMachine } from '../api/machines'
+import { failureShown } from '../api/shown-data'
 import { useMachineSuggestions, type Machines } from './machine-suggestions'
 
 /**
@@ -54,13 +55,16 @@ export function machineFailuresReportable(machines: Machines, machine: string): 
   return (data !== undefined && hasMachine(data, machine)) || isError
 }
 
-/** Whether listing the side's runs, `runs`, failed, and the page should report it. */
+/**
+ * Whether listing the side's runs, `runs`, failed, and the page should report it in their place: a
+ * list fetched again that fails is kept (AR7).
+ */
 export function runsListFailed(
-  runs: { isError: boolean },
+  runs: { data: unknown; error: unknown },
   machines: Machines,
   machine: string,
 ): boolean {
-  return runs.isError && machineFailuresReportable(machines, machine)
+  return failureShown(runs.data, runs.error) && machineFailuresReportable(machines, machine)
 }
 
 /**

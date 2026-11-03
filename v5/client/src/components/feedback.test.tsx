@@ -1,7 +1,7 @@
 import { fireEvent, render, screen } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 import { ApiError } from '../api/client'
-import { ErrorMessage, Loading } from './feedback'
+import { ErrorMessage, Loaded, Loading } from './feedback'
 
 describe('ErrorMessage', () => {
   it("shows the API's message", () => {
@@ -69,5 +69,58 @@ describe('Loading', () => {
     render(<Loading label="Loading machines..." />)
 
     expect(screen.getByRole('status')).toHaveTextContent('Loading machines...')
+  })
+})
+
+describe('Loaded', () => {
+  const show = (data: string) => <p>{data}</p>
+  const failure = new ApiError(500, 'internal_error', 'Boom')
+
+  it('says that the data is loading until it arrives, then shows it', () => {
+    const { rerender } = render(
+      <Loaded data={undefined} error={null} onRetry={() => {}} label="Loading machines...">
+        {show}
+      </Loaded>,
+    )
+    expect(screen.getByRole('status')).toHaveTextContent('Loading machines...')
+
+    rerender(
+      <Loaded data="m1" error={null} onRetry={() => {}}>
+        {show}
+      </Loaded>,
+    )
+    expect(screen.getByText('m1')).toBeInTheDocument()
+  })
+
+  it('shows why the data could not be fetched, with what could not be loaded', () => {
+    render(
+      <Loaded data={undefined} error={failure} onRetry={() => {}} context="No machines">
+        {show}
+      </Loaded>,
+    )
+
+    expect(screen.getByRole('alert')).toHaveTextContent('No machines: Boom')
+  })
+
+  it('keeps the data shown when fetching it again fails (AR7)', () => {
+    render(
+      <Loaded data="m1" error={failure} onRetry={() => {}}>
+        {show}
+      </Loaded>,
+    )
+
+    expect(screen.getByText('m1')).toBeInTheDocument()
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+  })
+
+  it('shows the failure in place of data that no longer exists', () => {
+    render(
+      <Loaded data="m1" error={new ApiError(404, 'not_found', 'Gone')} onRetry={() => {}}>
+        {show}
+      </Loaded>,
+    )
+
+    expect(screen.getByRole('alert')).toHaveTextContent('Gone')
+    expect(screen.queryByText('m1')).not.toBeInTheDocument()
   })
 })

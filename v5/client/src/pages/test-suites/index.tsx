@@ -16,7 +16,7 @@ import {
   type SuiteSchema,
 } from '../../api/suites'
 import { useAuth } from '../../auth/use-auth'
-import { Alert, ErrorMessage, Loading } from '../../components/feedback'
+import { Alert, Loaded } from '../../components/feedback'
 import { Tabs } from '../../components/tabs'
 import { useMounted } from '../../components/use-mounted'
 import { projectLabel, suiteLabel } from '../../labels'
@@ -52,31 +52,25 @@ export default function Projects() {
   const named = project === undefined || suite === undefined ? undefined : suiteRef(project, suite)
   const notFound = useNotFoundFocus(named && fullName(named), schema !== undefined)
 
-  let content
-  // A list fetched again that fails leaves the one the page shows, and the tabs with it: an open
-  // schema editor, say, which has the list fetched again when a save finds it out of date (TS7).
-  if (projects.data === undefined) {
-    content = projects.isError ? (
-      <ErrorMessage error={projects.error} onRetry={() => void projects.refetch()} />
-    ) : (
-      <Loading label="Loading projects..." />
-    )
-  } else if (project === undefined) {
-    const first = projects.data.at(0)
-    content =
-      first === undefined ? (
+  // What the page shows once the projects have loaded. A list fetched again that fails leaves it
+  // shown (AR7), and the tabs with it: an open schema editor, say, which has the list fetched again
+  // when a save finds it out of date (TS7).
+  const listed = (list: Project[]) => {
+    if (project === undefined) {
+      const first = list.at(0)
+      return first === undefined ? (
         <p className={styles.note}>There are no projects yet.</p>
       ) : (
         <Navigate to={projectLanding(first)} replace />
       )
-  } else {
+    }
     // Another chip leads to the tab shown, if any.
     const tab =
       schema === undefined ? PARAMS.tab.default : readParam(PARAMS.tab, search.getAll('tab'))
     const projectChips = (
       <ChipLinks
         label="Projects"
-        chips={projects.data.map((entry) => ({
+        chips={list.map((entry) => ({
           key: entry.name,
           text: projectLabel(entry),
           to: projectLanding(entry, tab),
@@ -86,47 +80,54 @@ export default function Projects() {
       />
     )
     if (shown === undefined) {
-      content = (
+      return (
         <>
           {projectChips}
           <Alert>Project '{project}' not found.</Alert>
         </>
       )
-    } else if (suite === undefined && shown.suites.length > 0) {
-      content = <Navigate to={projectLanding(shown)} replace />
-    } else {
-      content = (
-        <>
-          {projectChips}
-          {shown.suites.length === 0 ? (
-            <p className={styles.note}>No test suites.</p>
-          ) : (
-            <ChipLinks
-              label="Test suites"
-              chips={shown.suites.map((entry) => ({
-                key: entry.name,
-                text: suiteLabel(entry),
-                to: suiteTabPath(refOf(entry), tab),
-              }))}
-              selected={schema?.name}
-            />
-          )}
-          {named === undefined ? null : schema === undefined ? (
-            <Alert ref={notFound} tabIndex={-1}>
-              Test suite '{fullName(named)}' not found.
-            </Alert>
-          ) : (
-            <SuiteTabs key={fullName(named)} schema={schema} />
-          )}
-        </>
-      )
     }
+    if (suite === undefined && shown.suites.length > 0) {
+      return <Navigate to={projectLanding(shown)} replace />
+    }
+    return (
+      <>
+        {projectChips}
+        {shown.suites.length === 0 ? (
+          <p className={styles.note}>No test suites.</p>
+        ) : (
+          <ChipLinks
+            label="Test suites"
+            chips={shown.suites.map((entry) => ({
+              key: entry.name,
+              text: suiteLabel(entry),
+              to: suiteTabPath(refOf(entry), tab),
+            }))}
+            selected={schema?.name}
+          />
+        )}
+        {named === undefined ? null : schema === undefined ? (
+          <Alert ref={notFound} tabIndex={-1}>
+            Test suite '{fullName(named)}' not found.
+          </Alert>
+        ) : (
+          <SuiteTabs key={fullName(named)} schema={schema} />
+        )}
+      </>
+    )
   }
 
   return (
     <section>
       <h1>Projects</h1>
-      {content}
+      <Loaded
+        data={projects.data}
+        error={projects.error}
+        onRetry={() => void projects.refetch()}
+        label="Loading projects..."
+      >
+        {listed}
+      </Loaded>
     </section>
   )
 }

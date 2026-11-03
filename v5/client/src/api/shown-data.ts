@@ -1,3 +1,5 @@
+import { ApiError } from './client'
+
 /** The parts of a query result that keeps the previous query's data as a placeholder. */
 interface Placeheld<Data> {
   data: Data | undefined
@@ -39,4 +41,18 @@ interface Refetched {
  */
 export function isRecovering({ isError, isFetching }: Refetched): boolean {
   return isError && isFetching
+}
+
+/** Whether `error` is the API saying that what was asked for does not exist (I4's `not_found`). */
+export function isMissing(error: unknown): boolean {
+  return error instanceof ApiError && error.code === 'not_found'
+}
+
+/**
+ * Whether a failure to fetch something takes the place of what was fetched (AR7): only when there is
+ * none of it, or when the failure says that it no longer exists. `data` must not be another query's
+ * kept as a placeholder after the one asked for has failed, which `shownData` masks.
+ */
+export function failureShown(data: unknown, error: unknown): boolean {
+  return error != null && (data === undefined || isMissing(error))
 }

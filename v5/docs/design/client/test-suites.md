@@ -29,9 +29,8 @@ settings of the page (exceptions to AR2 "State").
 When `{p}` names no project, on either path, the page shows the row of projects,
 none selected, and says that the project was not found. When `{s}` names no
 suite of the project, the page shows both rows, no suite selected, and says that
-the suite was not found. Only a failure to load the list of projects in the
-first place takes the place of the page, with a way to try again; when the list
-is fetched again and that fails, the page keeps showing what it shows (see AR7).
+the suite was not found. When the list of projects cannot be loaded, the page
+says so in its place, with a way to try again (see AR7).
 
 **Chips**: Each chip is a link (see AR2 "Routing"), and the selected one says to
 assistive technology that it is the current one. A suite's chip leads to the tab
