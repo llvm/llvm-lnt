@@ -363,14 +363,11 @@ other request -- exactly what anonymous access gets, so reads are unaffected:
 |-----------|-----------------------------|
 | A request addressing a suite, other than a move | To cover the suite |
 | Moving a suite to another project (E10) | To cover the suite, and the destination project in full |
-| Creating a suite in a project (E10), changing a project's display name (E13) | To cover the project in full |
-| Creating, renaming or deleting a project (E13) | Nothing it can have: these require an instance-wide key |
+| Creating a suite in a project (E10), changing or deleting a project (E13) | To cover the project in full |
+| Creating a project (E13) | Nothing it can have: this requires an instance-wide key |
 
-Creating, renaming and deleting projects shape the instance rather than the
-content of one project, which is why no restricted key can do them. A request is
-a move when its body has a `project` other than the path's, and a project rename
-when its body has a `name` other than the path's, whether or not that value is
-valid. The body is otherwise validated after authorization.
+A request is a move when its body has a `project` other than the path's, whether
+or not that value is valid. The body is otherwise validated after authorization.
 
 - Only `submit`, `triage` and `manage` keys can be restricted. A restricted
   `read` key would grant nothing more than no key at all, and `admin` keys are

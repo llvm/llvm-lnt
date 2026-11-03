@@ -128,10 +128,10 @@ class ApiKeyCreate(BaseModel):
         description=(
             "The whole projects and the single test suites to restrict the key to, each listed "
             "once. The key then has its scope only in the suites it covers, and can only read "
-            "everywhere else. Creating a test suite in a project, or changing its display name, "
-            "needs the whole project. Only `submit`, `triage` and `manage` keys can be restricted, "
-            "and every project and suite must exist. Leave out, or set to null, for an "
-            "unrestricted key."
+            "everywhere else. Creating a test suite in a project, or changing or deleting the "
+            "project, needs the whole project. Only `submit`, `triage` and `manage` keys can be "
+            "restricted, and every project and suite must exist. Leave out, or set to null, for "
+            "an unrestricted key."
         ),
     )
 

@@ -219,19 +219,21 @@ request -X POST -H "$MOVER" -H "$JSON" --data '{"name":"m"}' \
     "${PROJECTS}/crud-moved/suites/moved/machines"
 expect_status 201
 
-echo "  a key restricted to the old project no longer covers it, nor moves a suite out, nor renames"
+echo "  a key restricted to the old project covers neither the suite nor the new project"
 request -X POST -H "$WHOLE" -H "$JSON" --data '{"name":"m2"}' \
     "${PROJECTS}/crud-moved/suites/moved/machines"
 expect_status 403
 request -X PATCH -H "$WHOLE" -H "$JSON" --data '{"project": "crud-moved"}' "${SUITES}/suite-crud"
 expect_status 403
 expect_body 'covering that project in full'
-request -X PATCH -H "$WHOLE" -H "$JSON" --data '{"name": "crud-renamed"}' "${PROJECTS}/crud"
+request -X PATCH -H "$WHOLE" -H "$JSON" --data '{"name": "crud-renamed"}' "${PROJECTS}/crud-moved"
 expect_status 403
-expect_body 'instance-wide'
+expect_body "covering project 'crud-moved' in full"
 
-echo "  renaming a project is visible on every worker, and its suite's key follows it"
-request -X PATCH -H "$AUTH" -H "$JSON" --data '{"name": "crud-renamed"}' "${PROJECTS}/crud-moved"
+echo "  a key covering a project in full renames it, every worker sees it, and the keys follow it"
+owner="$(mint_key owner manage --project crud-moved)"
+readonly OWNER="Authorization: Bearer ${owner}"
+request -X PATCH -H "$OWNER" -H "$JSON" --data '{"name": "crud-renamed"}' "${PROJECTS}/crud-moved"
 expect_status 200
 expect_body '"name":"crud-renamed"'
 for _ in $(seq 1 "$ATTEMPTS"); do
@@ -242,9 +244,11 @@ for _ in $(seq 1 "$ATTEMPTS"); do
 done
 request -H "$MOVER" "${BASE_URL}/api/auth"
 expect_body '"restricted_to":\[\{"project":"crud-renamed","suite":"moved"\}\]'
+request -H "$OWNER" "${BASE_URL}/api/auth"
+expect_body '"restricted_to":\[\{"project":"crud-renamed","suite":null\}\]'
 request -X DELETE -H "$AUTH" "${PROJECTS}/crud-renamed/suites/moved?confirm=true"
 expect_status 204
-request -X DELETE -H "$AUTH" "${PROJECTS}/crud-renamed"
+request -X DELETE -H "$OWNER" "${PROJECTS}/crud-renamed"
 expect_status 204
 
 echo "  a key restricted over the API lists a whole project as such, and with its own suites too"

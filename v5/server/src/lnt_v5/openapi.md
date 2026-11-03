@@ -19,7 +19,7 @@ allows. Scopes are ordered `read` < `submit` < `triage` < `manage` < `admin`, an
 everything its scope and the scopes below it allow. A key can also be restricted to some whole
 projects and some single test suites, and then has its scope only in the suites it covers. A key
 covering a project as a whole can also create test suites in it, move test suites into it, and
-change its display name. Creating, renaming or deleting a project always needs an unrestricted key.
+change or delete the project. Creating a project always needs an unrestricted key.
 Restrictions follow renames: a key listing a suite keeps covering it under its new names, and a key
 listing a project covers the suites the project holds now. Keys are created with
 `POST /api/admin/api-keys`, which requires the `admin` scope; ask the instance's administrator for

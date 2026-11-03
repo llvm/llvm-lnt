@@ -135,8 +135,6 @@ export interface paths {
          * Create a project
          * @description Create a project, without test suites. Its `Location` header points to the new project.
          *
-         *     Requires an unrestricted API key, since a project shapes the instance.
-         *
          *     **Authorization:** requires an unrestricted API key with the `manage` scope.
          */
         post: operations["create_project"];
@@ -167,9 +165,7 @@ export interface paths {
          * @description Delete a project that has no test suites. It destroys no data, so it doesn't need
          *     `confirm=true`. The project is also removed from the API keys that list it.
          *
-         *     Requires an unrestricted API key, since a project shapes the instance.
-         *
-         *     **Authorization:** requires an unrestricted API key with the `manage` scope.
+         *     **Authorization:** requires an API key with the `manage` scope, unrestricted or covering this project in full.
          */
         delete: operations["delete_project"];
         options?: never;
@@ -181,9 +177,9 @@ export interface paths {
          *
          *     Renaming a project changes only names: its test suites keep all of their data, and API keys
          *     keep covering what they covered. The old name isn't kept: every URL of the project and of its
-         *     test suites changes, and the old ones answer 404. Renaming needs an unrestricted API key.
+         *     test suites changes, and the old ones answer 404.
          *
-         *     **Authorization:** requires an API key with the `manage` scope, unrestricted or covering this project in full. Renaming it needs an unrestricted key.
+         *     **Authorization:** requires an API key with the `manage` scope, unrestricted or covering this project in full.
          */
         patch: operations["patch_project"];
         trace?: never;
@@ -964,7 +960,7 @@ export interface components {
             scope: components["schemas"]["Scope"];
             /**
              * Restricted To
-             * @description The whole projects and the single test suites to restrict the key to, each listed once. The key then has its scope only in the suites it covers, and can only read everywhere else. Creating a test suite in a project, or changing its display name, needs the whole project. Only `submit`, `triage` and `manage` keys can be restricted, and every project and suite must exist. Leave out, or set to null, for an unrestricted key.
+             * @description The whole projects and the single test suites to restrict the key to, each listed once. The key then has its scope only in the suites it covers, and can only read everywhere else. Creating a test suite in a project, or changing or deleting the project, needs the whole project. Only `submit`, `triage` and `manage` keys can be restricted, and every project and suite must exist. Leave out, or set to null, for an unrestricted key.
              */
             restricted_to?: components["schemas"]["RestrictionEntryInput"][] | null;
         };
@@ -3068,9 +3064,9 @@ export interface components {
          *
          *     A `submit`, `triage` or `manage` key can be restricted to some projects as a whole and some
          *     single test suites. It then has its scope only in the suites it covers, and only `read`
-         *     everywhere else. Creating a test suite in a project, moving one into it, or changing the
-         *     project's display name, needs a key covering that project as a whole. Creating, renaming and
-         *     deleting a project always need an unrestricted key.
+         *     everywhere else. Creating a test suite in a project, moving one into it, or changing or
+         *     deleting the project, needs a key covering that project as a whole. Creating a project always
+         *     needs an unrestricted key.
          * @enum {string}
          */
         Scope: "read" | "submit" | "triage" | "manage" | "admin";

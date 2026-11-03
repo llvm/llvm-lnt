@@ -48,8 +48,9 @@ UNKNOWN_TOKEN = "f" * 64
 IN_FULL_ONLY = {
     ("POST", "/api/projects/{project}/suites"),
     ("PATCH", "/api/projects/{project}"),
+    ("DELETE", "/api/projects/{project}"),
 }
-UNRESTRICTED_ONLY = {("POST", "/api/projects"), ("DELETE", "/api/projects/{project}")}
+UNRESTRICTED_ONLY = {("POST", "/api/projects")}
 
 # A suite of the smallest shape, for the tests that need one to exist.
 NTS: dict[str, Any] = {"name": "nts", "metrics": [{"name": "execution_time", "type": "real"}]}
@@ -323,43 +324,37 @@ class TestSuiteRestriction:
         assert response.status_code == 403
         assert "covering project 'nts' in full" in response.json()["error"]["message"]
 
-    def test_cannot_change_the_project_of_a_suite_it_names(
-        self,
-        api_client: TestClient,
-        restricted_key: Callable[..., str],
-        bearer: Callable[[str], dict[str, str]],
-    ) -> None:
-        headers = bearer(restricted_key(Scope.MANAGE, "nts"))
-
-        response = api_client.patch(
-            "/api/projects/nts", json={"display_name": "NTS"}, headers=headers
-        )
-
-        assert response.status_code == 403
-        assert "covering project 'nts' in full" in response.json()["error"]["message"]
-
     @pytest.mark.parametrize(
-        ("method", "path", "body"),
-        [
-            ("POST", "/api/projects", {"name": "new"}),
-            ("DELETE", "/api/projects/nts", None),
-        ],
+        ("method", "body"),
+        [("PATCH", {"display_name": "NTS"}), ("PATCH", {"name": "new"}), ("DELETE", None)],
     )
-    def test_cannot_create_or_delete_a_project(
+    def test_cannot_change_or_delete_the_project_of_a_suite_it_names(
         self,
         api_client: TestClient,
         restricted_key: Callable[..., str],
         bearer: Callable[[str], dict[str, str]],
         method: str,
-        path: str,
         body: Any,
     ) -> None:
         headers = bearer(restricted_key(Scope.MANAGE, "nts"))
 
-        response = api_client.request(method, path, json=body, headers=headers)
+        response = api_client.request(method, "/api/projects/nts", json=body, headers=headers)
 
         assert response.status_code == 403
-        assert "instance-wide" in response.json()["error"]["message"]
+        assert "covering project 'nts' in full" in response.json()["error"]["message"]
+
+    def test_cannot_create_a_project(
+        self,
+        api_client: TestClient,
+        restricted_key: Callable[..., str],
+        bearer: Callable[[str], dict[str, str]],
+    ) -> None:
+        headers = bearer(restricted_key(Scope.MANAGE, "nts"))
+
+        response = api_client.post("/api/projects", json={"name": "new"}, headers=headers)
+
+        assert response.status_code == 403
+        assert "from an instance-wide API key" in response.json()["error"]["message"]
 
     def test_changes_and_deletes_a_suite_it_names(
         self,
@@ -548,37 +543,36 @@ class TestProjectRestriction:
         assert response.json()["display_name"] == "libc++"
 
     @pytest.mark.parametrize(
-        ("method", "path", "body"),
-        [
-            ("POST", "/api/projects", {"name": "new"}),
-            ("DELETE", "/api/projects/libcxx", None),
-            ("PATCH", "/api/projects/libcxx", {"name": "libcpp"}),
-        ],
+        ("method", "body"),
+        [("PATCH", {"name": "clang"}), ("PATCH", {"display_name": "LLVM"}), ("DELETE", None)],
     )
-    def test_cannot_create_delete_or_rename_a_project_even_its_own(
+    def test_cannot_change_or_delete_another_project(
         self,
         api_client: TestClient,
         libcxx: dict[str, str],
+        db_engine: Engine,
         method: str,
-        path: str,
         body: Any,
     ) -> None:
-        response = api_client.request(method, path, json=body, headers=libcxx)
+        with db_engine.begin() as connection:
+            ensure_project(connection, "llvm")
 
-        # I5: these need an instance-wide key.
+        response = api_client.request(method, "/api/projects/llvm", json=body, headers=libcxx)
+
         assert response.status_code == 403
-        assert "instance-wide" in response.json()["error"]["message"]
+        assert "covering project 'llvm' in full" in response.json()["error"]["message"]
+        assert api_client.get("/api/projects/llvm").status_code == 200
 
-    def test_grants_only_read_once_the_project_is_deleted(
+    def test_grants_only_read_once_it_deletes_the_project(
         self,
         api_client: TestClient,
         libcxx: dict[str, str],
-        manage: dict[str, str],
         make_api_suite: Callable[..., Any],
     ) -> None:
-        # I5: the key stays restricted, to nothing, and a project created later under the same name
-        # is another project, which it does not cover.
-        assert api_client.delete("/api/projects/libcxx", headers=manage).status_code == 204
+        # I5: a key covering the project in full may delete it, and stays restricted, to nothing,
+        # and a project created later under the same name is another project, which it does not
+        # cover.
+        assert api_client.delete("/api/projects/libcxx", headers=libcxx).status_code == 204
         assert api_client.get("/api/auth", headers=libcxx).json()["key"]["restricted_to"] == []
         make_api_suite(NTS, "libcxx")
 
@@ -589,9 +583,9 @@ class TestProjectRestriction:
         assert "have all been deleted" in write.json()["error"]["message"]
 
 
-class TestMovesAndProjectRenames:
-    """I5: what the body of a move or a project rename asks of a restricted key, decided from the
-    body before it is validated."""
+class TestMoves:
+    """I5: what the body of a move asks of a restricted key, decided from the body before it is
+    validated."""
 
     MOVE = "/api/projects/libcxx/suites/nts"
 
@@ -708,40 +702,6 @@ class TestMovesAndProjectRenames:
         response = api_client.patch(self.MOVE, content='{"project": "llvm"}', headers=headers)
 
         assert response.status_code == 403
-
-    @pytest.mark.parametrize("name", ["libcpp", "Not A Name", None, 1])
-    def test_renaming_a_project_needs_an_instance_wide_key(
-        self,
-        api_client: TestClient,
-        restricted_key: Callable[..., str],
-        bearer: Callable[[str], dict[str, str]],
-        name: Any,
-    ) -> None:
-        headers = bearer(restricted_key(Scope.MANAGE, keys.Entry("libcxx", None)))
-
-        response = api_client.patch("/api/projects/libcxx", json={"name": name}, headers=headers)
-
-        assert response.status_code == 403
-        message = response.json()["error"]["message"]
-        assert "Renaming a project requires the 'manage' scope from an instance-wide" in message
-        assert api_client.get("/api/projects/libcxx").status_code == 200
-
-    def test_sending_the_project_s_own_name_is_no_rename(
-        self,
-        api_client: TestClient,
-        restricted_key: Callable[..., str],
-        bearer: Callable[[str], dict[str, str]],
-    ) -> None:
-        headers = bearer(restricted_key(Scope.MANAGE, keys.Entry("libcxx", None)))
-
-        response = api_client.patch(
-            "/api/projects/libcxx",
-            json={"name": "libcxx", "display_name": "libc++"},
-            headers=headers,
-        )
-
-        assert response.status_code == 200, response.text
-        assert response.json()["display_name"] == "libc++"
 
 
 class TestRevocation:

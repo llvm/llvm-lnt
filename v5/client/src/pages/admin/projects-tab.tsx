@@ -42,8 +42,8 @@ import styles from './admin.module.css'
 /**
  * The Projects tab (AD3): a form creating a project, and a table of the projects, in AR22's order,
  * whose names and display names are edited in place, and which are deleted once they have no
- * suites. Anyone can view it. Creating, renaming and deleting a project need an instance-wide
- * `manage` token, and changing its display name one covering the project in full.
+ * suites. Anyone can view it. Creating a project needs an instance-wide `manage` token, and
+ * changing or deleting one a token covering the project in full.
  */
 export function ProjectsTab() {
   const projects = useProjects()
@@ -327,11 +327,11 @@ interface NameCellProps {
 
 /**
  * The project's name, edited in place, which renames it once a plain confirmation says what that
- * breaks (AD3, AR16). Renaming needs an instance-wide `manage` token.
+ * breaks (AD3, AR16). Renaming needs `manage` covering the project in full.
  */
 function NameCell({ project, names, focus, onRenamed, onFocused, tableRef }: NameCellProps) {
   const queryClient = useQueryClient()
-  const gate = useScopeGate('manage', null)
+  const gate = useScopeGate('manage', { project: project.name })
   const { recheck } = useAuth()
   const editRef = useRef<HTMLButtonElement>(null)
   // The row of a project just renamed is a new one, which the focus did not go to: its Edit button
@@ -392,11 +392,11 @@ function DisplayNameCell({ project }: { project: Project }) {
 }
 
 /**
- * Why `project` cannot be deleted, if it cannot: the scope it needs, an instance-wide `manage`, or
- * the suites it still has, since deleting a project never deletes data (D7).
+ * Why `project` cannot be deleted, if it cannot: the scope it needs, `manage` covering the project
+ * in full, or the suites it still has, since deleting a project never deletes data (D7).
  */
 function useDeleteGate(project: Project): ScopeGate {
-  const gate = useScopeGate('manage', null)
+  const gate = useScopeGate('manage', { project: project.name })
   if (gate.disabled || project.suites.length === 0) return gate
   const label = projectLabel(project)
   return {

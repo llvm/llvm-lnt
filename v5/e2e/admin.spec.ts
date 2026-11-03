@@ -520,36 +520,62 @@ test.describe('the Projects tab', () => {
     }
   })
 
-  test('lets a token covering a project in full change its display name, and nothing else', async ({
+  test('lets a token covering a project in full change it and delete it, but create none', async ({
     page,
     request,
     signIn,
     tokenFor,
   }, testInfo) => {
-    await withOwnSuite(request, await tokenFor('manage'), testInfo, async ({ project }) => {
-      await signIn(page, 'manage', [{ project, suite: null }])
+    const base = ownName(testInfo, 62)
+    const [name, renamed] = [`${base}-a`, `${base}-b`]
+    const headers = { Authorization: `Bearer ${await tokenFor('manage')}` }
+    const created = await request.post('/api/projects', { headers, data: { name } })
+    expect(created.status(), await created.text()).toBe(201)
+    try {
+      await signIn(page, 'manage', [{ project: name, suite: null }])
       await page.goto('/admin?tab=projects')
 
-      const instanceWide = /^Needs an instance-wide API token with the 'manage' scope\./
       const create = page.getByRole('button', { name: 'Create project' })
       await expect(create).toBeDisabled()
-      await expect(create).toHaveAttribute('title', instanceWide)
-      for (const control of [`Edit Name of ${project}`, `Delete project ${project}`]) {
+      await expect(create).toHaveAttribute(
+        'title',
+        /^Needs an instance-wide API token with the 'manage' scope\./,
+      )
+      const libcxx =
+        /^Needs an API token with the 'manage' scope covering project 'libc\+\+' in full\./
+      for (const control of [
+        'Edit Name of libcxx',
+        'Edit Display name of libcxx',
+        'Delete project libcxx',
+      ]) {
         const button = page.getByRole('button', { name: control })
         await expect(button).toBeDisabled()
-        await expect(button).toHaveAttribute('title', instanceWide)
+        await expect(button).toHaveAttribute('title', libcxx)
       }
-      await expect(page.getByRole('button', { name: 'Edit Display name of libcxx' })).toBeDisabled()
 
-      await page.getByRole('button', { name: `Edit Display name of ${project}` }).click()
-      await page.getByRole('textbox', { name: `Display name of ${project}` }).fill('Own project')
+      await page.getByRole('button', { name: `Edit Display name of ${name}` }).click()
+      await page.getByRole('textbox', { name: `Display name of ${name}` }).fill('Own project')
       await page.keyboard.press('Enter')
       await expect(
         page.getByRole('link', { name: '0 suites of Own project', exact: true }),
       ).toBeVisible()
-      const path = `/api/projects/${project}`
-      const shown = await json<components['schemas']['Project']>(request, path)
-      expect(shown.display_name).toBe('Own project')
-    })
+
+      // The token follows the project to its new name (I5), so it can still change it.
+      const prompt = page.getByRole('form', { name: 'Confirmation' })
+      await page.getByRole('button', { name: `Edit Name of ${name}` }).click()
+      await page.getByRole('textbox', { name: `Name of ${name}` }).fill(renamed)
+      await page.keyboard.press('Enter')
+      await prompt.getByRole('button', { name: 'OK' }).click()
+      await expect(page.getByRole('button', { name: `Edit Name of ${renamed}` })).toBeEnabled()
+      expect((await request.get(`/api/projects/${name}`)).status()).toBe(404)
+
+      await page.getByRole('button', { name: `Delete project ${renamed}` }).click()
+      await prompt.getByRole('button', { name: 'Delete' }).click()
+      await expect(page.getByRole('button', { name: `Delete project ${renamed}` })).toHaveCount(0)
+      expect((await request.get(`/api/projects/${renamed}`)).status()).toBe(404)
+    } finally {
+      await request.delete(`/api/projects/${name}`, { headers })
+      await request.delete(`/api/projects/${renamed}`, { headers })
+    }
   })
 })

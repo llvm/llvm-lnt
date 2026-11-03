@@ -23,9 +23,9 @@ class Scope(StrEnum):
 
     A `submit`, `triage` or `manage` key can be restricted to some projects as a whole and some
     single test suites. It then has its scope only in the suites it covers, and only `read`
-    everywhere else. Creating a test suite in a project, moving one into it, or changing the
-    project's display name, needs a key covering that project as a whole. Creating, renaming and
-    deleting a project always need an unrestricted key.
+    everywhere else. Creating a test suite in a project, moving one into it, or changing or
+    deleting the project, needs a key covering that project as a whole. Creating a project always
+    needs an unrestricted key.
     """
 
     # Lowest privilege first: the declaration order *is* the hierarchy, and `grants` reads it.

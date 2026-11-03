@@ -136,15 +136,18 @@ function cachedProjects(queryClient: QueryClient) {
 
 /**
  * The Projects tab, the instance holding `PROJECTS` and llvm's two suites, to a holder of `scope`
- * restricted to `restrictedTo` unless null, or of no token.
+ * restricted to `restrictedTo` unless null, or of no token. With a token, it waits until the token
+ * is accepted, which enables the display name of `ready`, a project the token covers in full.
  */
 async function renderTab({
   scope = 'manage',
   restrictedTo = null,
+  ready = 'llvm',
   url = '/admin?tab=projects',
 }: {
   scope?: Parameters<typeof signIn>[0] | null
   restrictedTo?: Parameters<typeof signIn>[1]
+  ready?: string
   url?: string
 } = {}) {
   if (scope !== null) signIn(scope, restrictedTo)
@@ -153,7 +156,7 @@ async function renderTab({
   const list = await projectsTable()
   if (scope !== null) {
     await waitFor(() =>
-      expect(screen.getByRole('button', { name: 'Edit Display name of llvm' })).toBeEnabled(),
+      expect(screen.getByRole('button', { name: `Edit Display name of ${ready}` })).toBeEnabled(),
     )
   }
   return { ...rendered, store, list }
@@ -214,57 +217,56 @@ describe('gating (AR17)', () => {
   it('disables every change without a token, saying what it needs', async () => {
     await renderTab({ scope: null })
 
-    const instanceWide =
-      "Needs an instance-wide API token with the 'manage' scope. Set one in Settings."
-    await waitFor(() => expect(createButton()).toHaveAccessibleDescription(instanceWide))
+    await waitFor(() =>
+      expect(createButton()).toHaveAccessibleDescription(
+        "Needs an instance-wide API token with the 'manage' scope. Set one in Settings.",
+      ),
+    )
+    const needs = "Needs an API token with the 'manage' scope. Set one in Settings."
     expect(screen.getByRole('button', { name: 'Edit Name of swift' })).toHaveAttribute(
       'title',
-      instanceWide,
+      needs,
     )
-    expect(deleteButton('swift')).toHaveAttribute('title', instanceWide)
+    expect(deleteButton('swift')).toHaveAttribute('title', needs)
     expect(deleteButton('swift')).toBeDisabled()
     expect(screen.getByRole('button', { name: 'Edit Display name of swift' })).toBeDisabled()
   })
 
-  it('lets a token covering a project in full change its display name only', async () => {
-    signIn('manage', [whole('swift')])
-    mockSuites([SUITE, BARE_SUITE], { projects: PROJECTS })
-    renderPage('/admin?tab=projects')
-    await projectsTable()
+  it('lets a token covering a project in full change and delete it only', async () => {
+    await renderTab({ restrictedTo: [whole('swift')], ready: 'swift' })
 
-    const swift = screen.getByRole('button', { name: 'Edit Display name of swift' })
-    await waitFor(() => expect(swift).toBeEnabled())
-    expect(screen.getByRole('button', { name: 'Edit Display name of llvm' })).toHaveAttribute(
-      'title',
+    expect(screen.getByRole('button', { name: 'Edit Name of swift' })).toBeEnabled()
+    expect(deleteButton('swift')).toBeEnabled()
+    const llvm =
       "Needs an API token with the 'manage' scope covering project 'llvm' in full. The token in " +
-        "Settings has the 'manage' scope, covering only 'Swift' (all).",
+      "Settings has the 'manage' scope, covering only 'Swift' (all)."
+    const controls = ['Edit Display name of llvm', 'Edit Name of llvm', 'Delete project llvm']
+    for (const control of controls) {
+      expect(screen.getByRole('button', { name: control })).toHaveAttribute('title', llvm)
+    }
+    expect(createButton()).toHaveAccessibleDescription(
+      /^Needs an instance-wide API token with the 'manage' scope\./,
     )
-    const instanceWide = /^Needs an instance-wide API token with the 'manage' scope\./
-    expect(screen.getByRole('button', { name: 'Edit Name of swift' })).toHaveAttribute(
-      'title',
-      expect.stringMatching(instanceWide),
-    )
-    expect(deleteButton('swift')).toHaveAttribute('title', expect.stringMatching(instanceWide))
-    expect(createButton()).toHaveAccessibleDescription(instanceWide)
   })
 })
 
 describe('gating with a key restricted to a suite', () => {
-  it('disables the display names, which need the project covered in full', async () => {
+  it('disables every change of its project, which needs it covered in full', async () => {
     signIn('manage', [entry('libcxx')])
     mockSuites([SUITE, BARE_SUITE], { projects: PROJECTS })
     renderPage('/admin?tab=projects')
     await projectsTable()
 
+    const needs =
+      "Needs an API token with the 'manage' scope covering project 'llvm' in full. The token " +
+      "in Settings has the 'manage' scope, covering only 'llvm/libcxx'."
     const edit = screen.getByRole('button', { name: 'Edit Display name of llvm' })
-    await waitFor(() =>
-      expect(edit).toHaveAttribute(
-        'title',
-        "Needs an API token with the 'manage' scope covering project 'llvm' in full. The token " +
-          "in Settings has the 'manage' scope, covering only 'llvm/libcxx'.",
-      ),
-    )
+    await waitFor(() => expect(edit).toHaveAttribute('title', needs))
     expect(edit).toBeDisabled()
+    for (const control of ['Edit Name of llvm', 'Delete project llvm']) {
+      expect(screen.getByRole('button', { name: control })).toHaveAttribute('title', needs)
+      expect(screen.getByRole('button', { name: control })).toBeDisabled()
+    }
   })
 })
 
@@ -468,12 +470,13 @@ describe('renaming a project', () => {
   })
 
   it("focuses the new row's Edit once the token has been checked again", async () => {
-    const { store } = await renderTab()
+    // A token covering the project in full, which follows it to its new name (I5).
+    const { store } = await renderTab({ restrictedTo: [whole('swift')], ready: 'swift' })
     mockWrites(store)
     const held = gate()
     mockAuth(async () => {
       await held.promise
-      return HttpResponse.json({ key: apiKey('manage') })
+      return HttpResponse.json({ key: apiKey('manage', { restricted_to: [whole('apple')] }) })
     })
 
     save('Name of swift', 'apple')

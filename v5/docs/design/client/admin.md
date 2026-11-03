@@ -138,17 +138,17 @@ and the form is emptied. On failure, the form keeps its contents and shows the A
 The table has a row for each project, those without suites included, in AR22's order:
 
 - `Name` is edited in place (see AR12), with the same check as the form's, which renames the
-  project. Renaming requires an instance-wide `manage` key. Saving a new name first asks for a
-  plain confirmation (see AR16), which names the old and the new name and warns that every URL,
-  bookmark and bot that uses the old name for any of the project's suites gets a 404 until it is
-  updated, and that API keys are unaffected.
+  project. Renaming requires `manage` covering the project in full (see I5). Saving a new name
+  first asks for a plain confirmation (see AR16), which names the old and the new name and warns
+  that every URL, bookmark and bot that uses the old name for any of the project's suites gets a
+  404 until it is updated, and that API keys are unaffected.
 - `Display name` is edited in place (see AR12), and shows `--` when the project has none.
   Emptying it clears the display name. Saving is not confirmed. It requires `manage` covering the
   project in full (see I5).
 - `Suites` is the number of the project's suites, linking to them on the Test Suites page
   (`/projects/{p}`, see TS1).
-- A red Delete button, which requires an instance-wide `manage` key, is disabled while the
-  project has suites, saying why on hover. Clicking it asks for a plain confirmation (see AR16),
+- A red Delete button, which requires `manage` covering the project in full, is disabled while
+  the project has suites, saying why on hover. Clicking it asks for a plain confirmation (see AR16),
   which says that API keys listing the project lose it, and that a key left with nothing grants
   only `read` (see I5). On success, the row is removed.
 
