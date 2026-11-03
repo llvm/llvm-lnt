@@ -2,7 +2,8 @@ import { act, fireEvent, screen, waitFor, within } from '@testing-library/react'
 import { HttpResponse } from 'msw'
 import { describe, expect, it } from 'vitest'
 import { SEARCH_DELAY_MS } from '../../components/suggestions'
-import { SUITE, commit, cursorPage, machine, run } from '../../test/fixtures'
+import type { ProjectName } from '../../api/suites'
+import { BARE_SUITE, PROJECT, SUITE, commit, cursorPage, machine, run } from '../../test/fixtures'
 import { errorResponse, mockApi } from '../../test/mock-api'
 import {
   commitCard,
@@ -16,6 +17,7 @@ import {
   mockRuns,
   mockSuites,
   navbarLink,
+  projectList,
   renderPage,
   rowsOf,
   search,
@@ -23,49 +25,108 @@ import {
 } from '../../test/page'
 import { server } from '../../test/server'
 
+/** Another project, with a display name. */
+const SWIFT: ProjectName = { name: 'swift', display_name: 'Swift' }
+
+/** A project without suites, whose name sorts after the others' but its label first. */
+const EMPTY: ProjectName = { name: 'zzz', display_name: 'Empty' }
+
 /** The accessible name of the Runs tab's search. */
 const RUNS_SEARCH = 'Search runs by machine, commit or UUID'
 
 describe('the Test Suites page', () => {
-  it('selects the first suite once the list has loaded', async () => {
+  it("lists every project's suites under the project's heading, selecting none", async () => {
     const list = gate()
-    mockSuites(undefined, { wait: () => list.promise })
-    mockRuns(() => cursorPage([]))
-    renderPage('/suites')
+    mockSuites([SUITE, BARE_SUITE, { ...BARE_SUITE, project: SWIFT, name: 'stdlib' }], {
+      projects: [PROJECT, SWIFT, EMPTY],
+      wait: () => list.promise,
+    })
+    renderPage('/projects')
 
     expect(await screen.findByText('Loading test suites...')).toBeInTheDocument()
-    expect(currentUrl()).toBe('/suites')
     act(() => list.open())
 
-    await waitFor(() => expect(currentUrl()).toBe('/suites/libcxx'))
-    expect(screen.getByRole('link', { name: 'libcxx' })).toHaveAttribute('aria-current', 'page')
+    const picker = await screen.findByRole('navigation', { name: 'Test suites' })
+    // In AR22's order, each linking to its own suites, an empty one included.
+    const sections = within(picker).getAllByRole('region')
+    expect(sections.map((section) => within(section).getByRole('heading').textContent)).toEqual([
+      'Empty',
+      'llvm',
+      'Swift',
+    ])
+    expect(within(sections[0]).getByText('No test suites.')).toBeInTheDocument()
+    expect(within(sections[1]).getAllByRole('link').map((link) => link.textContent)).toEqual([
+      'llvm',
+      'libcxx',
+      'nts',
+    ])
+    expect(within(sections[2]).getByRole('link', { name: 'Swift' })).toHaveAttribute(
+      'href',
+      '/projects/swift',
+    )
+    expect(within(sections[2]).getByRole('link', { name: 'stdlib' })).toHaveAttribute(
+      'href',
+      '/projects/swift/suites/stdlib',
+    )
+    expect(screen.queryByRole('tablist')).not.toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: 'All projects' })).not.toBeInTheDocument()
+    expect(currentUrl()).toBe('/projects')
   })
 
-  it('keeps the query parameters when it selects the first suite', async () => {
-    mockSuites()
-    mockMachines(() => ({ items: [] }))
-    renderPage('/suites?tab=machines')
+  it('shows the suites of a project alone, with a link to every project', async () => {
+    mockSuites([SUITE, { ...BARE_SUITE, project: SWIFT, name: 'stdlib' }])
+    renderPage('/projects/swift')
 
-    expect(await table('Machines')).toBeInTheDocument()
-    expect(currentUrl()).toBe('/suites/libcxx?tab=machines')
+    const picker = await screen.findByRole('navigation', { name: 'Test suites' })
+    expect(within(picker).getAllByRole('heading').map((heading) => heading.textContent)).toEqual([
+      'Swift',
+    ])
+    expect(within(picker).getByRole('link', { name: 'stdlib' })).not.toHaveAttribute(
+      'aria-current',
+    )
+    expect(screen.queryByRole('tablist')).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('link', { name: 'All projects' }))
+    await waitFor(() => expect(currentUrl()).toBe('/projects'))
+    expect(await screen.findByRole('link', { name: 'libcxx' })).toBeInTheDocument()
   })
 
-  it('selects the first suite in place of /suites in the history', async () => {
+  it('says that a project has no suites', async () => {
+    mockSuites([SUITE], { projects: [PROJECT, SWIFT] })
+    renderPage('/projects/swift')
+
+    expect(await screen.findByText('No test suites.')).toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: 'libcxx' })).not.toBeInTheDocument()
+  })
+
+  it.each([['/projects/nope'], ['/projects/nope/suites/libcxx']])(
+    'says that the project does not exist at %s',
+    async (url) => {
+      mockSuites()
+      renderPage(url)
+
+      expect(await screen.findByRole('alert')).toHaveTextContent("Project 'nope' not found.")
+      expect(screen.queryByRole('navigation', { name: 'Test suites' })).not.toBeInTheDocument()
+      expect(screen.getByRole('link', { name: 'All projects' })).toHaveAttribute(
+        'href',
+        '/projects',
+      )
+    },
+  )
+
+  it("leads from the navbar to every project's suites, outside a suite's pages", async () => {
     mockSuites()
-    mockRuns(() => cursorPage([]))
     renderPage('/nope')
 
-    fireEvent.click(screen.getByRole('link', { name: 'Test Suites' }))
-    await waitFor(() => expect(currentUrl()).toBe('/suites/libcxx'))
-
-    fireEvent.click(screen.getByRole('button', { name: 'Browser back' }))
-    await waitFor(() => expect(currentUrl()).toBe('/nope'))
+    fireEvent.click(navbarLink('Test Suites'))
+    await waitFor(() => expect(currentUrl()).toBe('/projects'))
+    expect(await screen.findByRole('link', { name: 'libcxx' })).toBeInTheDocument()
   })
 
   it('shows the tabs of the selected suite, the Runs tab first', async () => {
     mockSuites()
     mockRuns(() => cursorPage([]))
-    renderPage('/suites/libcxx')
+    renderPage('/projects/llvm/suites/libcxx')
 
     const picker = await screen.findByRole('navigation', { name: 'Test suites' })
     expect(within(picker).getByRole('link', { name: 'libcxx' })).toHaveAttribute(
@@ -91,17 +152,18 @@ describe('the Test Suites page', () => {
       { ...SUITE, name: 'beta', display_name: 'beta suite' },
     ])
     mockRuns(() => cursorPage([]))
-    renderPage('/suites/alpha')
+    renderPage('/projects/llvm/suites/alpha')
 
     const picker = await screen.findByRole('navigation', { name: 'Test suites' })
     expect(within(picker).getAllByRole('link').map((link) => link.textContent)).toEqual([
+      'llvm',
       'alpha',
       'Alpha suite',
       'beta suite',
     ])
     expect(within(picker).getByRole('link', { name: 'Alpha suite' })).toHaveAttribute(
       'href',
-      '/suites/zeta',
+      '/projects/llvm/suites/zeta',
     )
   })
 
@@ -109,11 +171,11 @@ describe('the Test Suites page', () => {
     mockSuites()
     mockMachines(() => ({ items: [] }))
     mockRuns(() => cursorPage([]))
-    renderPage('/suites/libcxx?tab=machines&search=linux')
+    renderPage('/projects/llvm/suites/libcxx?tab=machines&search=linux')
 
     fireEvent.click(await screen.findByRole('link', { name: 'nts' }))
 
-    await waitFor(() => expect(currentUrl()).toBe('/suites/nts'))
+    await waitFor(() => expect(currentUrl()).toBe('/projects/llvm/suites/nts'))
     expect(screen.getByRole('tab', { name: 'Runs' })).toHaveAttribute('aria-selected', 'true')
     expect(screen.getByRole('searchbox', { name: RUNS_SEARCH })).toHaveValue('')
   })
@@ -121,45 +183,47 @@ describe('the Test Suites page', () => {
   it('starts the selected suite afresh when its card is clicked', async () => {
     mockSuites()
     mockRuns(() => cursorPage([]))
-    renderPage('/suites/libcxx?search=linux')
+    renderPage('/projects/llvm/suites/libcxx?search=linux')
     await table('Runs')
 
     fireEvent.click(screen.getByRole('link', { name: 'libcxx' }))
 
-    await waitFor(() => expect(currentUrl()).toBe('/suites/libcxx'))
+    await waitFor(() => expect(currentUrl()).toBe('/projects/llvm/suites/libcxx'))
     expect(screen.getByRole('searchbox', { name: RUNS_SEARCH })).toHaveValue('')
     await new Promise((resolve) => setTimeout(resolve, SEARCH_DELAY_MS + 100))
-    expect(currentUrl()).toBe('/suites/libcxx')
+    expect(currentUrl()).toBe('/projects/llvm/suites/libcxx')
   })
 
   it('takes the search up again on going Back to it', async () => {
     mockSuites()
     mockRuns(() => cursorPage([]))
-    renderPage('/suites/libcxx?search=linux')
+    renderPage('/projects/llvm/suites/libcxx?search=linux')
     await table('Runs')
 
     // The navbar's link leads to the suite without the search, as a new history entry.
     fireEvent.click(navbarLink('Test Suites'))
-    await waitFor(() => expect(currentUrl()).toBe('/suites/libcxx'))
+    await waitFor(() => expect(currentUrl()).toBe('/projects/llvm/suites/libcxx'))
     expect(screen.getByRole('searchbox', { name: RUNS_SEARCH })).toHaveValue('')
 
     fireEvent.click(screen.getByRole('button', { name: 'Browser back' }))
 
-    await waitFor(() => expect(currentUrl()).toBe('/suites/libcxx?search=linux'))
+    await waitFor(() => expect(currentUrl()).toBe('/projects/llvm/suites/libcxx?search=linux'))
     const input = screen.getByRole('searchbox', { name: RUNS_SEARCH })
     expect(input).toHaveValue('linux')
     await new Promise((resolve) => setTimeout(resolve, SEARCH_DELAY_MS + 100))
-    expect(currentUrl()).toBe('/suites/libcxx?search=linux')
+    expect(currentUrl()).toBe('/projects/llvm/suites/libcxx?search=linux')
   })
 
   it('says that the suite does not exist, alongside the picker', async () => {
     mockSuites()
-    renderPage('/suites/nope')
+    renderPage('/projects/llvm/suites/nope')
 
-    expect(await screen.findByRole('alert')).toHaveTextContent("Test suite 'nope' not found.")
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      "Test suite 'llvm/nope' not found.",
+    )
     expect(screen.getByRole('navigation', { name: 'Test suites' })).toBeInTheDocument()
     expect(screen.queryByRole('tablist')).not.toBeInTheDocument()
-    expect(currentUrl()).toBe('/suites/nope')
+    expect(currentUrl()).toBe('/projects/llvm/suites/nope')
     // It takes the focus only from the tabs it replaces (see the schema editor's tests).
     expect(screen.getByRole('alert')).not.toHaveFocus()
   })
@@ -167,24 +231,26 @@ describe('the Test Suites page', () => {
   it('says nothing about the suite until the list has loaded', async () => {
     const list = gate()
     server.use(
-      mockApi('get', '/api/suites', async () => {
+      mockApi('get', '/api/projects', async () => {
         await list.promise
-        return HttpResponse.json({ items: [SUITE] })
+        return HttpResponse.json(projectList([SUITE]))
       }),
     )
-    renderPage('/suites/nope')
+    renderPage('/projects/llvm/suites/nope')
 
     expect(await screen.findByText('Loading test suites...')).toBeInTheDocument()
     expect(screen.queryByRole('alert')).not.toBeInTheDocument()
     act(() => list.open())
-    expect(await screen.findByRole('alert')).toHaveTextContent("Test suite 'nope' not found.")
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      "Test suite 'llvm/nope' not found.",
+    )
   })
 
-  it.each([['/suites/libcxx'], ['/suites']])(
-    'reports a failure to list the suites at %s, selecting no suite until it is retried',
+  it.each([['/projects/llvm/suites/libcxx'], ['/projects/llvm']])(
+    'reports a failure to list the suites at %s, showing nothing more until it is retried',
     async (url) => {
       server.use(
-        mockApi('get', '/api/suites', () =>
+        mockApi('get', '/api/projects', () =>
           errorResponse(500, 'internal_error', 'The server failed'),
         ),
       )
@@ -197,23 +263,23 @@ describe('the Test Suites page', () => {
       mockSuites()
       mockRuns(() => cursorPage([]))
       fireEvent.click(screen.getByRole('button', { name: 'Retry' }))
-      expect(await table('Runs')).toBeInTheDocument()
-      expect(currentUrl()).toBe('/suites/libcxx')
+      expect(await screen.findByRole('link', { name: 'libcxx' })).toBeInTheDocument()
+      expect(currentUrl()).toBe(url)
     },
   )
 
-  it('says when there are no suites', async () => {
-    mockSuites([])
-    renderPage('/suites')
+  it('says when there are no projects', async () => {
+    mockSuites([], { projects: [] })
+    renderPage('/projects')
 
-    expect(await screen.findByText('There are no test suites yet.')).toBeInTheDocument()
-    expect(currentUrl()).toBe('/suites')
+    expect(await screen.findByText('There are no projects yet.')).toBeInTheDocument()
+    expect(currentUrl()).toBe('/projects')
   })
 
   it('restores the tab and the search from the URL', async () => {
     mockSuites()
     const queries = mockMachines(() => ({ items: [machine('linux-x86_64')] }))
-    renderPage('/suites/libcxx?tab=machines&search=linux')
+    renderPage('/projects/llvm/suites/libcxx?tab=machines&search=linux')
 
     expect(await table('Machines')).toBeInTheDocument()
     expect(screen.getByRole('tab', { name: 'Machines' })).toHaveAttribute('aria-selected', 'true')
@@ -225,30 +291,30 @@ describe('the Test Suites page', () => {
     mockSuites()
     mockMachines(() => ({ items: [machine('linux-x86_64')] }))
     const queries = mockCommits(() => cursorPage([]))
-    renderPage('/suites/libcxx?tab=machines&search=linux')
+    renderPage('/projects/llvm/suites/libcxx?tab=machines&search=linux')
     await table('Machines')
 
     fireEvent.click(screen.getByRole('tab', { name: 'Commits' }))
 
-    await waitFor(() => expect(currentUrl()).toBe('/suites/libcxx?tab=commits'))
+    await waitFor(() => expect(currentUrl()).toBe('/projects/llvm/suites/libcxx?tab=commits'))
     expect(screen.getByRole('searchbox', { name: 'Search commits' })).toHaveValue('')
     await table('Commits')
     expect(queries[0].has('search')).toBe(false)
 
     mockRuns(() => cursorPage([]))
     fireEvent.click(screen.getByRole('tab', { name: 'Runs' }))
-    await waitFor(() => expect(currentUrl()).toBe('/suites/libcxx'))
+    await waitFor(() => expect(currentUrl()).toBe('/projects/llvm/suites/libcxx'))
   })
 
   it('leaves the search alone when the selected tab is clicked again', async () => {
     mockSuites()
     mockRuns(() => cursorPage([]))
-    renderPage('/suites/libcxx?search=linux')
+    renderPage('/projects/llvm/suites/libcxx?search=linux')
     await table('Runs')
 
     fireEvent.click(screen.getByRole('tab', { name: 'Runs' }))
 
-    expect(currentUrl()).toBe('/suites/libcxx?search=linux')
+    expect(currentUrl()).toBe('/projects/llvm/suites/libcxx?search=linux')
     const input = screen.getByRole('searchbox', { name: RUNS_SEARCH })
     expect(input).toHaveValue('linux')
   })
@@ -274,7 +340,7 @@ describe('the Runs tab', () => {
       ]),
     )
     mockResolve([TAGGED, PLAIN])
-    renderPage('/suites/libcxx')
+    renderPage('/projects/llvm/suites/libcxx')
 
     const runs = await table('Runs')
     await waitFor(() =>
@@ -295,16 +361,16 @@ describe('the Runs tab', () => {
     const uuid = run('a').uuid
     expect(within(runs).getByRole('link', { name: 'aaaaaaaa…' })).toHaveAttribute(
       'href',
-      `/suites/libcxx/runs/${uuid}`,
+      `/projects/llvm/suites/libcxx/runs/${uuid}`,
     )
     expect(within(runs).getByRole('link', { name: 'aaaaaaaa…' })).toHaveAttribute('title', uuid)
     expect(within(runs).getByRole('link', { name: 'macos/arm64?' })).toHaveAttribute(
       'href',
-      '/suites/libcxx/machines/macos%2Farm64%3F',
+      '/projects/llvm/suites/libcxx/machines/macos%2Farm64%3F',
     )
     expect(within(runs).getByRole('link', { name: 'r100 (v1)' })).toHaveAttribute(
       'href',
-      '/suites/libcxx/commits/abc123',
+      '/projects/llvm/suites/libcxx/commits/abc123',
     )
   })
 
@@ -318,7 +384,7 @@ describe('the Runs tab', () => {
       ]),
     )
     const resolved = mockResolve([TAGGED])
-    renderPage('/suites/libcxx')
+    renderPage('/projects/llvm/suites/libcxx')
 
     const runs = await table('Runs')
     await waitFor(() =>
@@ -332,7 +398,7 @@ describe('the Runs tab', () => {
     mockSuites()
     mockRuns(() => cursorPage([run('a', { commit: 'abc123' })]))
     const resolved = mockResolve([TAGGED])
-    renderPage('/suites/libcxx')
+    renderPage('/projects/llvm/suites/libcxx')
 
     const runs = await table('Runs')
     const card = await commitCard(await within(runs).findByRole('link', { name: 'r100 (v1)' }))
@@ -345,11 +411,11 @@ describe('the Runs tab', () => {
     mockSuites()
     mockRuns(() => cursorPage([run('a', { commit: 'abc123' })]))
     server.use(
-      mockApi('post', '/api/suites/{testsuite}/commits/resolve', () =>
+      mockApi('post', '/api/projects/{project}/suites/{suite}/commits/resolve', () =>
         errorResponse(500, 'internal_error', 'The server failed'),
       ),
     )
-    renderPage('/suites/libcxx')
+    renderPage('/projects/llvm/suites/libcxx')
 
     const runs = await table('Runs')
     expect(within(runs).getByRole('link', { name: 'abc123' })).toBeInTheDocument()
@@ -364,7 +430,7 @@ describe('the Runs tab', () => {
         : cursorPage([run('a', { machine: 'first' })], 'page2'),
     )
     mockResolve()
-    renderPage('/suites/libcxx')
+    renderPage('/projects/llvm/suites/libcxx')
     await screen.findByRole('link', { name: 'first' })
 
     fireEvent.click(screen.getByRole('button', { name: /Next/ }))
@@ -380,7 +446,7 @@ describe('the Runs tab', () => {
         : cursorPage([run('a', { machine: 'first' })], 'page2'),
     )
     mockResolve()
-    renderPage('/suites/libcxx')
+    renderPage('/projects/llvm/suites/libcxx')
 
     const previous = await screen.findByRole('button', { name: /Previous/ })
     const next = screen.getByRole('button', { name: /Next/ })
@@ -392,7 +458,7 @@ describe('the Runs tab', () => {
     expect(queries[1].get('cursor')).toBe('page2')
     expect(next).toBeDisabled()
     // The position is not kept in the URL (AR7).
-    expect(currentUrl()).toBe('/suites/libcxx')
+    expect(currentUrl()).toBe('/projects/llvm/suites/libcxx')
 
     fireEvent.click(previous)
     expect(await screen.findByRole('link', { name: 'first' })).toBeInTheDocument()
@@ -404,7 +470,7 @@ describe('the Runs tab', () => {
     let failures = 1
     const retry = gate()
     server.use(
-      mockApi('get', '/api/suites/{testsuite}/runs', async ({ request }) => {
+      mockApi('get', '/api/projects/{project}/suites/{suite}/runs', async ({ request }) => {
         if (new URL(request.url).searchParams.get('cursor') !== 'page2') {
           return HttpResponse.json(cursorPage([run('a', { machine: 'first' })], 'page2'))
         }
@@ -414,7 +480,7 @@ describe('the Runs tab', () => {
       }),
     )
     mockResolve()
-    renderPage('/suites/libcxx')
+    renderPage('/projects/llvm/suites/libcxx')
     await screen.findByRole('link', { name: 'first' })
 
     fireEvent.click(screen.getByRole('button', { name: /Next/ }))
@@ -435,14 +501,14 @@ describe('the Runs tab', () => {
   it('shows the error of a failed search rather than the results of the previous one', async () => {
     mockSuites()
     server.use(
-      mockApi('get', '/api/suites/{testsuite}/runs', ({ request }) =>
+      mockApi('get', '/api/projects/{project}/suites/{suite}/runs', ({ request }) =>
         new URL(request.url).searchParams.get('search') === 'linux-x'
           ? errorResponse(500, 'internal_error', 'The server failed')
           : HttpResponse.json(cursorPage([run('a', { machine: 'linux-x86_64' })])),
       ),
     )
     mockResolve()
-    renderPage('/suites/libcxx?search=linux')
+    renderPage('/projects/llvm/suites/libcxx?search=linux')
     await screen.findByRole('link', { name: 'linux-x86_64' })
 
     search('Search runs by machine, commit or UUID', 'linux-x')
@@ -459,7 +525,7 @@ describe('the Runs tab', () => {
       return cursorPage([run('a', { machine })], 'p2')
     })
     mockResolve()
-    renderPage('/suites/libcxx')
+    renderPage('/projects/llvm/suites/libcxx')
     fireEvent.click(await screen.findByRole('button', { name: /Next/ }))
     await waitFor(() => expect(queries).toHaveLength(2))
 
@@ -471,7 +537,7 @@ describe('the Runs tab', () => {
     expect(queries.slice(2).map((query) => [query.get('search'), query.get('cursor')])).toEqual([
       ['lin', null],
     ])
-    expect(currentUrl()).toBe('/suites/libcxx?search=lin')
+    expect(currentUrl()).toBe('/projects/llvm/suites/libcxx?search=lin')
     expect(screen.getByRole('button', { name: /Previous/ })).toBeDisabled()
   })
 
@@ -484,7 +550,7 @@ describe('the Runs tab', () => {
       return cursorPage([run('a', { machine: `${text || 'any'}-box` })])
     })
     mockResolve()
-    renderPage('/suites/libcxx')
+    renderPage('/projects/llvm/suites/libcxx')
     await screen.findByRole('link', { name: 'any-box' })
 
     search(RUNS_SEARCH, 'lin')
@@ -502,20 +568,20 @@ describe('the Runs tab', () => {
     mockSuites()
     mockRuns(() => cursorPage([run('a')]))
     mockResolve()
-    renderPage('/suites/libcxx')
+    renderPage('/projects/llvm/suites/libcxx')
     const runs = await table('Runs')
     expect(runs).toHaveAttribute('aria-busy', 'false')
 
     search(RUNS_SEARCH, 'linux')
 
     expect(runs).toHaveAttribute('aria-busy', 'true')
-    await waitFor(() => expect(currentUrl()).toBe('/suites/libcxx?search=linux'))
+    await waitFor(() => expect(currentUrl()).toBe('/projects/llvm/suites/libcxx?search=linux'))
   })
 
   it('says when no run matches the search', async () => {
     mockSuites()
     mockRuns(() => cursorPage([]))
-    renderPage('/suites/libcxx?search=nothing')
+    renderPage('/projects/llvm/suites/libcxx?search=nothing')
 
     const message = 'No runs match this search.'
     expect(await screen.findByText(message)).toBeInTheDocument()
@@ -524,11 +590,11 @@ describe('the Runs tab', () => {
   it('reports a failure to list the runs', async () => {
     mockSuites()
     server.use(
-      mockApi('get', '/api/suites/{testsuite}/runs', () =>
+      mockApi('get', '/api/projects/{project}/suites/{suite}/runs', () =>
         errorResponse(500, 'internal_error', 'The server failed'),
       ),
     )
-    renderPage('/suites/libcxx')
+    renderPage('/projects/llvm/suites/libcxx')
 
     expect(await screen.findByRole('alert')).toHaveTextContent('The server failed')
     expect(screen.queryByRole('table')).not.toBeInTheDocument()
@@ -548,7 +614,7 @@ describe('the Machines tab', () => {
         machine('bare'),
       ],
     }))
-    renderPage('/suites/libcxx?tab=machines')
+    renderPage('/projects/llvm/suites/libcxx?tab=machines')
 
     const machines = await table('Machines')
     // `os` is not listed, so it is left out, whatever its values.
@@ -560,7 +626,7 @@ describe('the Machines tab', () => {
     ])
     expect(within(machines).getByRole('link', { name: 'linux-x86_64' })).toHaveAttribute(
       'href',
-      '/suites/libcxx/machines/linux-x86_64',
+      '/projects/llvm/suites/libcxx/machines/linux-x86_64',
     )
     expect(within(machines).getByText('untracked')).toHaveAttribute(
       'title',
@@ -578,7 +644,7 @@ describe('the Machines tab', () => {
     mockMachines(() => ({
       items: [machine('linux-x86_64', { fields: { hardware: url, os: null, core_count: 64 } })],
     }))
-    renderPage('/suites/libcxx?tab=machines')
+    renderPage('/projects/llvm/suites/libcxx?tab=machines')
 
     const machines = await table('Machines')
     // Assistive technology reads the whole URL as the link's name.
@@ -596,7 +662,7 @@ describe('the Machines tab', () => {
     const retry = gate()
     const searches: (string | null)[] = []
     server.use(
-      mockApi('get', '/api/suites/{testsuite}/machines', async ({ request }) => {
+      mockApi('get', '/api/projects/{project}/suites/{suite}/machines', async ({ request }) => {
         const term = new URL(request.url).searchParams.get('search')
         searches.push(term)
         if (term === 'arm' && failures-- > 0) {
@@ -606,7 +672,7 @@ describe('the Machines tab', () => {
         return HttpResponse.json({ items: [machine(term === 'arm' ? 'arm64' : 'x86_64')] })
       }),
     )
-    renderPage('/suites/libcxx?tab=machines')
+    renderPage('/projects/llvm/suites/libcxx?tab=machines')
     await screen.findByRole('link', { name: 'x86_64' })
 
     search('Search machines', 'arm')
@@ -629,7 +695,7 @@ describe('the Machines tab', () => {
     const queries = mockMachines(() => ({ items: [machine('linux-x86_64')] }))
     mockRegressions()
     mockResolve()
-    renderPage('/suites/libcxx?tab=machines')
+    renderPage('/projects/llvm/suites/libcxx?tab=machines')
     await screen.findByRole('link', { name: 'linux-x86_64' })
 
     fireEvent.click(screen.getByRole('tab', { name: 'Regressions' }))
@@ -643,12 +709,14 @@ describe('the Machines tab', () => {
   it('searches the server', async () => {
     mockSuites()
     const queries = mockMachines(() => ({ items: [machine('m0')] }))
-    renderPage('/suites/libcxx?tab=machines')
+    renderPage('/projects/llvm/suites/libcxx?tab=machines')
     await table('Machines')
 
     search('Search machines', 'arm')
 
-    await waitFor(() => expect(currentUrl()).toBe('/suites/libcxx?tab=machines&search=arm'))
+    await waitFor(() =>
+      expect(currentUrl()).toBe('/projects/llvm/suites/libcxx?tab=machines&search=arm'),
+    )
     await waitFor(() => expect(queries.at(-1)?.get('search')).toBe('arm'))
   })
 })
@@ -672,7 +740,7 @@ describe('the Commits tab', () => {
         commit('bare'),
       ]),
     )
-    renderPage('/suites/libcxx?tab=commits')
+    renderPage('/projects/llvm/suites/libcxx?tab=commits')
 
     const commits = await table('Commits')
     // The fields the schema lists follow, cut short when long, and whole on hover.
@@ -689,7 +757,7 @@ describe('the Commits tab', () => {
     expect(within(commits).getByText(info)).toBeInTheDocument()
     expect(within(commits).getByRole('link', { name: 'r591886' })).toHaveAttribute(
       'href',
-      '/suites/libcxx/commits/abc123',
+      '/projects/llvm/suites/libcxx/commits/abc123',
     )
     expect(queries[0].get('sort')).toBe('-first_seen')
     expect(queries[0].get('limit')).toBe('25')
@@ -706,7 +774,7 @@ describe('the Commits tab', () => {
         }),
       ]),
     )
-    renderPage('/suites/libcxx?tab=commits')
+    renderPage('/projects/llvm/suites/libcxx?tab=commits')
 
     const commits = await table('Commits')
     const card = await commitCard(within(commits).getByRole('link', { name: 'r591886' }))
@@ -724,12 +792,12 @@ describe('the Commits tab', () => {
     mockCommits(() =>
       cursorPage([commit('abc123', { fields: { svn_revision: display, commit_info: info } })]),
     )
-    renderPage('/suites/libcxx?tab=commits')
+    renderPage('/projects/llvm/suites/libcxx?tab=commits')
 
     const commits = await table('Commits')
     const displayLinks = within(commits).getAllByRole('link', { name: display })
     expect(displayLinks.map((link) => link.getAttribute('href'))).toEqual([
-      '/suites/libcxx/commits/abc123',
+      '/projects/llvm/suites/libcxx/commits/abc123',
       display,
     ])
     expect(within(commits).getByRole('link', { name: info })).toHaveAttribute('href', info)
@@ -740,7 +808,7 @@ describe('the Commits tab', () => {
     const queries = mockCommits((query) =>
       query.get('cursor') ? cursorPage([commit('older')]) : cursorPage([commit('newer')], 'p2'),
     )
-    renderPage('/suites/nts?tab=commits')
+    renderPage('/projects/llvm/suites/nts?tab=commits')
     await screen.findByRole('link', { name: 'newer' })
 
     fireEvent.click(screen.getByRole('button', { name: /Next/ }))
@@ -750,6 +818,6 @@ describe('the Commits tab', () => {
     await waitFor(() => expect(queries.at(-1)?.get('search')).toBe('r59'))
     expect(queries.at(-1)?.has('cursor')).toBe(false)
     expect(await screen.findByRole('link', { name: 'newer' })).toBeInTheDocument()
-    expect(currentUrl()).toBe('/suites/nts?tab=commits&search=r59')
+    expect(currentUrl()).toBe('/projects/llvm/suites/nts?tab=commits&search=r59')
   })
 })

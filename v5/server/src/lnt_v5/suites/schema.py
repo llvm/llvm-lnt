@@ -1,9 +1,10 @@
 """A test suite's schema document: what it may say, and what it means (D3, D4).
 
-A schema is a JSON document and nothing else -- it is the body of `POST /api/suites`, the body
-`GET /api/suites/{name}` returns, and what the `schema` table stores. That is why these are
-pydantic models rather than plain dataclasses: one definition validates the request, renders the
-response, describes both in I8's document, and produces the normalized form that gets stored.
+A schema is a JSON document and nothing else -- it is the body of
+`POST /api/projects/{project}/suites`, the body `GET /api/projects/{project}/suites/{suite}`
+returns, and what the `schema` table stores. That is why these are pydantic models rather than plain
+dataclasses: one definition validates the request, renders the response, describes both in I8's
+document, and produces the normalized form that gets stored.
 
 "Normalized" means every optional key is present and explicit. A schema fetched from one instance
 can be posted verbatim to another (see E10), which only holds if the
@@ -413,8 +414,9 @@ def _reject_duplicates(entries: Sequence[Entry]) -> None:
         seen.add(entry.name)
 
 
-# D4. The whole document: the body `POST /api/suites` accepts and the body `GET /api/suites/{name}`
-# returns. There is no `format_version` -- only one format exists for v5.
+# D4. The whole document: the body `POST /api/projects/{project}/suites` accepts and the body
+# `GET /api/projects/{project}/suites/{suite}` returns. There is no `format_version` -- only one
+# format exists for v5.
 class SuiteSchema(BaseModel):
     """A test suite's schema: its name and display name, the metrics, commit fields and machine
     fields it defines, and the repository its commits come from. A suite can only store what its

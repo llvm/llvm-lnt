@@ -6,6 +6,7 @@
 import type { APIRequestContext, Locator, Page } from '@playwright/test'
 import type { components } from '../client/src/api/schema.d.ts'
 import { escapeHtml } from '../client/src/format.ts'
+import { suitePath } from '../client/src/paths.ts'
 import { LINUX, MACOS, uuidFor } from '../tools/synthetic.ts'
 import { cardOf } from './cards.ts'
 import { expect, json, test } from './fixtures.ts'
@@ -22,7 +23,9 @@ interface ListPage<Item> {
 /** A test every real machine measured, at every commit. */
 const TEST = 'BM_num_get<void*>'
 
-const GRAPHED = `/graph?suite=libcxx&machine=${LINUX}&machine=${MACOS}&metric=execution_time`
+const GRAPHED =
+  `/graph?project=libcxx&suite=benchmarks&machine=${LINUX}&machine=${MACOS}` +
+  '&metric=execution_time'
 
 /** The range of the x-axis as Plotly drew it. */
 function xRange(page: Page) {
@@ -42,7 +45,8 @@ function draws(page: Page, name: string) {
 async function middleCommit(request: APIRequestContext) {
   const { items } = await json<ListPage<{ value: string }>>(
     request,
-    `/api/suites/libcxx/commits?machine=${LINUX}&has_ordinal=true&sort=ordinal&limit=10000`,
+    `/api/projects/libcxx/suites/benchmarks/commits?machine=${LINUX}&has_ordinal=true` +
+      '&sort=ordinal&limit=10000',
   )
   return items[Math.floor(items.length / 2)].value
 }
@@ -62,7 +66,7 @@ async function displayOf(details: Locator) {
 
 /** The Graph of TEST on LINUX. */
 const LINUX_TEST =
-  `/graph?suite=libcxx&machine=${LINUX}&metric=execution_time` +
+  `/graph?project=libcxx&suite=benchmarks&machine=${LINUX}&metric=execution_time` +
   `&test=${encodeURIComponent(TEST)}`
 
 function testBox(page: Page, name: string) {
@@ -72,7 +76,7 @@ function testBox(page: Page, name: string) {
 test('plots a test chosen from scratch', async ({ page }) => {
   await page.goto('/graph')
 
-  await pickOption(page, 'Suite', 'libcxx')
+  await pickOption(page, 'Suite', 'libc++/Microbenchmarks')
   await pickSuggestion(page, 'Machines', LINUX)
   await pickOption(page, 'Metric', 'Execution Time')
   // Found with the filter, which then only narrows the table: the test stays drawn under a filter
@@ -94,7 +98,8 @@ test('plots a test chosen from scratch', async ({ page }) => {
   await expect(testBox(page, TEST)).toBeChecked()
   await expect(tracesOf(page)).toHaveCount(1)
   await expect(page).toHaveURL(
-    `/graph?suite=libcxx&machine=${LINUX}&metric=execution_time&test=${encodeURIComponent(TEST)}`,
+    `/graph?project=libcxx&suite=benchmarks&machine=${LINUX}&metric=execution_time` +
+      `&test=${encodeURIComponent(TEST)}`,
   )
 })
 
@@ -102,7 +107,9 @@ test('keeps the x-axis as it is while the data arrives (GR3)', async ({ page, re
   // The axis spans every commit of both machines, before anything is plotted.
   const commits = new Set<string>()
   for (const machine of [LINUX, MACOS]) {
-    const path = `/api/suites/libcxx/commits?machine=${machine}&has_ordinal=true&sort=ordinal&limit=10000`
+    const path =
+      `/api/projects/libcxx/suites/benchmarks/commits?machine=${machine}&has_ordinal=true` +
+      '&sort=ordinal&limit=10000'
     const list = await json<ListPage<{ value: string }>>(request, path)
     for (const commit of list.items) commits.add(commit.value)
   }
@@ -132,11 +139,13 @@ test("lists the tests of a Dashboard card's machines, and plots none", async ({ 
   // Other tests create suites of their own, which the Dashboard lists too.
   const card = page
     .getByRole('main')
-    .getByRole('region', { name: 'libcxx', exact: true })
+    .getByRole('region', { name: 'libc++/Microbenchmarks', exact: true })
     .getByRole('article', { name: 'Execution Time', exact: true })
   await card.getByRole('link', { name: 'Execution Time', exact: true }).click()
 
-  await expect(page).toHaveURL(/\/graph\?suite=libcxx&machine=.*&metric=execution_time$/)
+  await expect(page).toHaveURL(
+    /\/graph\?project=libcxx&suite=benchmarks&machine=.*&metric=execution_time$/,
+  )
   await expect(testBox(page, TEST)).not.toBeChecked()
   await expect(tracesOf(page)).toHaveCount(0)
 })
@@ -160,7 +169,7 @@ test("shows a point's samples on hover, and keeps them with its details (GR10, G
   // tests create do.
   let body = ''
   await expect(async () => {
-    const response = await request.get('/api/suites/libcxx/series', {
+    const response = await request.get('/api/projects/libcxx/suites/benchmarks/series', {
       params: { metric: 'execution_time', machine: LINUX, test: TEST, commit },
     })
     body = await response.text()
@@ -197,7 +206,10 @@ test("shows a point's samples on hover, and keeps them with its details (GR10, G
   expect(await details.getAttribute('aria-label')).toMatch(`${TEST} on ${LINUX} at `)
   await expect(details.getByRole('link', { name: LINUX })).toBeVisible()
   const compare = details.getByRole('link', { name: 'Compare prev' })
-  await expect(compare).toHaveAttribute('href', /^\/compare\?suite_a=libcxx&machine_a=.*&commit_b=/)
+  await expect(compare).toHaveAttribute(
+    'href',
+    /^\/compare\?project_a=libcxx&suite_a=benchmarks&machine_a=.*&commit_b=/,
+  )
   // Its buttons fit on one row.
   const tops = await Promise.all(
     ['Highlight commit', 'Add baseline', 'Create regression'].map(
@@ -240,7 +252,7 @@ test("shows a point's samples on hover, and keeps them with its details (GR10, G
   await expect(details).toBeFocused()
 
   await details.getByRole('table', { name: 'Runs' }).getByRole('link').first().click()
-  await expect(page).toHaveURL(/\/suites\/libcxx\/runs\//)
+  await expect(page).toHaveURL(/\/projects\/libcxx\/suites\/benchmarks\/runs\//)
 })
 
 test("shows the card of a point's commit, as part of its details (GR11, AR21)", async ({
@@ -277,10 +289,10 @@ test("marks a regression at its commit, and shows its details from its marker (G
   const uuid = uuidFor('libcxx/regression/format')
   const regression = await json<components['schemas']['RegressionDetail']>(
     request,
-    `/api/suites/libcxx/regressions/${uuid}`,
+    `/api/projects/libcxx/suites/benchmarks/regressions/${uuid}`,
   )
   const { test: name } = regression.indicators.find((indicator) => indicator.machine === LINUX)!
-  const graph = `/graph?suite=libcxx&machine=${LINUX}&metric=execution_time`
+  const graph = `/graph?project=libcxx&suite=benchmarks&machine=${LINUX}&metric=execution_time`
   await page.goto(`${graph}&test=${encodeURIComponent(name)}&regressions=all`)
 
   const marker = `regression ${uuid}`
@@ -298,7 +310,7 @@ test("marks a regression at its commit, and shows its details from its marker (G
   await expect(details).toBeFocused()
   await expect(page.locator('.hoverlayer')).not.toContainText('std::format slowdown')
   await details.getByRole('link', { name: `${uuid.slice(0, 8)}…` }).click()
-  await expect(page).toHaveURL(`/suites/libcxx/regressions/${uuid}`)
+  await expect(page).toHaveURL(`/projects/libcxx/suites/benchmarks/regressions/${uuid}`)
 })
 
 test('creates a regression from a point, and marks it at once (GR11, GR15)', async ({
@@ -316,7 +328,8 @@ test('creates a regression from a point, and marks it at once (GR11, GR15)', asy
   await ownSuite(request, tokenFor, testInfo, [run('c1', 1, 1), run('c2', 2, 2)], async (suite) => {
     await signIn(page, 'triage')
     await page.goto(
-      `/graph?suite=${suite}&machine=m1&metric=execution_time&test=bench&regressions=all`,
+      `/graph?project=${suite.project}&suite=${suite.suite}&machine=m1&metric=execution_time` +
+        '&test=bench&regressions=all',
     )
     await expect(tracesOf(page)).toHaveCount(1)
 
@@ -332,7 +345,7 @@ test('creates a regression from a point, and marks it at once (GR11, GR15)', asy
     const uuid = (await link.getAttribute('href'))!.split('/').at(-1)!
     const created = await json<components['schemas']['RegressionDetail']>(
       request,
-      `/api/suites/${suite}/regressions/${uuid}`,
+      `/api${suitePath(suite)}/regressions/${uuid}`,
     )
     expect(created).toMatchObject({
       title: 'bench slowed down',
@@ -345,7 +358,7 @@ test('creates a regression from a point, and marks it at once (GR11, GR15)', asy
     await expect.poll(() => draws(page, `regression ${uuid}`)).toBe(true)
     await expect(details).toBeVisible()
     await link.click()
-    await expect(page).toHaveURL(`/suites/${suite}/regressions/${uuid}`)
+    await expect(page).toHaveURL(`${suitePath(suite)}/regressions/${uuid}`)
   })
 })
 
@@ -362,7 +375,13 @@ test("shows a test's name as it is in the tooltip, even with Plotly's template s
     tests: [{ name, samples: [{ execution_time: 1 }] }],
   }
   await ownSuite(request, tokenFor, testInfo, [run], async (suite) => {
-    const query = new URLSearchParams({ suite, machine: 'm1', metric: 'execution_time', test: name })
+    const query = new URLSearchParams({
+      project: suite.project,
+      suite: suite.suite,
+      machine: 'm1',
+      metric: 'execution_time',
+      test: name,
+    })
     await page.goto(`/graph?${query}`)
     await expect(tracesOf(page)).toHaveCount(1)
 
@@ -373,14 +392,15 @@ test("shows a test's name as it is in the tooltip, even with Plotly's template s
 
 test('adds a baseline from its panel, drawn across the chart (GR9)', async ({ page, request }) => {
   // The commit the picker suggests first (AR15).
-  const path = `/api/suites/libcxx/commits?machine=${MACOS}&sort=-ordinal&limit=1`
+  const path =
+    `/api/projects/libcxx/suites/benchmarks/commits?machine=${MACOS}&sort=-ordinal&limit=1`
   const [newest] = (await json<components['schemas']['CommitCursorPage']>(request, path)).items
   const revision = String(newest.fields.svn_revision)
   await page.goto(LINUX_TEST)
   await expect(tracesOf(page)).toHaveCount(1)
 
   await page.getByRole('button', { name: 'Add a baseline' }).click()
-  await pickOption(page, 'Baseline suite', 'libcxx')
+  await pickOption(page, 'Baseline suite', 'libc++/Microbenchmarks')
   await pickSuggestion(page, 'Baseline machine', MACOS)
   const commit = page.getByRole('combobox', { name: 'Baseline commit' })
   await commit.click()
@@ -390,9 +410,10 @@ test('adds a baseline from its panel, drawn across the chart (GR9)', async ({ pa
 
   await expect
     .poll(() => new URL(page.url()).searchParams.get('baseline'))
-    .toBe(`libcxx/${MACOS}/${newest.value}`)
+    .toBe(`libcxx/benchmarks/${MACOS}/${newest.value}`)
+  // Its suite by its full label (AR22).
   const chips = page.getByRole('list', { name: 'Baselines added' })
-  await expect(chips).toContainText(`libcxx/${MACOS}/${revision}`)
+  await expect(chips).toContainText(`libc++/Microbenchmarks/${MACOS}/${revision}`)
   await expect(tracesOf(page)).toHaveCount(2)
 })
 
@@ -425,9 +446,9 @@ test("adds a baseline from a point's details, which stay open (GR9, GR11)", asyn
 
   await expect
     .poll(() => new URL(page.url()).searchParams.get('baseline'))
-    .toBe(`libcxx/${LINUX}/${commit}`)
+    .toBe(`libcxx/benchmarks/${LINUX}/${commit}`)
   const chips = page.getByRole('list', { name: 'Baselines added' })
-  await expect(chips).toContainText(`libcxx/${LINUX}/${display}`)
+  await expect(chips).toContainText(`libc++/Microbenchmarks/${LINUX}/${display}`)
   await expect(tracesOf(page)).toHaveCount(2)
   // Its line runs through the point, which stays where it was, and so do its details.
   expect(await yRange()).toEqual(before)
@@ -463,11 +484,12 @@ test("draws a long history's points without markers until zoomed in, and they ke
   await ownSuite(request, tokenFor, testInfo, runs, async (suite) => {
     // With a baseline at the commit of the point, whose line runs through it.
     const query = new URLSearchParams({
-      suite,
+      project: suite.project,
+      suite: suite.suite,
       machine: 'm1',
       metric: 'execution_time',
       test: 'bench',
-      baseline: `${suite}/m1/c100`,
+      baseline: `${suite.project}/${suite.suite}/m1/c100`,
     })
     await page.goto(`/graph?${query}`)
     await expect(tracesOf(page)).toHaveCount(2)

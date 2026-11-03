@@ -1,5 +1,5 @@
 import { useMemo } from 'react'
-import type { SuiteSchema } from '../../api/suites'
+import type { Suite } from '../../api/suites'
 import { Combobox } from '../../components/combobox'
 import { ErrorMessage } from '../../components/feedback'
 import { Select } from '../../components/select'
@@ -19,7 +19,7 @@ interface Props {
   side: ProfileSide
   /** The side's heading: "Side A" or "Side B". */
   title: string
-  suites: SuiteSchema[]
+  suites: Suite[]
 }
 
 /**

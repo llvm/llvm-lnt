@@ -4,7 +4,7 @@ import { Link, useParams } from 'react-router'
 import { VisuallyHidden } from 'react-aria-components'
 import { authedApi, errorMessage, unwrap, type Schemas } from '../../api/client'
 import { fetchSamplePage, runKey, runProfilesQuery, useRun } from '../../api/runs'
-import type { SuiteSchema } from '../../api/suites'
+import { fullName, refOf, type Suite, type SuiteRef } from '../../api/suites'
 import { useCursorPages, type CursorPages } from '../../api/use-cursor-pages'
 import { ButtonLink } from '../../components/button-link'
 import { CommitLink } from '../../components/commit-link'
@@ -31,6 +31,7 @@ import { DetailActionRow } from './action-row'
 import { CompareWithPrevious } from './compare-with-previous'
 import { SuiteTrail } from './suite-trail'
 import styles from './details.module.css'
+import { useSuiteParams } from '../../suite-params'
 
 type Run = Schemas['RunDetail']
 type Sample = Schemas['Sample']
@@ -43,21 +44,24 @@ const PARAMS = {
 
 /** The Run Detail page (DT2). */
 export default function RunDetail() {
-  const { suite = '', uuid = '' } = useParams()
+  const suite = useSuiteParams()
+  const { uuid = '' } = useParams()
   return (
     <section>
       <SuiteTrail suite={suite} tab="runs" />
       <h1>Run: {uuid}</h1>
       <WithSchema suite={suite}>
         {/* Keyed, so that nothing of a run's page, an open prompt say, stays on another's. */}
-        {(schema) => <RunContent key={`${suite}/${uuid}`} schema={schema} uuid={uuid} />}
+        {(schema) => (
+          <RunContent key={`${fullName(suite)}/${uuid}`} schema={schema} uuid={uuid} />
+        )}
       </WithSchema>
     </section>
   )
 }
 
 /** Every sample of the run `uuid` (E6), fetched page after page. */
-function useSamples(suite: string, uuid: string) {
+function useSamples(suite: SuiteRef, uuid: string) {
   return useCursorPages({
     queryKey: [...runKey(suite, uuid), 'samples'],
     fetchPage: (cursor, signal) => fetchSamplePage(suite, uuid, cursor, signal),
@@ -66,8 +70,8 @@ function useSamples(suite: string, uuid: string) {
   })
 }
 
-function RunContent({ schema, uuid }: { schema: SuiteSchema; uuid: string }) {
-  const suite = schema.name
+function RunContent({ schema, uuid }: { schema: Suite; uuid: string }) {
+  const suite = refOf(schema)
   const run = useRun(suite, uuid)
   // Fetched alongside the run rather than once it has loaded, since they take the longest. The
   // page shows them once the run has loaded, so that one that does not exist shows only that.
@@ -108,8 +112,8 @@ function RunContent({ schema, uuid }: { schema: SuiteSchema; uuid: string }) {
 }
 
 /** The run, its machine, its commit, when it was measured and submitted, and its parameters (DT2). */
-function RunInfo({ schema, run }: { schema: SuiteSchema; run: Run }) {
-  const suite = schema.name
+function RunInfo({ schema, run }: { schema: Suite; run: Run }) {
+  const suite = refOf(schema)
   const parameters = Object.entries(run.run_parameters).sort(([a], [b]) => compareStrings(a, b))
   return (
     <InfoBox label="Run">
@@ -134,7 +138,7 @@ function RunInfo({ schema, run }: { schema: SuiteSchema; run: Run }) {
 }
 
 interface ActionsProps {
-  schema: SuiteSchema
+  schema: Suite
   run: Run
   /** The metric selected on the page, which the comparisons compare. */
   metric: Metric | undefined
@@ -142,7 +146,7 @@ interface ActionsProps {
 
 /** Compare with..., Compare with previous commit, and Delete run, with its confirmation (DT2). */
 function Actions({ schema, run, metric }: ActionsProps) {
-  const suite = schema.name
+  const suite = refOf(schema)
   const alone = { suite, machine: run.machine, commit: run.commit, runs: [run.uuid] }
   return (
     <DetailActionRow
@@ -159,8 +163,8 @@ function Actions({ schema, run, metric }: ActionsProps) {
         ),
         onDelete: () =>
           unwrap(
-            authedApi.DELETE('/api/suites/{testsuite}/runs/{uuid}', {
-              params: { path: { testsuite: suite, uuid: run.uuid } },
+            authedApi.DELETE('/api/projects/{project}/suites/{suite}/runs/{uuid}', {
+              params: { path: { ...suite, uuid: run.uuid } },
             }),
           ),
         leaveTo: machinePath(suite, run.machine),
@@ -186,7 +190,7 @@ const rowKey = (row: Row) => row.key
 const testOf = (row: Row) => row.sample.test
 
 interface SamplesProps {
-  schema: SuiteSchema
+  schema: Suite
   run: Run
   samples: CursorPages<Sample>
   /** The tests of the run that have a profile. */
@@ -206,7 +210,7 @@ interface SamplesProps {
  */
 function Samples(props: SamplesProps) {
   const { schema, run, samples, profiles, metric, onMetric } = props
-  const suite = schema.name
+  const suite = refOf(schema)
   // Sorted, filtered and rendered once React has had the time, so that pages arriving, and a new
   // metric, do not hold up typing in the filter either.
   const items = useDeferredValue(samples.items)
@@ -293,7 +297,7 @@ function sortedRows(samples: Sample[]): Row[] {
 }
 
 function sampleColumns(
-  suite: string,
+  suite: SuiteRef,
   run: Run,
   metric: Metric | undefined,
   profiles: Schemas['RunProfile'][] | undefined,

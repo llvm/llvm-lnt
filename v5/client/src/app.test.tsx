@@ -23,7 +23,7 @@ describe('navbar', () => {
     renderAt('/')
 
     expect(screen.getByRole('link', { name: 'LNT' })).toHaveAttribute('href', '/')
-    expect(screen.getByRole('link', { name: 'Test Suites' })).toHaveAttribute('href', '/suites')
+    expect(screen.getByRole('link', { name: 'Test Suites' })).toHaveAttribute('href', '/projects')
     expect(screen.getByRole('link', { name: 'Graph' })).toHaveAttribute('href', '/graph')
     expect(screen.getByRole('link', { name: 'Compare' })).toHaveAttribute('href', '/compare')
     expect(screen.getByRole('link', { name: 'Profiles' })).toHaveAttribute('href', '/profiles')
@@ -31,30 +31,36 @@ describe('navbar', () => {
   })
 
   it.each([
-    ['/suites/nts'],
-    ['/suites/nts/machines/linux-x86_64'],
-    ['/suites/nts/runs/550e8400-e29b-41d4-a716-446655440000'],
+    ['/projects/llvm/suites/nts'],
+    ['/projects/llvm/suites/nts/machines/linux-x86_64'],
+    ['/projects/llvm/suites/nts/runs/550e8400-e29b-41d4-a716-446655440000'],
   ])('passes the suite of %s on to the suite-agnostic pages (AR4)', (url) => {
     renderAt(url)
 
-    expect(screen.getByRole('link', { name: 'Test Suites' })).toHaveAttribute('href', '/suites/nts')
-    expect(screen.getByRole('link', { name: 'Graph' })).toHaveAttribute('href', '/graph?suite=nts')
+    expect(screen.getByRole('link', { name: 'Test Suites' })).toHaveAttribute(
+      'href',
+      '/projects/llvm/suites/nts',
+    )
+    expect(screen.getByRole('link', { name: 'Graph' })).toHaveAttribute(
+      'href',
+      '/graph?project=llvm&suite=nts',
+    )
     expect(screen.getByRole('link', { name: 'Compare' })).toHaveAttribute(
       'href',
-      '/compare?suite_a=nts',
+      '/compare?project_a=llvm&suite_a=nts',
     )
     expect(screen.getByRole('link', { name: 'Profiles' })).toHaveAttribute(
       'href',
-      '/profiles?suite_a=nts',
+      '/profiles?project_a=llvm&suite_a=nts',
     )
   })
 
-  it.each([['/graph?suite=nts'], ['/admin']])(
+  it.each([['/graph?project=llvm&suite=nts'], ['/admin']])(
     'passes no suite on from the suite-agnostic page %s',
     (url) => {
       renderAt(url)
 
-      expect(screen.getByRole('link', { name: 'Test Suites' })).toHaveAttribute('href', '/suites')
+      expect(screen.getByRole('link', { name: 'Test Suites' })).toHaveAttribute('href', '/projects')
       expect(screen.getByRole('link', { name: 'Graph' })).toHaveAttribute('href', '/graph')
     },
   )
@@ -123,16 +129,25 @@ describe('footer', () => {
 describe('routing', () => {
   it.each([
     ['/', 'Dashboard'],
-    ['/suites', 'Test Suites'],
-    ['/suites/nts', 'Test Suites'],
-    ['/suites/nts/machines/linux-x86_64', 'Machine: linux-x86_64'],
-    ['/suites/nts/runs/550e8400-e29b-41d4-a716-446655440000', 'Run: 550e8400'],
-    ['/suites/nts/commits/abc123', 'Commit: abc123'],
-    ['/suites/nts/regressions/550e8400-e29b-41d4-a716-446655440000', 'Regression: 550e8400'],
+    ['/projects', 'Test Suites'],
+    ['/projects/llvm', 'Test Suites'],
+    ['/projects/llvm/suites/nts', 'Test Suites'],
+    ['/projects/llvm/suites/nts/machines/linux-x86_64', 'Machine: linux-x86_64'],
+    ['/projects/llvm/suites/nts/runs/550e8400-e29b-41d4-a716-446655440000', 'Run: 550e8400'],
+    ['/projects/llvm/suites/nts/commits/abc123', 'Commit: abc123'],
+    [
+      '/projects/llvm/suites/nts/regressions/550e8400-e29b-41d4-a716-446655440000',
+      'Regression: 550e8400',
+    ],
     ['/graph', 'Graph'],
     ['/compare', 'Compare'],
     ['/profiles', 'Profiles'],
     ['/admin', 'Admin'],
+    // The paths of before projects (D7) are no more.
+    ['/suites', 'Page not found'],
+    ['/suites/nts', 'Page not found'],
+    // A project's suites are listed on its own page.
+    ['/projects/llvm/suites', 'Page not found'],
   ])('renders %s as the %s page', async (path, heading) => {
     renderAt(path)
 

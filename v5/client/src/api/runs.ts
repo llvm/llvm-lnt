@@ -5,14 +5,15 @@ import { withCommits } from './commits'
 import { fetchEveryPage } from './fetch-every-page'
 import { queryKeys } from './keys'
 import type { paths } from './schema'
+import { fullName, type SuiteRef } from './suite-ref'
 
-type RunListQuery = NonNullable<paths['/api/suites/{testsuite}/runs']['get']['parameters']['query']>
+type RunListQuery = NonNullable<paths['/api/projects/{project}/suites/{suite}/runs']['get']['parameters']['query']>
 
 /** One page of `GET /runs` (E4). */
-export function fetchRuns(suite: string, query: RunListQuery, signal?: AbortSignal) {
+export function fetchRuns(suite: SuiteRef, query: RunListQuery, signal?: AbortSignal) {
   return unwrap(
-    api.GET('/api/suites/{testsuite}/runs', {
-      params: { path: { testsuite: suite }, query },
+    api.GET('/api/projects/{project}/suites/{suite}/runs', {
+      params: { path: suite, query },
       signal,
     }),
   )
@@ -22,7 +23,7 @@ export function fetchRuns(suite: string, query: RunListQuery, signal?: AbortSign
  * One page of `GET /runs` (E4), and its commits, resolved in one call for the whole page. Run lists
  * show each run's commit by its display value, which the runs do not carry (AR6).
  */
-export async function fetchRunPage(suite: string, query: RunListQuery, signal?: AbortSignal) {
+export async function fetchRunPage(suite: SuiteRef, query: RunListQuery, signal?: AbortSignal) {
   const page = await fetchRuns(suite, query, signal)
   return withCommits(
     suite,
@@ -36,18 +37,18 @@ export async function fetchRunPage(suite: string, query: RunListQuery, signal?: 
 export type RunPage = Awaited<ReturnType<typeof fetchRunPage>>
 
 /** The query key of the run `uuid`, under which everything read about it is cached. */
-export function runKey(suite: string, uuid: string) {
+export function runKey(suite: SuiteRef, uuid: string) {
   return [...queryKeys.runs(suite), 'detail', uuid] as const
 }
 
 /** The run `uuid` (E4), with its `run_parameters`. */
-export function useRun(suite: string, uuid: string) {
+export function useRun(suite: SuiteRef, uuid: string) {
   return useQuery({
     queryKey: runKey(suite, uuid),
     queryFn: ({ signal }) =>
       unwrap(
-        api.GET('/api/suites/{testsuite}/runs/{uuid}', {
-          params: { path: { testsuite: suite, uuid } },
+        api.GET('/api/projects/{project}/suites/{suite}/runs/{uuid}', {
+          params: { path: { ...suite, uuid } },
           signal,
         }),
       ),
@@ -55,13 +56,13 @@ export function useRun(suite: string, uuid: string) {
 }
 
 /** The tests of the run `uuid` that have a profile, each with its profile's UUID (E7). */
-export function runProfilesQuery(suite: string, uuid: string) {
+export function runProfilesQuery(suite: SuiteRef, uuid: string) {
   return queryOptions({
     queryKey: [...runKey(suite, uuid), 'profiles'],
     queryFn: async ({ signal }) => {
       const { items } = await unwrap(
-        api.GET('/api/suites/{testsuite}/runs/{uuid}/profiles', {
-          params: { path: { testsuite: suite, uuid } },
+        api.GET('/api/projects/{project}/suites/{suite}/runs/{uuid}/profiles', {
+          params: { path: { ...suite, uuid } },
           signal,
         }),
       )
@@ -77,7 +78,7 @@ export function runProfilesQuery(suite: string, uuid: string) {
  * were measured: the runs a side of the Compare page selects among (CP1), or those with profiles.
  */
 export function commitRunsQuery(
-  suite: string,
+  suite: SuiteRef,
   machine: string,
   commit: string,
   filters: { has_profiles?: true } = {},
@@ -96,14 +97,14 @@ type Sample = Schemas['Sample']
 
 /** One page of the samples of the run `uuid` (E6), I2's largest: a run can have thousands. */
 export function fetchSamplePage(
-  suite: string,
+  suite: SuiteRef,
   uuid: string,
   cursor: string | null,
   signal?: AbortSignal,
 ) {
   return unwrap(
-    api.GET('/api/suites/{testsuite}/runs/{uuid}/samples', {
-      params: { path: { testsuite: suite, uuid }, query: { cursor, limit: MAX_PAGE_SIZE } },
+    api.GET('/api/projects/{project}/suites/{suite}/runs/{uuid}/samples', {
+      params: { path: { ...suite, uuid }, query: { cursor, limit: MAX_PAGE_SIZE } },
       signal,
     }),
   )
@@ -111,13 +112,16 @@ export function fetchSamplePage(
 
 /** A run of a suite, whose samples `useRunSamples` loads. */
 export interface RunRef {
-  suite: string
+  suite: SuiteRef
   uuid: string
 }
 
-/** What identifies a run among those of every suite: neither a suite name nor a UUID has a `/`. */
+/**
+ * What identifies a run among those of every suite: neither a project's name, nor a suite's, nor a
+ * UUID has a `/`.
+ */
 export function runRefKey({ suite, uuid }: RunRef): string {
-  return `${suite}/${uuid}`
+  return `${fullName(suite)}/${uuid}`
 }
 
 /** The runs of `lists`, each once. */

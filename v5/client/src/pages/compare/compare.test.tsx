@@ -3,10 +3,20 @@ import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 import { errorResponse, mockApi } from '../../test/mock-api'
 import { server } from '../../test/server'
-import { commitCard, currentUrl, main, mockResolve, query, renderPage } from '../../test/page'
+import {
+  commitCard,
+  currentUrl,
+  gate,
+  main,
+  mockResolve,
+  mockSuites,
+  query,
+  renderPage,
+  settle,
+} from '../../test/page'
 import { pick, pickOption, selectButton } from '../../test/select'
-import { NO_REPOSITORY, SUITE, uuidOf } from '../../test/fixtures'
-import { COMPARED, comparison, mockWorld, ROWS, runBox, sideOf } from './compare-world'
+import { inProject, NO_REPOSITORY, SUITE, uuidOf } from '../../test/fixtures'
+import { COMPARED, comparison, mockWorld, ROWS, runBox, sideOf, SUITES } from './compare-world'
 
 // The page renders its chart, which Plotly cannot draw in jsdom (see test/chart.tsx).
 vi.mock('../../components/chart', () => import('../../test/chart'))
@@ -19,7 +29,7 @@ describe('the Compare page (CP1)', () => {
     expect(await main().findByText('Select a suite for side A.')).toBeInTheDocument()
     expect(selectButton('Metric')).toHaveTextContent('-- Select metric --')
     expect(selectButton('Metric')).toBeDisabled()
-    await pickOption('Suite', 'libcxx', sideOf('A'))
+    await pickOption('Suite', 'llvm/libcxx', sideOf('A'))
     expect(await main().findByText('Select a machine for side A.')).toBeInTheDocument()
     expect(selectButton('Metric')).toBeEnabled()
     await pick('Machine', 'm1', sideOf('A'))
@@ -174,7 +184,7 @@ describe('the Compare page (CP1)', () => {
 
   it('swaps two sides on the same commit, each keeping the runs it had', async () => {
     mockWorld()
-    const commit = 'suite_a=libcxx&machine_a=m1&commit_a=c1&suite_b=libcxx&machine_b=m1&commit_b=c1'
+    const commit = 'project_a=llvm&suite_a=libcxx&machine_a=m1&commit_a=c1&project_b=llvm&suite_b=libcxx&machine_b=m1&commit_b=c1'
     renderPage(
       `/compare?${commit}&metric=execution_time&runs_a=${uuidOf('1')}&runs_b=${uuidOf('2')}`,
     )
@@ -224,7 +234,7 @@ describe('the Compare page (CP1)', () => {
 
   it('keeps the commit when another machine has runs at it, with every one selected', async () => {
     mockWorld()
-    renderPage(`/compare?suite_a=libcxx&machine_a=m1&commit_a=c2`)
+    renderPage(`/compare?project_a=llvm&suite_a=libcxx&machine_a=m1&commit_a=c2`)
     expect(await screen.findByRole('checkbox', { name: /^Run 33333333/ })).toBeChecked()
 
     await pick('Machine', 'm2', sideOf('A'))
@@ -235,7 +245,7 @@ describe('the Compare page (CP1)', () => {
 
   it('clears the commit when another machine has no run at it', async () => {
     mockWorld()
-    renderPage('/compare?suite_a=libcxx&machine_a=m1&commit_a=c1')
+    renderPage('/compare?project_a=llvm&suite_a=libcxx&machine_a=m1&commit_a=c1')
     await screen.findByRole('checkbox', { name: /^Run 11111111/ })
 
     await pick('Machine', 'm2', sideOf('A'))
@@ -262,7 +272,7 @@ describe('the ways to the sides’ commits (CP1, AR20, AR21)', () => {
   it('give each side’s commit card from a ⓘ beside its picker, once it has one', async () => {
     mockWorld()
     const resolves = mockResolve()
-    renderPage('/compare?suite_a=libcxx&machine_a=m1')
+    renderPage('/compare?project_a=llvm&suite_a=libcxx&machine_a=m1')
     await waitFor(() =>
       expect(within(sideOf('A')).getByRole('combobox', { name: 'Commit' })).toBeEnabled(),
     )
@@ -284,7 +294,7 @@ describe('the ways to the sides’ commits (CP1, AR20, AR21)', () => {
     // The commit picked, as the picker listed it, without asking for it.
     const card = await commitCard(button)
     expect(card).toHaveAccessibleName('c1')
-    expect(pageLink(card, 'c1')).toHaveAttribute('href', '/suites/libcxx/commits/c1')
+    expect(pageLink(card, 'c1')).toHaveAttribute('href', '/projects/llvm/suites/libcxx/commits/c1')
     expect(within(card).getByRole('link', { name: 'View on GitHub' })).toHaveAttribute(
       'href',
       `${GITHUB}/commit/c1`,
@@ -312,7 +322,7 @@ describe('the ways to the sides’ commits (CP1, AR20, AR21)', () => {
     async (_, answer) => {
       mockWorld({ revisions: { c1: 'r1', c2: 'r2' } })
       server.use(
-        mockApi('get', '/api/suites/{testsuite}/commits', ({ request }) => {
+        mockApi('get', '/api/projects/{project}/suites/{suite}/commits', ({ request }) => {
           const query = new URL(request.url).searchParams
           return query.get('commit') === 'c2' ? (answer() as never) : undefined
         }),
@@ -345,7 +355,7 @@ describe('the ways to the sides’ commits (CP1, AR20, AR21)', () => {
     renderPage(COMPARED)
     await comparison()
 
-    expect(await cardTarget('B', 'c2', 'c2')).toBe('/suites/libcxx/commits/c2')
+    expect(await cardTarget('B', 'c2', 'c2')).toBe('/projects/llvm/suites/libcxx/commits/c2')
     const link = main().getByRole('link', { name: 'Diff on GitHub: c1 → c2' })
     expect(link).toHaveAttribute('href', `${GITHUB}/compare/c1...c2`)
     expect(link).toHaveAttribute('target', '_blank')
@@ -357,7 +367,7 @@ describe('the ways to the sides’ commits (CP1, AR20, AR21)', () => {
     renderPage(COMPARED)
     await comparison()
 
-    expect(await cardTarget('A', 'r1', 'c1')).toBe('/suites/libcxx/commits/c1')
+    expect(await cardTarget('A', 'r1', 'c1')).toBe('/projects/llvm/suites/libcxx/commits/c1')
     const range = await main().findByRole('link', { name: 'Diff on GitHub: r1 → r2' })
     expect(range).toHaveAttribute('href', `${GITHUB}/compare/c1...c2`)
   })
@@ -365,7 +375,7 @@ describe('the ways to the sides’ commits (CP1, AR20, AR21)', () => {
   it('link the changes from side A’s commit to side B’s, even from the newer', async () => {
     mockWorld()
     renderPage(
-      '/compare?suite_a=libcxx&machine_a=m1&commit_a=c2&suite_b=libcxx&machine_b=m1&commit_b=c1',
+      '/compare?project_a=llvm&suite_a=libcxx&machine_a=m1&commit_a=c2&project_b=llvm&suite_b=libcxx&machine_b=m1&commit_b=c1',
     )
 
     const link = await main().findByRole('link', { name: 'Diff on GitHub: c2 → c1' })
@@ -378,8 +388,8 @@ describe('the ways to the sides’ commits (CP1, AR20, AR21)', () => {
     renderPage(COMPARED.replace('suite_b=libcxx', 'suite_b=twin'))
     await comparison()
 
-    expect(await cardTarget('A', 'c1', 'c1')).toBe('/suites/libcxx/commits/c1')
-    expect(await cardTarget('B', 'c2', 'c2')).toBe('/suites/twin/commits/c2')
+    expect(await cardTarget('A', 'c1', 'c1')).toBe('/projects/llvm/suites/libcxx/commits/c1')
+    expect(await cardTarget('B', 'c2', 'c2')).toBe('/projects/llvm/suites/twin/commits/c2')
     expect(diff()).not.toBeInTheDocument()
   })
 
@@ -396,7 +406,7 @@ describe('the ways to the sides’ commits (CP1, AR20, AR21)', () => {
 describe('the metric (CP1)', () => {
   it('offers only the numeric metrics both suites declare alike', async () => {
     mockWorld()
-    renderPage('/compare?suite_a=other')
+    renderPage('/compare?project_a=llvm&suite_a=other')
     const user = userEvent.setup()
 
     await waitFor(() => expect(selectButton('Metric')).toBeEnabled())
@@ -407,7 +417,7 @@ describe('the metric (CP1)', () => {
     ])
     await user.keyboard('{Escape}')
 
-    await pickOption('Suite', 'libcxx', sideOf('B'))
+    await pickOption('Suite', 'llvm/libcxx', sideOf('B'))
     await user.click(selectButton('Metric'))
     expect(screen.getAllByRole('option').map((option) => option.textContent)).toEqual([
       'Execution Time',
@@ -416,10 +426,10 @@ describe('the metric (CP1)', () => {
 
   it('drops the metric when a suite picked does not offer it', async () => {
     mockWorld()
-    renderPage('/compare?suite_a=other&metric=compile_time')
+    renderPage('/compare?project_a=llvm&suite_a=other&metric=compile_time')
     await waitFor(() => expect(selectButton('Metric')).toHaveTextContent('Compile Time'))
 
-    await pickOption('Suite', 'libcxx', sideOf('B'))
+    await pickOption('Suite', 'llvm/libcxx', sideOf('B'))
 
     await waitFor(() => expect(query().metric).toBeUndefined())
     expect(selectButton('Metric')).toHaveTextContent('-- Select metric --')
@@ -427,7 +437,7 @@ describe('the metric (CP1)', () => {
 
   it('says when no metric can be compared, and drops one the suites do not offer', async () => {
     mockWorld()
-    renderPage('/compare?suite_a=libcxx&suite_b=millis&metric=execution_time')
+    renderPage('/compare?project_a=llvm&suite_a=libcxx&project_b=llvm&suite_b=millis&metric=execution_time')
 
     expect(await main().findByText('No metric can be compared.')).toBeInTheDocument()
     await waitFor(() => expect(query().metric).toBeUndefined())
@@ -435,9 +445,10 @@ describe('the metric (CP1)', () => {
 
   it('compares a metric offered by the one suite that exists, dropping the other', async () => {
     mockWorld()
-    renderPage('/compare?suite_a=libcxx&suite_b=bogus&metric=execution_time')
+    renderPage('/compare?project_a=llvm&suite_a=libcxx&project_b=llvm&suite_b=bogus&metric=execution_time')
 
     await waitFor(() => expect(query().suite_b).toBeUndefined())
+    expect(query().project_b).toBeUndefined()
     expect(query().metric).toEqual(['execution_time'])
     expect(selectButton('Metric')).toHaveTextContent('Execution Time')
   })
@@ -526,7 +537,7 @@ describe('loading (CP6)', () => {
   it('reports a commit that could not be looked up, keeping it', async () => {
     mockWorld()
     server.use(
-      mockApi('get', '/api/suites/{testsuite}/commits', ({ request }) => {
+      mockApi('get', '/api/projects/{project}/suites/{suite}/commits', ({ request }) => {
         if (new URL(request.url).searchParams.get('commit') === 'c1')
           return errorResponse(500, 'internal_error', 'Boom') as never
       }),
@@ -543,10 +554,10 @@ describe('loading (CP6)', () => {
   it('reports a failed lookup when the machines could not be listed either', async () => {
     mockWorld()
     server.use(
-      mockApi('get', '/api/suites/{testsuite}/machines', () =>
+      mockApi('get', '/api/projects/{project}/suites/{suite}/machines', () =>
         errorResponse(500, 'internal_error', 'No machines'),
       ),
-      mockApi('get', '/api/suites/{testsuite}/commits', ({ request }) => {
+      mockApi('get', '/api/projects/{project}/suites/{suite}/commits', ({ request }) => {
         if (new URL(request.url).searchParams.get('commit') === 'c1')
           return errorResponse(500, 'internal_error', 'Boom') as never
       }),
@@ -554,7 +565,7 @@ describe('loading (CP6)', () => {
     renderPage(COMPARED)
 
     expect(
-      await screen.findAllByText(/The machines of libcxx could not be listed/),
+      await screen.findAllByText(/The machines of llvm\/libcxx could not be listed/),
     ).not.toHaveLength(0)
     expect(
       await within(sideOf('A')).findByText(/The commit could not be looked up: Boom/),
@@ -567,7 +578,7 @@ describe('loading (CP6)', () => {
     mockWorld()
     // Holding run 3's samples back, then answering as the world does.
     server.use(
-      mockApi('get', '/api/suites/{testsuite}/runs/{uuid}/samples', async ({ params }) => {
+      mockApi('get', '/api/projects/{project}/suites/{suite}/runs/{uuid}/samples', async ({ params }) => {
         if (params.uuid === uuidOf('3')) await waiting
       }),
     )
@@ -581,7 +592,7 @@ describe('loading (CP6)', () => {
   it('says only that the suites could not be listed, not what the sides miss', async () => {
     mockWorld()
     server.use(
-      mockApi('get', '/api/suites', () =>
+      mockApi('get', '/api/projects', () =>
         errorResponse(500, 'internal_error', 'The suites broke.'),
       ),
     )
@@ -596,7 +607,7 @@ describe('loading (CP6)', () => {
 
   it('drops the runs of a side without a commit', async () => {
     mockWorld()
-    renderPage(`/compare?suite_b=libcxx&machine_b=m1&runs_b=${uuidOf('3')}`)
+    renderPage(`/compare?project_b=llvm&suite_b=libcxx&machine_b=m1&runs_b=${uuidOf('3')}`)
 
     await waitFor(() => expect(query().runs_b).toBeUndefined())
     expect(query().machine_b).toEqual(['m1'])
@@ -605,7 +616,7 @@ describe('loading (CP6)', () => {
   it('drops a commit named without a machine, and a machine without a suite', async () => {
     mockWorld()
     renderPage(
-      `/compare?suite_a=libcxx&commit_a=c1&runs_a=${uuidOf('1')}&machine_b=m1&commit_b=c2`,
+      `/compare?project_a=llvm&suite_a=libcxx&commit_a=c1&runs_a=${uuidOf('1')}&machine_b=m1&commit_b=c2`,
     )
 
     await waitFor(() => expect(query().commit_a).toBeUndefined())
@@ -621,11 +632,94 @@ describe('loading (CP6)', () => {
           ? errorResponse(404, 'not_found', 'No such machine')
           : undefined,
     })
-    renderPage('/compare?suite_a=libcxx&machine_a=bogus&commit_a=c1')
+    renderPage('/compare?project_a=llvm&suite_a=libcxx&machine_a=bogus&commit_a=c1')
 
     await waitFor(() => expect(query().machine_a).toBeUndefined())
     expect(query().commit_a).toBeUndefined()
     expect(screen.queryByText(/could not be (listed|looked up)/)).not.toBeInTheDocument()
-    expect(currentUrl()).toBe('/compare?suite_a=libcxx')
+    expect(currentUrl()).toBe('/compare?project_a=llvm&suite_a=libcxx')
+  })
+})
+
+/** Every URL the page is at from now on, as the URL shown changes. */
+function urlsSeen() {
+  const seen = [currentUrl()]
+  const observer = new MutationObserver(() => seen.push(currentUrl()))
+  observer.observe(screen.getByTestId('url'), { subtree: true, childList: true, characterData: true })
+  return seen
+}
+
+/** Whether `url` names each side's project exactly when it names the side's suite. */
+function pairsWhole(url: string | null) {
+  const params = new URLSearchParams(url!.split('?')[1] ?? '')
+  return ['a', 'b'].every((side) => params.has(`project_${side}`) === params.has(`suite_${side}`))
+}
+
+describe("a side's suite in the URL (CP7, AR22)", () => {
+  it('drops a suite that does not exist with its project, and what depends on it, at once', async () => {
+    mockWorld()
+    renderPage(
+      '/compare?project_a=llvm&suite_a=bogus&machine_a=m1&commit_a=c1' +
+        '&project_b=llvm&suite_b=libcxx&machine_b=m1&commit_b=c2',
+    )
+    const seen = urlsSeen()
+
+    await waitFor(() =>
+      expect(currentUrl()).toBe(
+        '/compare?project_b=llvm&suite_b=libcxx&machine_b=m1&commit_b=c2',
+      ),
+    )
+    expect(seen.every(pairsWhole)).toBe(true)
+  })
+
+  it('drops a suite that exists in another project only', async () => {
+    mockWorld()
+    renderPage('/compare?project_a=other&suite_a=libcxx&machine_a=m1')
+
+    await waitFor(() => expect(currentUrl()).toBe('/compare'))
+  })
+
+  it('keeps a suite it cannot check while the suites cannot be listed', async () => {
+    mockWorld()
+    server.use(
+      mockApi('get', '/api/projects', () =>
+        errorResponse(500, 'internal_error', 'The suites broke.'),
+      ),
+    )
+    const url = '/compare?project_a=llvm&suite_a=bogus&machine_a=m1'
+    renderPage(url)
+
+    expect(await main().findByText(/The test suites could not be listed/)).toBeInTheDocument()
+    await settle()
+    expect(currentUrl()).toBe(url)
+  })
+
+  it('drops a suite named without its project, or a project without a suite, once listed', async () => {
+    mockWorld()
+    const listed = gate()
+    mockSuites(SUITES, { wait: () => listed.promise })
+    const url = '/compare?suite_a=libcxx&machine_a=m1&project_b=llvm'
+    renderPage(url)
+    const seen = urlsSeen()
+
+    // Not before the suites are listed.
+    await settle()
+    expect(currentUrl()).toBe(url)
+    listed.open()
+    await waitFor(() => expect(currentUrl()).toBe('/compare'))
+    expect(seen.slice(1).every(pairsWhole)).toBe(true)
+  })
+
+  it('tells apart suites of the same name in two projects', async () => {
+    const other = inProject(SUITE, { name: 'other', display_name: null })
+    mockWorld({ suites: [...SUITES, other] })
+    renderPage('/compare')
+
+    await pickOption('Suite', 'other/libcxx', sideOf('A'))
+    await waitFor(() => expect(query()).toEqual({ project_a: ['other'], suite_a: ['libcxx'] }))
+    expect(selectButton('Suite', sideOf('A'))).toHaveTextContent('other/libcxx')
+
+    await pickOption('Suite', 'llvm/libcxx', sideOf('A'))
+    await waitFor(() => expect(query()).toEqual({ project_a: ['llvm'], suite_a: ['libcxx'] }))
   })
 })

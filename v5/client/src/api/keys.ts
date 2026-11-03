@@ -1,50 +1,53 @@
 import type { QueryClient } from '@tanstack/react-query'
+import type { SuiteRef } from './suites'
 
 /**
  * The roots of the query keys, so that a change can invalidate exactly the queries it affects:
  *
  * - `index`: the API index (E1), for the server's revision.
- * - `suites`: the list of test suites, with their schemas.
+ * - `projects`: the list of projects, with their suites and the suites' schemas.
  * - `apiKeys`: the list of API keys (E11), which only an `admin` token can read.
- * - `suite(name)`: everything read from inside one suite, under `['suite', name, <what>, ...]`, so
- *   that a write to a suite can invalidate its data without touching any other query -- notably
- *   the token check (see auth/credentials.ts), which re-running would make gated controls flicker.
+ * - `suite(ref)`: everything read from inside one suite, under
+ *   `['suite', project, suite, <what>, ...]`, so that a write to a suite can invalidate its data
+ *   without touching any other query -- notably the token check (see auth/credentials.ts), which
+ *   re-running would make gated controls flicker. The project comes first, so that everything read
+ *   from inside the suites of a project shares the prefix `['suite', project]`.
  */
 export const queryKeys = {
   index: ['index'] as const,
-  suites: ['suites'] as const,
+  projects: ['projects'] as const,
   apiKeys: ['api-keys'] as const,
-  suite: (name: string) => ['suite', name] as const,
+  suite: ({ project, suite }: SuiteRef) => ['suite', project, suite] as const,
   /** Everything read about the suite's machines: lists, whatever their filters, and details. */
-  machines: (suite: string) => ['suite', suite, 'machines'] as const,
+  machines: (suite: SuiteRef) => [...queryKeys.suite(suite), 'machines'] as const,
   /**
    * Everything read about the suite's commits: lists, whatever their filters, details, and the
    * lookups of a commit's resolution or of the one before it on a machine.
    */
-  commits: (suite: string) => ['suite', suite, 'commits'] as const,
+  commits: (suite: SuiteRef) => [...queryKeys.suite(suite), 'commits'] as const,
   /** Everything read about the suite's runs: lists, whatever their filters, and details. */
-  runs: (suite: string) => ['suite', suite, 'runs'] as const,
+  runs: (suite: SuiteRef) => [...queryKeys.suite(suite), 'runs'] as const,
   /**
    * Everything read about the suite's profiles (E7), by UUID: their metadata, their functions and
    * their functions' disassembly.
    */
-  profiles: (suite: string) => ['suite', suite, 'profiles'] as const,
+  profiles: (suite: SuiteRef) => [...queryKeys.suite(suite), 'profiles'] as const,
   /** The names of the suite's tests, as listed for a machine and a metric. */
-  tests: (suite: string) => ['suite', suite, 'tests'] as const,
+  tests: (suite: SuiteRef) => [...queryKeys.suite(suite), 'tests'] as const,
   /** Everything read about the suite's regressions: lists, whatever their filters, and details. */
-  regressions: (suite: string) => ['suite', suite, 'regressions'] as const,
+  regressions: (suite: SuiteRef) => [...queryKeys.suite(suite), 'regressions'] as const,
   /** The suite's trends (E9), whatever their metric, machines and window. */
-  trends: (suite: string) => ['suite', suite, 'trends'] as const,
+  trends: (suite: SuiteRef) => [...queryKeys.suite(suite), 'trends'] as const,
   /**
    * The suite's measurements, as the Graph page loads them from `GET /series` (E9), a test on a
    * machine at a time (see api/series.ts).
    */
-  series: (suite: string) => ['suite', suite, 'series'] as const,
+  series: (suite: SuiteRef) => [...queryKeys.suite(suite), 'series'] as const,
   /**
    * The data of the Graph page's baselines in the suite (GR9), every test's at a commit of a
    * machine, which the page keeps for longer than its measurements (see pages/graph/baselines.ts).
    */
-  baselines: (suite: string) => ['suite', suite, 'baselines'] as const,
+  baselines: (suite: SuiteRef) => [...queryKeys.suite(suite), 'baselines'] as const,
 }
 
 /**
@@ -58,7 +61,7 @@ export const queryKeys = {
  */
 export async function forgetSuite(
   queryClient: QueryClient,
-  suite: string,
+  suite: SuiteRef,
   { leaving }: { leaving: boolean },
 ): Promise<void> {
   const queryKey = queryKeys.suite(suite)
@@ -72,7 +75,7 @@ export async function forgetSuite(
  * a query that a page reads only through disabled observers, which would be left holding a query
  * the cache no longer has.
  */
-export function forgetUnobserved(queryClient: QueryClient, suite: string): void {
+export function forgetUnobserved(queryClient: QueryClient, suite: SuiteRef): void {
   queryClient.removeQueries({
     queryKey: queryKeys.suite(suite),
     predicate: (query) => query.getObserversCount() === 0,
@@ -87,14 +90,16 @@ export function forgetUnobserved(queryClient: QueryClient, suite: string): void 
  */
 export function forgetEverySuiteLater(
   queryClient: QueryClient,
-  keyOf: (suite: string) => readonly unknown[],
+  keyOf: (suite: SuiteRef) => readonly unknown[],
 ): void {
   setTimeout(() => {
     queryClient.removeQueries({
       predicate: (query) => {
-        const [root, suite] = query.queryKey
-        if (root !== 'suite' || typeof suite !== 'string') return false
-        const prefix = keyOf(suite)
+        const [root, project, suite] = query.queryKey
+        if (root !== 'suite' || typeof project !== 'string' || typeof suite !== 'string') {
+          return false
+        }
+        const prefix = keyOf({ project, suite })
         return (
           prefix.every((part, i) => query.queryKey[i] === part) && query.getObserversCount() === 0
         )

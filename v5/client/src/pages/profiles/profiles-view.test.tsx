@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event'
 import { HttpResponse } from 'msw'
 import { describe, expect, it } from 'vitest'
 import { queryKeys } from '../../api/keys'
+import { REF } from '../../test/fixtures'
 import { profilesPath } from '../../paths'
 import { fakeLayout } from '../../test/layout'
 import { errorResponse } from '../../test/mock-api'
@@ -309,9 +310,7 @@ describe('the Profiles page: function selection (PF4)', () => {
     const url = currentUrl()
 
     fail = true
-    await act(() =>
-      queryClient.refetchQueries({ queryKey: [...queryKeys.runs('libcxx'), 'of-commit'] }),
-    )
+    await act(() => queryClient.refetchQueries({ queryKey: [...queryKeys.runs(REF), 'of-commit'] }))
 
     await settle()
     expect(screen.queryByText(/could not be listed/)).not.toBeInTheDocument()
@@ -641,7 +640,7 @@ describe('the Profiles page: values and layout (PF6, PF7)', () => {
     const scroller = () => column('A').getByRole('region', { name: /^Instructions of / })
 
     scroller().scrollTop = 500
-    await act(() => queryClient.refetchQueries({ queryKey: queryKeys.profiles('libcxx') }))
+    await act(() => queryClient.refetchQueries({ queryKey: queryKeys.profiles(REF) }))
     await showsFunction('A', 'hot')
     expect(scroller().scrollTop).toBe(500)
 
@@ -837,7 +836,7 @@ describe('the Profiles page: hottest instructions (PF5)', () => {
     await step('next')
     await waitFor(() => expect(highlighted()).toContain('insn 2'))
 
-    await act(() => queryClient.refetchQueries({ queryKey: queryKeys.profiles('libcxx') }))
+    await act(() => queryClient.refetchQueries({ queryKey: queryKeys.profiles(REF) }))
     await showsFunction('A', 'hot')
     expect(highlighted()).toContain('insn 2')
     expect(hottest().status).toHaveTextContent('Hottest instruction 2 of 3')

@@ -14,6 +14,7 @@ import {
   trimmedStringParam,
   type ValuesOf,
 } from '../../url-state'
+import type { SuiteRef } from '../../api/suites'
 
 export const TABS = [
   { id: 'runs', label: 'Runs' },
@@ -69,14 +70,14 @@ export const { reset: resetSettings, unused: unusedSettings } = tabSettings(PARA
  * The path of `tab` of the page for `suite`, with the Regressions tab filtered by `filters`: what
  * another page links to. Settings at their default are left out, as the page leaves them out.
  */
-export function suiteTabPath(suite: string, tab: TabId): string
+export function suiteTabPath(suite: SuiteRef, tab: TabId): string
 export function suiteTabPath(
-  suite: string,
+  suite: SuiteRef,
   tab: 'regressions',
   filters?: Pick<Partial<RegressionFilters>, 'machine'>,
 ): string
 export function suiteTabPath(
-  suite: string,
+  suite: SuiteRef,
   tab: TabId,
   filters: Pick<Partial<RegressionFilters>, 'machine'> = {},
 ): string {

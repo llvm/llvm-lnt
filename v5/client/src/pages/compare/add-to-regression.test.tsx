@@ -3,7 +3,7 @@ import userEvent from '@testing-library/user-event'
 import { HttpResponse } from 'msw'
 import { describe, expect, it, vi } from 'vitest'
 import type { Schemas } from '../../api/client'
-import { signIn } from '../../test/auth'
+import { entry, signIn } from '../../test/auth'
 import { cursorPage, regression, regressionDetail, uuidOf } from '../../test/fixtures'
 import { errorResponse, mockApi } from '../../test/mock-api'
 import { mockCreateRegression, mockRegressions, renderPage } from '../../test/page'
@@ -38,7 +38,7 @@ function mockAdd(added: number) {
   server.use(
     mockApi(
       'post',
-      '/api/suites/{testsuite}/regressions/{uuid}/indicators',
+      '/api/projects/{project}/suites/{suite}/regressions/{uuid}/indicators',
       async ({ request, params }) => {
         const { indicators } = await request.json()
         requests.push({ uuid: params.uuid, indicators })
@@ -81,20 +81,20 @@ describe('Add to Regression (CP9)', () => {
     mockWorld()
     // Side A in other, side B in libcxx.
     const url = COMPARED.replace('suite_a=libcxx', 'suite_a=other')
-    signIn('triage', ['libcxx'])
+    signIn('triage', [entry('libcxx')])
     const { unmount } = renderPage(url)
     await comparison()
     await waitFor(() => expect(toggle()).toBeEnabled())
     unmount()
 
-    signIn('triage', ['other'])
+    signIn('triage', [entry('other')])
     renderPage(url)
     await comparison()
     await waitFor(() =>
       expect(toggle()).toHaveAttribute(
         'title',
-        "Needs an API token with the 'triage' scope in suite 'libcxx'. The token in Settings " +
-          "has the 'triage' scope only in suite 'other'.",
+        "Needs an API token with the 'triage' scope in suite 'llvm/libcxx'. The token in " +
+          "Settings has the 'triage' scope only in suite 'llvm/other'.",
       ),
     )
     expect(toggle()).toBeDisabled()
@@ -116,7 +116,7 @@ describe('Add to Regression (CP9)', () => {
     const targets = screen.getByText('Covers:').closest('dl')!
     expect([...targets.children].map((row) => row.textContent)).toEqual([
       'Covers:2 selected tests',
-      'Test Suite:libcxx',
+      'Test Suite:llvm/libcxx',
       'Metric:Execution Time',
       'Machine:m1',
       'Commit:c2',
@@ -132,7 +132,7 @@ describe('Add to Regression (CP9)', () => {
     await openPanel()
 
     expect(screen.getByText('Test Suite:').closest('div')).toHaveTextContent(
-      'Test Suite:Microbenchmarks',
+      'Test Suite:llvm/Microbenchmarks',
     )
   })
 
@@ -147,11 +147,15 @@ describe('Add to Regression (CP9)', () => {
 
     const status = await screen.findByText(/Regression created:/)
     expect(requests).toEqual([
-      { suite: 'libcxx', body: { title: 'Slow', commit: 'c2', indicators: [indicator('c')] } },
+      {
+        project: 'llvm',
+        suite: 'libcxx',
+        body: { title: 'Slow', commit: 'c2', indicators: [indicator('c')] },
+      },
     ])
     expect(within(status).getByRole('link', { name: 'Slow' })).toHaveAttribute(
       'href',
-      `/suites/libcxx/regressions/${uuidOf('d')}`,
+      `/projects/llvm/suites/libcxx/regressions/${uuidOf('d')}`,
     )
     expect(screen.queryByRole('form', { name: 'Create new regression' })).not.toBeInTheDocument()
 
@@ -183,9 +187,11 @@ describe('Add to Regression (CP9)', () => {
     // The filter leaves out d, "Hide noise" c, and a is hidden: once swapped, side B is other's m1
     // at c2, and only e makes an indicator.
     const query = new URLSearchParams({
+      project_a: 'llvm',
       suite_a: 'other',
       machine_a: 'm1',
       commit_a: 'c2',
+      project_b: 'llvm',
       suite_b: 'libcxx',
       machine_b: 'm2',
       commit_b: 'c2',
@@ -207,7 +213,11 @@ describe('Add to Regression (CP9)', () => {
 
     await screen.findByText(/Regression created:/)
     expect(requests).toEqual([
-      { suite: 'other', body: { title: null, commit: 'c2', indicators: [indicator('e')] } },
+      {
+        project: 'llvm',
+        suite: 'other',
+        body: { title: null, commit: 'c2', indicators: [indicator('e')] },
+      },
     ])
   })
 
@@ -234,7 +244,7 @@ describe('Add to Regression (CP9)', () => {
     const held = new Promise<void>((resolve) => (release = resolve))
     await openPanel()
     server.use(
-      mockApi('post', '/api/suites/{testsuite}/regressions', async () => {
+      mockApi('post', '/api/projects/{project}/suites/{suite}/regressions', async () => {
         await held
         return HttpResponse.json(regressionDetail('d'), { status: 201 })
       }),
@@ -284,7 +294,7 @@ describe('Add to Regression (CP9)', () => {
     expect(queries[0].get('sort')).toBe('-created_at')
     expect(within(status).getByRole('link', { name: 'Older' })).toHaveAttribute(
       'href',
-      `/suites/libcxx/regressions/${uuidOf('e')}`,
+      `/projects/llvm/suites/libcxx/regressions/${uuidOf('e')}`,
     )
   })
 
@@ -312,7 +322,7 @@ describe('Add to Regression (CP9)', () => {
   it('stays open, saying why, when the regression cannot be created', async () => {
     mockWorld()
     server.use(
-      mockApi('post', '/api/suites/{testsuite}/regressions', () =>
+      mockApi('post', '/api/projects/{project}/suites/{suite}/regressions', () =>
         errorResponse(500, 'internal_error', 'Boom'),
       ),
     )
@@ -336,7 +346,7 @@ describe('Add to Regression (CP9)', () => {
     await waitFor(() => expect(picker()).toHaveValue(''))
 
     await pick('Regression', 'Older')
-    await pickOption('Suite', 'other', sideOf('B'))
+    await pickOption('Suite', 'llvm/other', sideOf('B'))
     await waitFor(() => expect(picker()).toHaveValue(''))
   })
 

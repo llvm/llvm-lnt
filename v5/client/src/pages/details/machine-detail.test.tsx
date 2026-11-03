@@ -6,10 +6,19 @@ import { describe, expect, it } from 'vitest'
 import { PERMISSION_DENIED, type Schemas } from '../../api/client'
 import { INACTIVITY_HELP } from '../../inactivity'
 import { machinePath } from '../../paths'
-import { changeInAnotherTab, signIn, TOKEN } from '../../test/auth'
+import { changeInAnotherTab, entry, signIn, TOKEN } from '../../test/auth'
 import { TOKEN_STORAGE_KEY } from '../../auth/storage-key'
 import type { SuiteSchema } from '../../api/suites'
-import { commit, cursorPage, machine, regression, run, SUITE, uuidOf } from '../../test/fixtures'
+import {
+  commit,
+  cursorPage,
+  machine,
+  regression,
+  REF,
+  run,
+  SUITE,
+  uuidOf,
+} from '../../test/fixtures'
 import { errorResponse, mockApi } from '../../test/mock-api'
 import {
   commitCard,
@@ -37,12 +46,12 @@ import {
 import { server } from '../../test/server'
 
 const NAME = 'linux-x86_64'
-const PAGE = `/suites/libcxx/machines/${NAME}`
+const PAGE = `/projects/llvm/suites/libcxx/machines/${NAME}`
 const LINUX = machine(NAME, { fields: { hardware: 'AMD EPYC', os: null, core_count: 64 } })
 
 type Respond = (query: URLSearchParams) => Response | Promise<Response>
 
-const MACHINE_ROUTE = '/api/suites/{testsuite}/machines/{machine_name}'
+const MACHINE_ROUTE = '/api/projects/{project}/suites/{suite}/machines/{machine_name}'
 
 interface PageMocks {
   /** The suites the API lists: `SUITE` and `BARE_SUITE` by default. */
@@ -76,10 +85,12 @@ function mockPage({
       machineCalls.count++
       return machine(request, params.machine_name)
     }),
-    mockApi('get', '/api/suites/{testsuite}/regressions', ({ request }) =>
+    mockApi('get', '/api/projects/{project}/suites/{suite}/regressions', ({ request }) =>
       regressionList.answer(request),
     ),
-    mockApi('get', '/api/suites/{testsuite}/runs', ({ request }) => runList.answer(request)),
+    mockApi('get', '/api/projects/{project}/suites/{suite}/runs', ({ request }) =>
+      runList.answer(request),
+    ),
   )
   return { machineCalls, regressionQueries: regressionList.queries, runQueries: runList.queries }
 }
@@ -150,11 +161,13 @@ describe('the Machine Detail page', () => {
         return HttpResponse.json(machine(name))
       },
     })
-    renderPage(machinePath('libcxx', name))
+    renderPage(machinePath(REF, name))
 
     expect(await screen.findByRole('heading', { level: 1 })).toHaveTextContent(`Machine: ${name}`)
     await screen.findByRole('group', { name: 'Machine' })
-    expect(requested).toEqual([`/api/suites/libcxx/machines/${encodeURIComponent(name)}`])
+    expect(requested).toEqual([
+      `/api/projects/llvm/suites/libcxx/machines/${encodeURIComponent(name)}`,
+    ])
   })
 
   it('explains the tracked flag, on hover and to assistive technology', async () => {
@@ -178,24 +191,41 @@ describe('the Machine Detail page', () => {
 
   it('says when the suite does not exist, with the trail', async () => {
     mockSuites()
-    renderPage('/suites/nope/machines/x')
+    renderPage('/projects/llvm/suites/nope/machines/x')
 
-    expect(await screen.findByRole('alert')).toHaveTextContent("Test suite 'nope' not found.")
-    expect(trailLink('Machines')).toHaveAttribute('href', '/suites/nope?tab=machines')
+    expect(await screen.findByRole('alert')).toHaveTextContent("Test suite 'llvm/nope' not found.")
+    expect(trailLink('llvm')).toHaveAttribute('href', '/projects/llvm')
+    expect(trailLink('nope')).toHaveAttribute('href', '/projects/llvm/suites/nope')
+    expect(trailLink('Machines')).toHaveAttribute('href', '/projects/llvm/suites/nope?tab=machines')
+  })
+
+  it('says when the project does not exist, with the trail', async () => {
+    mockSuites()
+    renderPage('/projects/nope/suites/libcxx/machines/x')
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      "Test suite 'nope/libcxx' not found.",
+    )
+    expect(trailLink('nope')).toHaveAttribute('href', '/projects/nope')
+    expect(trailLink('libcxx')).toHaveAttribute('href', '/projects/nope/suites/libcxx')
   })
 
   it('shows only the error for a machine that does not exist, with no retry, and the trail', async () => {
     const { regressionQueries, runQueries } = mockPage({
-      machine: () => errorResponse(404, 'not_found', "Machine 'x' not found in test suite 'libcxx'"),
+      machine: () =>
+        errorResponse(404, 'not_found', "Machine 'x' not found in test suite 'llvm/libcxx'"),
     })
-    renderPage('/suites/libcxx/machines/x')
+    renderPage('/projects/llvm/suites/libcxx/machines/x')
 
     expect(await screen.findByRole('alert')).toHaveTextContent("Machine 'x' not found")
     expect(screen.queryByRole('button', { name: 'Retry' })).not.toBeInTheDocument()
     expect(screen.queryByRole('heading', { name: 'Run History' })).not.toBeInTheDocument()
     expect(regressionQueries).toEqual([])
     expect(runQueries).toEqual([])
-    expect(trailLink('Machines')).toHaveAttribute('href', '/suites/libcxx?tab=machines')
+    expect(trailLink('Machines')).toHaveAttribute(
+      'href',
+      '/projects/llvm/suites/libcxx?tab=machines',
+    )
   })
 
   it('offers to fetch the machine again when it could not be', async () => {
@@ -219,11 +249,11 @@ describe('the Machine Detail page', () => {
 
     expect(await main().findByRole('link', { name: 'View Graph' })).toHaveAttribute(
       'href',
-      `/graph?suite=libcxx&machine=${NAME}`,
+      `/graph?project=llvm&suite=libcxx&machine=${NAME}`,
     )
     expect(main().getByRole('link', { name: 'Compare' })).toHaveAttribute(
       'href',
-      `/compare?suite_a=libcxx&machine_a=${NAME}`,
+      `/compare?project_a=llvm&suite_a=libcxx&machine_a=${NAME}`,
     )
   })
 
@@ -304,7 +334,7 @@ describe('the Machine Detail page', () => {
       mockPage()
       const machineQueries = mockMachines(() => ({ items: [{ ...LINUX, tracked }] }))
       // From the Machines tab, whose list is then cached.
-      renderPage('/suites/libcxx?tab=machines')
+      renderPage('/projects/llvm/suites/libcxx?tab=machines')
       fireEvent.click(within(await table('Machines')).getByRole('link', { name: NAME }))
       await ready('Machine', trackedBox)
 
@@ -394,7 +424,7 @@ describe('the Machine Detail page', () => {
     })
 
     it('cannot be changed with a key restricted to another suite', async () => {
-      signIn('manage', ['nts'])
+      signIn('manage', [entry('nts')])
       renderMachine()
 
       await screen.findByRole('group', { name: 'Machine' })
@@ -516,7 +546,7 @@ describe('the Machine Detail page', () => {
       mockPage()
       const machineQueries = mockMachines(() => ({ items: [stored()] }))
       // From the Machines tab, whose list is then cached.
-      renderPage('/suites/libcxx?tab=machines')
+      renderPage('/projects/llvm/suites/libcxx?tab=machines')
       fireEvent.click(within(await table('Machines')).getByRole('link', { name: NAME }))
       await ready('Machine', () => editButton('Hardware'))
 
@@ -585,7 +615,7 @@ describe('the Machine Detail page', () => {
 
   describe('its name', () => {
     const NEW = 'macos-arm64'
-    const NEW_PAGE = machinePath('libcxx', NEW)
+    const NEW_PAGE = machinePath(REF, NEW)
     const nameInput = () => screen.getByRole('textbox', { name: 'Name' })
     const heading = () => screen.getByRole('heading', { level: 1 })
     const back = () => fireEvent.click(screen.getByRole('button', { name: 'Browser back' }))
@@ -734,7 +764,7 @@ describe('the Machine Detail page', () => {
       const { machineCalls, regressionQueries, runQueries } = mockPage()
       mockMachines(() => ({ items: [LINUX] }))
       // From the Machines tab, whose list is then cached.
-      renderPage('/suites/libcxx?tab=machines')
+      renderPage('/projects/llvm/suites/libcxx?tab=machines')
       fireEvent.click(within(await table('Machines')).getByRole('link', { name: NAME }))
       await ready('Machine', () => editButton('Name'))
       const machineQueries = mockMachines(() => ({ items: [machine(NEW)] }))
@@ -762,7 +792,7 @@ describe('the Machine Detail page', () => {
 
       // Back leaves for the page before, whose list, read before the rename, is not shown.
       back()
-      await waitFor(() => expect(currentUrl()).toBe('/suites/libcxx?tab=machines'))
+      await waitFor(() => expect(currentUrl()).toBe('/projects/llvm/suites/libcxx?tab=machines'))
       expect(screen.queryByRole('link', { name: NAME })).not.toBeInTheDocument()
       expect(await within(await table('Machines')).findByRole('link', { name: NEW })).toBeVisible()
       expect(machineQueries).toHaveLength(1)
@@ -800,13 +830,13 @@ describe('the Machine Detail page', () => {
       // could, so the test does it itself: to `NAME`'s page, then back to `other`'s, cached.
       function GoTo() {
         const navigate = useNavigate()
-        return [PAGE, machinePath('libcxx', other)].map((to) => (
+        return [PAGE, machinePath(REF, other)].map((to) => (
           <button key={to} onClick={() => navigate(to)}>
             Go to {to}
           </button>
         ))
       }
-      renderPage(machinePath('libcxx', other), <GoTo />)
+      renderPage(machinePath(REF, other), <GoTo />)
       await ready('Machine', deleteButton)
       fireEvent.click(screen.getByRole('button', { name: `Go to ${PAGE}` }))
       await waitFor(() => expect(heading()).toHaveTextContent(`Machine: ${NAME}`))
@@ -814,7 +844,7 @@ describe('the Machine Detail page', () => {
       fireEvent.click(deleteButton())
       expect(screen.getByRole('form', { name: 'Confirmation' })).toBeInTheDocument()
 
-      fireEvent.click(screen.getByRole('button', { name: `Go to ${machinePath('libcxx', other)}` }))
+      fireEvent.click(screen.getByRole('button', { name: `Go to ${machinePath(REF, other)}` }))
 
       expect(heading()).toHaveTextContent(`Machine: ${other}`)
       expect(screen.getByRole('group', { name: 'Machine' })).toBeInTheDocument()
@@ -823,7 +853,7 @@ describe('the Machine Detail page', () => {
 
     it('stays open with its text when the name is taken, saying so', async () => {
       signIn('manage')
-      const taken = "A machine named 'other' already exists in test suite 'libcxx'"
+      const taken = "A machine named 'other' already exists in test suite 'llvm/libcxx'"
       mockPatch(() => errorResponse(409, 'duplicate', taken))
       renderMachine()
       await ready('Machine', () => editButton('Name'))
@@ -886,7 +916,7 @@ describe('the Machine Detail page', () => {
       act(() => answer.open())
 
       await waitFor(() => expect(runQueries.length).toBe(fetched + 1))
-      expect(currentUrl()).toBe('/suites/libcxx')
+      expect(currentUrl()).toBe('/projects/llvm/suites/libcxx')
     })
   })
 
@@ -927,7 +957,7 @@ describe('the Machine Detail page', () => {
 
       expect(await within(prompt).findByText(/may take a while/)).toBeInTheDocument()
       act(() => deletion.open())
-      await waitFor(() => expect(currentUrl()).toBe('/suites/libcxx?tab=machines'))
+      await waitFor(() => expect(currentUrl()).toBe('/projects/llvm/suites/libcxx?tab=machines'))
       expect(deleted).toEqual([`Bearer ${TOKEN}`])
       expect(await screen.findByText('No machines yet.')).toBeInTheDocument()
     })
@@ -947,12 +977,12 @@ describe('the Machine Detail page', () => {
       fireEvent.click(deleteButton())
       fireEvent.change(screen.getByRole('textbox'), { target: { value: NAME } })
       fireEvent.click(screen.getByRole('button', { name: 'Delete' }))
-      await waitFor(() => expect(currentUrl()).toBe('/suites/libcxx?tab=machines'))
+      await waitFor(() => expect(currentUrl()).toBe('/projects/llvm/suites/libcxx?tab=machines'))
       return machineQueries
     }
 
     it('does not show the machine in the list cached before', async () => {
-      const machineQueries = await deleteFrom('/suites/libcxx?tab=machines')
+      const machineQueries = await deleteFrom('/projects/llvm/suites/libcxx?tab=machines')
 
       expect(screen.queryByRole('link', { name: NAME })).not.toBeInTheDocument()
       expect(await screen.findByText('No machines yet.')).toBeInTheDocument()
@@ -961,11 +991,13 @@ describe('the Machine Detail page', () => {
 
     it('leaves the page in place of itself in the history', async () => {
       // From a search, so that the page before the machine's is not the one it leaves for.
-      await deleteFrom('/suites/libcxx?tab=machines&search=linux')
+      await deleteFrom('/projects/llvm/suites/libcxx?tab=machines&search=linux')
 
       fireEvent.click(screen.getByRole('button', { name: 'Browser back' }))
 
-      await waitFor(() => expect(currentUrl()).toBe('/suites/libcxx?tab=machines&search=linux'))
+      await waitFor(() =>
+        expect(currentUrl()).toBe('/projects/llvm/suites/libcxx?tab=machines&search=linux'),
+      )
     })
 
     it('does not show the machine from the cache when the history leads back to its page', async () => {
@@ -987,11 +1019,13 @@ describe('the Machine Detail page', () => {
       fireEvent.click(within(await table('Runs')).getByRole('link', { name: NAME }))
 
       await startDeleting()
-      await waitFor(() => expect(currentUrl()).toBe('/suites/libcxx?tab=machines'))
+      await waitFor(() => expect(currentUrl()).toBe('/projects/llvm/suites/libcxx?tab=machines'))
       // Nothing the page read is kept, its lists included, rather than only the machine itself.
       await waitFor(() =>
-        expect(queryClient.getQueryCache().findAll({ queryKey: ['suite', 'libcxx'] })).toEqual([
-          expect.objectContaining({ queryKey: ['suite', 'libcxx', 'machines', {}] }),
+        expect(
+          queryClient.getQueryCache().findAll({ queryKey: ['suite', 'llvm', 'libcxx'] }),
+        ).toEqual([
+          expect.objectContaining({ queryKey: ['suite', 'llvm', 'libcxx', 'machines', {}] }),
         ]),
       )
       gone = true
@@ -1040,7 +1074,7 @@ describe('the Machine Detail page', () => {
       act(() => deletion.open())
 
       await waitFor(() => expect(runQueries.length).toBe(fetched + 1))
-      expect(currentUrl()).toBe('/suites/libcxx')
+      expect(currentUrl()).toBe('/projects/llvm/suites/libcxx')
     })
 
     it('can be cancelled, giving the focus back to the button', async () => {
@@ -1075,12 +1109,18 @@ describe('the Machine Detail page', () => {
       ])
       // The UUID tells the regressions without a title apart.
       const uuid = within(list).getByRole('link', { name: 'cccccccc…' })
-      expect(uuid).toHaveAttribute('href', `/suites/libcxx/regressions/${uuidOf('c')}`)
+      expect(uuid).toHaveAttribute(
+        'href',
+        `/projects/llvm/suites/libcxx/regressions/${uuidOf('c')}`,
+      )
       expect(uuid).toHaveAttribute('title', uuidOf('c'))
       expect(within(list).getByRole('link', { name: /^x+…$/ })).toHaveAttribute('title', long)
       const untruncated = within(list).getByRole('link', { name: 'find_if slowdown' })
       expect(untruncated).not.toHaveAttribute('title')
-      expect(untruncated).toHaveAttribute('href', `/suites/libcxx/regressions/${uuidOf('a')}`)
+      expect(untruncated).toHaveAttribute(
+        'href',
+        `/projects/llvm/suites/libcxx/regressions/${uuidOf('a')}`,
+      )
       expect(regressionQueries).toHaveLength(1)
       const query = regressionQueries[0]
       expect(query.get('machine')).toBe(NAME)
@@ -1095,7 +1135,7 @@ describe('the Machine Detail page', () => {
       expect(await screen.findByText('No active regressions on this machine.')).toBeInTheDocument()
       expect(screen.getByRole('link', { name: 'Show all regressions' })).toHaveAttribute(
         'href',
-        `/suites/libcxx?tab=regressions&machine=${NAME}`,
+        `/projects/llvm/suites/libcxx?tab=regressions&machine=${NAME}`,
       )
     })
 

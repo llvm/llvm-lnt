@@ -1,6 +1,6 @@
 import { Link } from 'react-router'
 import type { Schemas } from '../api/client'
-import type { SuiteSchema } from '../api/suites'
+import { refOf, type Suite } from '../api/suites'
 import { formatTimestamp } from '../format'
 import { machinePath, runPath } from '../paths'
 import type { Commit } from '../schema'
@@ -16,8 +16,8 @@ type Run = Schemas['Run']
  * when it was measured or submitted.
  * `commits` resolves the commits' display values, and their cards' contents (see `fetchRunPage`).
  */
-export function runColumns(schema: SuiteSchema, commits: Map<string, Commit>) {
-  const suite = schema.name
+export function runColumns(schema: Suite, commits: Map<string, Commit>) {
+  const suite = refOf(schema)
   return {
     run: uuidColumn<Run>('run', 'Run', (uuid) => runPath(suite, uuid)),
     machine: {

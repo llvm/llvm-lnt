@@ -1,6 +1,6 @@
 import { queryKeys } from '../../api/keys'
 import { fetchRunPage, type RunPage } from '../../api/runs'
-import type { SuiteSchema } from '../../api/suites'
+import { refOf, type Suite } from '../../api/suites'
 import { useCursorPager } from '../../api/use-cursor-pager'
 import { PAGE_SIZE, type Schemas } from '../../api/client'
 import { DataTable, type Column } from '../../components/data-table'
@@ -12,14 +12,14 @@ import { TabContent } from './tab-content'
 type Run = Schemas['Run']
 
 interface Props {
-  schema: SuiteSchema
+  schema: Suite
   search: string
   onSearch(text: string): void
 }
 
 /** The runs submitted to the suite, most recently submitted first, unlike other run lists (TS2). */
 export function RunsTab({ schema, search, onSearch }: Props) {
-  const suite = schema.name
+  const suite = refOf(schema)
   const input = useServerSearch(search, onSearch)
   const query = { search: search || undefined, sort: '-submitted_at', limit: PAGE_SIZE } as const
   const pager = useCursorPager({
@@ -61,7 +61,7 @@ export function RunsTab({ schema, search, onSearch }: Props) {
   )
 }
 
-function columns(schema: SuiteSchema, page: RunPage): Column<Run>[] {
+function columns(schema: Suite, page: RunPage): Column<Run>[] {
   const { run, machine, commit, submitted } = runColumns(schema, page.commits)
   return [run, machine, commit, submitted]
 }

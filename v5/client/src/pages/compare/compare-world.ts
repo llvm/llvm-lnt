@@ -150,17 +150,17 @@ export function mockWorld({
   // These come after `mockCommits` and `mockRuns`, so they answer first, and fall back on them.
   // E3 answers `machine=` with a 404 when the machine does not exist.
   server.use(
-    mockApi('get', '/api/suites/{testsuite}/commits', ({ request }) => {
+    mockApi('get', '/api/projects/{project}/suites/{suite}/commits', ({ request }) => {
       const name = new URL(request.url).searchParams.get('machine')
       if (name !== null && !MACHINES.includes(name)) {
         return errorResponse(404, 'not_found', 'No such machine') as never
       }
     }),
-    mockApi('get', '/api/suites/{testsuite}/runs', ({ request }) => {
+    mockApi('get', '/api/projects/{project}/suites/{suite}/runs', ({ request }) => {
       const answer = runsAnswer?.(new URL(request.url).searchParams)
       if (answer !== undefined) return answer as never
     }),
-    mockApi('get', '/api/suites/{testsuite}/runs/{uuid}/profiles', ({ params }) => {
+    mockApi('get', '/api/projects/{project}/suites/{suite}/runs/{uuid}/profiles', ({ params }) => {
       const hex = hexOf(params.uuid)
       const answer = profilesAnswer?.(hex)
       if (answer !== undefined) return answer as never
@@ -169,7 +169,7 @@ export function mockWorld({
     }),
   )
   server.use(
-    mockApi('get', '/api/suites/{testsuite}/runs/{uuid}/samples', ({ params }) => {
+    mockApi('get', '/api/projects/{project}/suites/{suite}/runs/{uuid}/samples', ({ params }) => {
       const hex = hexOf(params.uuid)
       sampled.push(hex)
       const answer = sampleAnswer?.(hex)
@@ -185,7 +185,7 @@ export function mockWorld({
 
 /** The URL of a comparison of libcxx's m1 at c1 (runs 1 and 2) with m1 at c2 (run 3). */
 export const COMPARED =
-  '/compare?suite_a=libcxx&machine_a=m1&commit_a=c1&suite_b=libcxx&machine_b=m1&commit_b=c2' +
+  '/compare?project_a=llvm&suite_a=libcxx&machine_a=m1&commit_a=c1&project_b=llvm&suite_b=libcxx&machine_b=m1&commit_b=c2' +
   '&metric=execution_time'
 
 /** The comparison of COMPARED: a is regressed, b is on side A only, c on side B only. */

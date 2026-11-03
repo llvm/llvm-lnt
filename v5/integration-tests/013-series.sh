@@ -11,11 +11,12 @@ source "$(dirname "$0")/lib.sh"
 token="$(mint_key series manage)"
 readonly AUTH="Authorization: Bearer ${token}"
 readonly JSON='Content-Type: application/json'
-readonly SERIES="${BASE_URL}/api/suites/series/series"
+readonly SERIES="${BASE_URL}/api/projects/series/suites/series/series"
 
+create_project series "$AUTH"
 request -X POST -H "$AUTH" -H "$JSON" --data \
     '{"name": "series", "metrics": [{"name": "execution_time", "type": "real"}]}' \
-    "${BASE_URL}/api/suites"
+    "${BASE_URL}/api/projects/series/suites"
 expect_status 201
 
 # Submitted newest first, so that the order of the series is the server's doing.
@@ -25,7 +26,7 @@ for ordinal in 2 1; do
       \"commit\": {\"value\": \"c${ordinal}\", \"ordinal\": ${ordinal}},
       \"tests\": [{\"name\": \"b\", \"samples\": [{\"execution_time\": ${ordinal}.5}]},
                 {\"name\": \"a\", \"samples\": [{\"execution_time\": ${ordinal}}]}]}" \
-        "${BASE_URL}/api/suites/series/runs"
+        "${BASE_URL}/api/projects/series/suites/series/runs"
     expect_status 201
 done
 

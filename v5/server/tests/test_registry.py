@@ -13,20 +13,23 @@ import pytest
 from sqlalchemy import Connection, Engine, event, insert, inspect, select, update
 from sqlalchemy.exc import ProgrammingError
 
+from conftest import ensure_project
 from introspection import namespace_of, schema_version_of, stored_names
 from lnt_v5.errors import ApiError, ErrorCode
 from lnt_v5.routes.suites import delete_suite
 from lnt_v5.suites import registry as registry_module
-from lnt_v5.suites.registry import Suite, SuiteRegistry
+from lnt_v5.suites.registry import Project, Suite, SuiteRegistry
 from lnt_v5.suites.schema import SuiteSchema
 from lnt_v5.suites.store import (
+    PROJECT_NAME_CONSTRAINT,
     SCHEMA_NAME_CONSTRAINT,
+    SCHEMA_PROJECT_CONSTRAINT,
     add_suite,
     bump,
     locked_suite,
     normalized_json,
 )
-from lnt_v5.tables import schema, schema_version
+from lnt_v5.tables import project, schema, schema_version
 
 MINIMAL = {"name": "nts", "metrics": [{"name": "execution_time", "type": "real"}]}
 
@@ -42,13 +45,24 @@ def store(db_engine: Engine) -> Callable[..., SuiteSchema]:
     def write(name: str = "nts", **overrides: object) -> SuiteSchema:
         parsed = schema_for(name, **overrides)
         with db_engine.begin() as connection:
-            add_suite(connection, parsed)
+            ensure_project(connection, PROJECT)
+            add_suite(connection, PROJECT, parsed)
         return parsed
 
     return write
 
 
+# The project the suites of these tests are in.
+PROJECT = "llvm"
+
+
 def fresh(registry: SuiteRegistry, engine: Engine) -> dict[str, Suite]:
+    """Every suite `registry` holds, by name."""
+    with engine.connect() as connection:
+        return {suite.name: suite for suite in registry.suites(connection)}
+
+
+def projects(registry: SuiteRegistry, engine: Engine) -> dict[str, Project]:
     with engine.connect() as connection:
         return dict(registry.fresh(connection))
 
@@ -141,7 +155,7 @@ class TestFreshness:
         worker = SuiteRegistry()
         fresh(worker, db_engine)
 
-        delete_suite("nts", db_engine, confirm=True)
+        delete_suite(PROJECT, "nts", db_engine, confirm=True)
 
         assert fresh(worker, db_engine) == {}
 
@@ -154,7 +168,7 @@ class TestFreshness:
         worker = SuiteRegistry()
         before = fresh(worker, db_engine)["nts"]
 
-        delete_suite("nts", db_engine, confirm=True)
+        delete_suite(PROJECT, "nts", db_engine, confirm=True)
         store("nts")
 
         after = fresh(worker, db_engine)["nts"]
@@ -170,7 +184,7 @@ class TestFreshness:
         loaded, unloaded = SuiteRegistry(), SuiteRegistry()
         fresh(loaded, db_engine)
 
-        delete_suite("nts", db_engine, confirm=True)
+        delete_suite(PROJECT, "nts", db_engine, confirm=True)
         store("nts")
 
         namespace = namespace_of(db_engine, "nts")
@@ -216,7 +230,7 @@ class TestFreshness:
         def worker() -> None:
             barrier.wait()
             with db_engine.connect() as connection:
-                results.append(registry.fresh(connection)["nts"])
+                results.append(registry.resolve(connection, PROJECT, "nts"))
 
         SuiteRegistry._parse = counting  # type: ignore[method-assign, assignment]
         try:
@@ -278,6 +292,9 @@ class TestBadRows:
         with db_engine.begin() as connection:
             connection.execute(
                 insert(schema).values(
+                    project_id=select(project.c.id)
+                    .where(project.c.name == PROJECT)
+                    .scalar_subquery(),
                     name="bad",
                     namespace="bad",
                     schema_json='{"name": "bad", "nonsense": 1}',
@@ -361,7 +378,7 @@ class TestLockedSuite:
         stored = store("nts")
 
         with db_engine.begin() as connection:
-            locked = locked_suite(connection, "nts")
+            locked = locked_suite(connection, PROJECT, "nts")
         assert locked.schema == stored
         assert locked.namespace == namespace_of(db_engine, "nts")
 
@@ -369,7 +386,7 @@ class TestLockedSuite:
         # Which is what makes a change racing a delete answer 404 rather than succeed against a row
         # that has gone.
         with db_engine.begin() as connection, pytest.raises(ApiError) as raised:
-            locked_suite(connection, "nope")
+            locked_suite(connection, PROJECT, "nope")
 
         assert raised.value.code is ErrorCode.NOT_FOUND
 
@@ -389,7 +406,7 @@ class TestLockedSuite:
             # Deliberately no bump, so any cache would still be showing the old schema.
 
         with db_engine.begin() as connection:
-            assert locked_suite(connection, "nts").schema == evolved
+            assert locked_suite(connection, PROJECT, "nts").schema == evolved
 
     def test_holds_the_row_against_a_second_caller(
         self, db_engine: Engine, store: Callable[..., SuiteSchema]
@@ -405,11 +422,11 @@ class TestLockedSuite:
 
         def second() -> None:
             with db_engine.begin() as connection:
-                locked_suite(connection, "nts")
+                locked_suite(connection, PROJECT, "nts")
                 reached.set()
 
         with db_engine.begin() as first:
-            locked_suite(first, "nts")
+            locked_suite(first, PROJECT, "nts")
             waiter = threading.Thread(target=second, daemon=True)
             waiter.start()
             # Long enough to be sure it is blocked rather than merely slow.
@@ -419,12 +436,98 @@ class TestLockedSuite:
         waiter.join(timeout=10.0)
 
 
+class TestProjects:
+    def test_loads_every_project_with_its_suites_and_those_without(
+        self, db_engine: Engine, store: Callable[..., SuiteSchema]
+    ) -> None:
+        store("nts")
+        with db_engine.begin() as connection:
+            connection.execute(insert(project).values(name="swift", display_name="Swift"))
+            bump(connection)
+
+        loaded = projects(SuiteRegistry(), db_engine)
+
+        assert sorted(loaded) == [PROJECT, "swift"]
+        assert list(loaded[PROJECT].suites) == ["nts"]
+        assert loaded[PROJECT].suites["nts"].project == PROJECT
+        assert loaded["swift"] == Project(name="swift", display_name="Swift", suites={})
+
+    def test_tells_suites_of_the_same_name_in_two_projects_apart(
+        self, db_engine: Engine, store: Callable[..., SuiteSchema]
+    ) -> None:
+        store("nts")
+        with db_engine.begin() as connection:
+            ensure_project(connection, "other")
+            add_suite(connection, "other", schema_for("nts"))
+
+        with db_engine.connect() as connection:
+            registry = SuiteRegistry()
+            ours = registry.resolve(connection, PROJECT, "nts")
+            theirs = registry.resolve(connection, "other", "nts")
+
+        assert ours.id != theirs.id
+        assert ours.tables.namespace != theirs.tables.namespace
+        assert theirs.full_name == "other/nts"
+
+    def test_a_second_worker_sees_a_project_change(self, db_engine: Engine) -> None:
+        with db_engine.begin() as connection:
+            ensure_project(connection, "swift")
+        worker = SuiteRegistry()
+        assert projects(worker, db_engine)["swift"].display_name is None
+
+        with db_engine.begin() as connection:
+            connection.execute(
+                update(project).where(project.c.name == "swift").values(display_name="Swift")
+            )
+            bump(connection)
+
+        assert projects(worker, db_engine)["swift"].display_name == "Swift"
+
+    def test_keeps_the_tables_of_a_suite_whose_project_changed_name(
+        self, db_engine: Engine, store: Callable[..., SuiteSchema]
+    ) -> None:
+        # Found by identity rather than by name: the tables are reused, and the names are new.
+        store("nts")
+        worker = SuiteRegistry()
+        before = fresh(worker, db_engine)["nts"]
+
+        with db_engine.begin() as connection:
+            connection.execute(update(project).where(project.c.name == PROJECT).values(name="new"))
+            bump(connection)
+
+        after = projects(worker, db_engine)["new"].suites["nts"]
+        assert after.tables is before.tables
+        assert after.full_name == "new/nts"
+        assert before.full_name == f"{PROJECT}/nts"
+
+    def test_is_404_for_a_project_or_a_suite_that_is_not_there(
+        self, db_engine: Engine, store: Callable[..., SuiteSchema]
+    ) -> None:
+        store("nts")
+        with db_engine.connect() as connection:
+            registry = SuiteRegistry()
+            for project_name, name, message in (
+                ("nope", "nts", "Project 'nope' not found"),
+                (PROJECT, "nope", f"Test suite '{PROJECT}/nope' not found"),
+            ):
+                with pytest.raises(ApiError) as raised:
+                    registry.resolve(connection, project_name, name)
+                assert raised.value.code is ErrorCode.NOT_FOUND
+                assert raised.value.message == message
+
+
 class TestConstraintNames:
-    def test_the_suite_name_constraint_is_the_one_postgres_reports(self, db_engine: Engine) -> None:
-        # `routes/suites.py` tells a repeated suite name from any other integrity error by this
-        # name, which it writes out. A change to the convention must fail here rather than silently
-        # turn the 409 into a 500.
-        assert SCHEMA_NAME_CONSTRAINT in stored_names(inspect(db_engine))["schema"]
+    def test_the_constraints_named_by_the_store_are_the_ones_postgres_reports(
+        self, db_engine: Engine
+    ) -> None:
+        # `routes/suites.py` and `routes/projects.py` tell a repeated suite or project name, or a
+        # project that still has suites, from any other integrity error by these names, which they
+        # write out. A change to the convention must fail here rather than silently turn the 409
+        # into a 500.
+        names = stored_names(inspect(db_engine))
+        assert SCHEMA_NAME_CONSTRAINT in names["schema"]
+        assert SCHEMA_PROJECT_CONSTRAINT in names["schema"]
+        assert PROJECT_NAME_CONSTRAINT in names["project"]
 
 
 class TestUnmigratedDatabase:

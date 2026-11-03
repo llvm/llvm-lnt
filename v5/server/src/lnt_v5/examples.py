@@ -111,6 +111,9 @@ SUITE_SCHEMA: dict[str, Any] = {
     "repository": REPOSITORY,
 }
 
+# The project holding the example suite (D7), as the API returns it.
+PROJECT: dict[str, Any] = {"name": "libcxx", "display_name": "libc++", "suites": [SUITE_SCHEMA]}
+
 METRIC = "execution_time"
 OTHER_METRIC = "instructions"
 

@@ -10,7 +10,16 @@ import { hasMachine, useMachineList } from '../../api/machines'
 import { useMarkedRegressions } from '../../api/regressions'
 import { useScaffold } from '../../api/scaffold'
 import { forgetGraphData, useSeries } from '../../api/series'
-import { useSuites, type SuiteSchema } from '../../api/suites'
+import {
+  findSuite,
+  NO_SUITE,
+  fullName,
+  suiteOfFullName,
+  suiteRef,
+  useSuites,
+  type Suite,
+  type SuiteRef,
+} from '../../api/suites'
 import { useTestNames } from '../../api/tests'
 import { ChipList } from '../../components/chip-list'
 import { storeCommitLookup, suggestionOf } from '../../components/commit-lookup'
@@ -81,6 +90,8 @@ const MARKED: Record<Exclude<Annotations, 'off'>, readonly RegressionState[]> = 
 }
 
 const PARAMS = {
+  // The suite, by its project's name and its own (AR22), which go together.
+  project: stringParam(),
   suite: stringParam(),
   /** The machines, in the order of their chips. */
   machine: listParam(),
@@ -104,7 +115,7 @@ const IN_SUITE = {
 }
 
 const NO_NAMES: string[] = []
-const NO_SUITES: SuiteSchema[] = []
+const NO_SUITES: Suite[] = []
 const nameOf = (name: string) => name
 
 /**
@@ -119,8 +130,9 @@ function GraphPage() {
   const [settings, update] = useUrlState(PARAMS)
   const suites = useSuites()
   // The suite, once the suites are known to hold it (see below for one that does not exist).
-  const schema = suites.data?.find((entry) => entry.name === settings.suite)
-  const suite = schema?.name ?? ''
+  const named = suiteRef(settings.project, settings.suite)
+  const schema = findSuite(suites.data, named)
+  const suite = schema ? named : NO_SUITE
   // What the page fetched in a suite is kept for as long as it shows it (GR8).
   const client = useQueryClient()
   useEffect(() => () => forgetGraphData(client, suite), [client, suite])
@@ -176,10 +188,10 @@ function GraphPage() {
   // A suite that does not exist is dropped (AR2 "State"), and what was chosen in it with it.
   useDropUnusable(
     suites,
-    (list) => settings.suite === '' || list.some((entry) => entry.name === settings.suite),
+    (list) => named === NO_SUITE || findSuite(list, named) !== undefined,
     () => {
       rows.replace([])
-      update({ suite: '', ...IN_SUITE })
+      update({ project: '', suite: '', ...IN_SUITE })
     },
   )
 
@@ -240,9 +252,9 @@ function GraphPage() {
   // Nothing chosen in a suite applies to another (GR1). The selection is cleared at once, so that
   // writing it to the URL does not put back the tests of the suite left.
 
-  const chooseSuite = (name: string) => {
+  const chooseSuite = (picked: SuiteRef) => {
     rows.replace([])
-    update({ suite: name, ...IN_SUITE })
+    update({ project: picked.project, suite: picked.suite, ...IN_SUITE })
   }
 
   // The highlighted commits (GR16), each shown by its display value once on the x-axis, which
@@ -302,9 +314,9 @@ function GraphPage() {
           <Select
             label="Suite"
             options={(suites.data ?? []).map(suiteOption)}
-            value={schema === undefined ? null : schema.name}
+            value={schema === undefined ? null : fullName(suite)}
             placeholder="-- Select suite --"
-            onChange={chooseSuite}
+            onChange={(key) => chooseSuite(suiteOfFullName(key))}
           />
           <MachineChips
             // Once the machines are known, only those that exist, as the chart marks them.
@@ -475,7 +487,7 @@ function GraphPage() {
 
 interface Chosen {
   checking: boolean
-  schema: SuiteSchema | undefined
+  schema: Suite | undefined
   numeric: Metric[]
   machines: readonly string[]
   metric: Metric | undefined

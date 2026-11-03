@@ -1,5 +1,12 @@
 import { useLayoutEffect, useMemo, useRef, useState, type RefObject } from 'react'
-import type { SuiteSchema } from '../../api/suites'
+import {
+  findSuite,
+  NO_SUITE,
+  fullName,
+  suiteOfFullName,
+  type Suite,
+  type SuiteRef,
+} from '../../api/suites'
 import { ChipList } from '../../components/chip-list'
 import { Combobox } from '../../components/combobox'
 import { CommitPicker } from '../../components/commit-picker'
@@ -12,7 +19,7 @@ import styles from './graph.module.css'
 
 interface Props {
   /** The suites a baseline can be taken from. */
-  suites: readonly SuiteSchema[]
+  suites: readonly Suite[]
   baselines: BaselineState[]
   onAdd(baseline: Baseline): void
   onRemove(baseline: string): void
@@ -79,13 +86,10 @@ export function BaselinePanel({ suites, baselines, onAdd, onRemove, isDisabled, 
 
 /** The form adding a baseline: its suite, its machine, then its commit, which adds it. */
 function BaselineForm({ suites, onAdd }: Pick<Props, 'suites' | 'onAdd'>) {
-  const [suite, setSuite] = useState<string | null>(null)
+  const [suite, setSuite] = useState<SuiteRef>(NO_SUITE)
   const [machine, setMachine] = useState<Suggestion | null>(null)
-  const schema = suites.find((entry) => entry.name === suite)
-  const { suggestions: machineSuggestions } = useMachineSuggestions(
-    suite ?? '',
-    schema !== undefined,
-  )
+  const schema = findSuite(suites, suite)
+  const { suggestions: machineSuggestions } = useMachineSuggestions(suite, schema !== undefined)
   const filters = useMemo(() => machine && { machine: machine.key }, [machine])
 
   return (
@@ -93,10 +97,10 @@ function BaselineForm({ suites, onAdd }: Pick<Props, 'suites' | 'onAdd'>) {
       <Select
         label="Baseline suite"
         options={suites.map(suiteOption)}
-        value={suite}
+        value={suite === NO_SUITE ? null : fullName(suite)}
         placeholder="-- Suite --"
-        onChange={(name) => {
-          setSuite(name)
+        onChange={(key) => {
+          setSuite(suiteOfFullName(key))
           setMachine(null)
         }}
       />
@@ -113,7 +117,7 @@ function BaselineForm({ suites, onAdd }: Pick<Props, 'suites' | 'onAdd'>) {
           label="Baseline commit"
           schema={schema}
           filters={filters}
-          onPick={(commit) => onAdd({ suite: schema.name, machine: filters.machine, commit })}
+          onPick={(commit) => onAdd({ suite, machine: filters.machine, commit })}
           placeholder="Select a commit..."
         />
       ) : (

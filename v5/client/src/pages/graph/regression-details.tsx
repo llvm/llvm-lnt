@@ -1,7 +1,7 @@
 import { Link } from 'react-router'
 import clsx from 'clsx'
 import type { MarkedRegression } from '../../api/regressions'
-import type { SuiteSchema } from '../../api/suites'
+import { refOf, type Suite } from '../../api/suites'
 import { ChartDialog, type Anchor } from '../../components/chart-dialog'
 import dialog from '../../components/chart-dialog.module.css'
 import { ListedCommitLink } from '../../components/commit-link'
@@ -13,7 +13,7 @@ import type { Commit } from '../../schema'
 import styles from './graph.module.css'
 
 interface Props {
-  schema: SuiteSchema
+  schema: Suite
   regression: MarkedRegression
   /** The selected tests it affects, in order. */
   tests: string[]
@@ -30,7 +30,7 @@ interface Props {
  * time, and the selected tests it affects.
  */
 export function RegressionDetails({ schema, regression, commit, tests, at, onClose }: Props) {
-  const suite = schema.name
+  const suite = refOf(schema)
   const { uuid, state, bug, created_at } = regression
   const title = regressionTitle(regression)
   return (

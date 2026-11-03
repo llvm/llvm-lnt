@@ -18,12 +18,12 @@ class Scope(StrEnum):
     - `submit`: submit runs and create commits.
     - `triage`: create, update and delete regressions and their indicators.
     - `manage`: create, update and delete machines; update and delete commits; delete runs; create,
-      change and delete test suites.
+      change and delete test suites and projects.
     - `admin`: list, create and revoke API keys.
 
     A `submit`, `triage` or `manage` key can be restricted to some test suites. It then has its
     scope only in those suites, and only `read` everywhere else -- including for creating a test
-    suite.
+    suite or changing a project. Creating and deleting a project always need an unrestricted key.
     """
 
     # Lowest privilege first: the declaration order *is* the hierarchy, and `grants` reads it.

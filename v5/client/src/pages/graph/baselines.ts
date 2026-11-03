@@ -8,14 +8,14 @@ import { skipToken, useQueries, type QueryClient } from '@tanstack/react-query'
 import { combineResults, type Failures } from '../../api/failures'
 import { forgetEverySuiteLater, queryKeys } from '../../api/keys'
 import { fetchSeries, measurementOf, type Measurement } from '../../api/series'
-import type { SuiteSchema } from '../../api/suites'
+import type { Suite } from '../../api/suites'
 import {
   formatCommitOfMachine,
   parseCommitOfMachine,
   useCheckedCommits,
   type CommitOfMachine,
 } from '../../components/checked-commits'
-import { suiteLabelOf } from '../../labels'
+import { fullLabelOf } from '../../labels'
 import { isNumeric, type Metric } from '../../schema'
 import { listParam, type Param } from '../../url-state'
 
@@ -42,7 +42,7 @@ export function baselineParam(): Param<string[]> {
 /** What is known of a baseline (see `useBaselines`). */
 export interface BaselineState {
   baseline: Baseline
-  /** The label of its suite (AR22), or the suite's name until the suites are listed. */
+  /** The full label of its suite (AR22), or the suite's names until the suites are listed. */
   suiteLabel: string
   /** The display value of its commit, or the commit string until it is known. */
   display: string
@@ -68,7 +68,7 @@ export interface Baselines extends Failures {
  * Whether `schema` declares `metric` as a metric that can be drawn against it: numeric, and with
  * the same unit, an unset unit matching only an unset one (GR9, CP1).
  */
-function declares(schema: SuiteSchema, metric: Metric): boolean {
+function declares(schema: Suite, metric: Metric): boolean {
   return schema.metrics.some(
     (entry) => entry.name === metric.name && isNumeric(entry) && entry.unit === metric.unit,
   )
@@ -107,7 +107,7 @@ async function fetchSamples(
  */
 export function useBaselines(
   baselines: readonly Baseline[],
-  suites: readonly SuiteSchema[] | undefined,
+  suites: readonly Suite[] | undefined,
   metric: Metric | undefined,
 ): Baselines {
   const checked = useCheckedCommits(baselines, suites)
@@ -144,7 +144,7 @@ export function useBaselines(
       baselines.map(
         (baseline, i): BaselineState => ({
           baseline,
-          suiteLabel: suiteLabelOf(suites, baseline.suite),
+          suiteLabel: fullLabelOf(suites, baseline.suite),
           display: checked.states[i].display,
           unusable: checked.states[i].unusable,
           samples: drawable[i] ? samples.data[i] : undefined,

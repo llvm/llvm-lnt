@@ -5,7 +5,7 @@ import { VisuallyHidden } from 'react-aria-components'
 import { PAGE_SIZE, type Schemas } from '../../api/client'
 import { queryKeys } from '../../api/keys'
 import { deleteRegression, fetchRegressionPage, type RegressionPage } from '../../api/regressions'
-import type { SuiteSchema } from '../../api/suites'
+import { refOf, type Suite } from '../../api/suites'
 import { useCursorPager } from '../../api/use-cursor-pager'
 import { useScopeGate } from '../../auth/scope'
 import { Combobox } from '../../components/combobox'
@@ -37,7 +37,7 @@ type Regression = Schemas['Regression']
 const BUG_LENGTH = 30
 
 interface Props {
-  schema: SuiteSchema
+  schema: Suite
   search: string
   onSearch(text: string): void
   filters: RegressionFilters
@@ -46,7 +46,7 @@ interface Props {
 
 /** The regressions of the suite, newest first, with the triage filters and actions of TS5. */
 export function RegressionsTab({ schema, search, onSearch, filters, onFilters: update }: Props) {
-  const suite = schema.name
+  const suite = refOf(schema)
   const navigate = useNavigate()
   const queryClient = useQueryClient()
   const input = useServerSearch(search, onSearch)
@@ -223,12 +223,12 @@ export function RegressionsTab({ schema, search, onSearch, filters, onFilters: u
 }
 
 function columns(
-  schema: SuiteSchema,
+  schema: Suite,
   page: RegressionPage,
   deleteGate: ReturnType<typeof useScopeGate>,
   onDelete: (regression: Regression, button: HTMLElement) => void,
 ): Column<Regression>[] {
-  const suite = schema.name
+  const suite = refOf(schema)
   return [
     uuidColumn('uuid', 'UUID', (uuid) => regressionPath(suite, uuid)),
     {

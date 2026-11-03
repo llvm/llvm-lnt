@@ -1,5 +1,6 @@
 import { useMemo } from 'react'
 import { useMachineList } from '../api/machines'
+import type { SuiteRef } from '../api/suites'
 import type { Schemas } from '../api/client'
 import { useLocalSuggestions, type Suggestion } from './suggestions'
 
@@ -41,7 +42,7 @@ export type Machines = ReturnType<typeof useMachineSuggestions>
  * The suite's machines, unless `enabled` is false, and the suggestions of a combobox picking one of
  * them, filtered locally as the user types, since a suite has few machines (D5).
  */
-export function useMachineSuggestions(suite: string, enabled = true) {
+export function useMachineSuggestions(suite: SuiteRef, enabled = true) {
   const machines = useMachineList(suite, enabled)
   const suggestions = useLocalSuggestions(
     useMemo(() => machines.data && machineSuggestions(machines.data), [machines.data]),

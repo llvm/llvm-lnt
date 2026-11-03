@@ -7,16 +7,16 @@ from fastapi.testclient import TestClient
 from lnt_v5.app import create_app
 from lnt_v5.config import Settings
 from lnt_v5.routes.index import DOCS_PATH, OPENAPI_PATH
-from lnt_v5.routes.suites import SUITES_PATH
+from lnt_v5.routes.suites import PROJECTS_PATH
 
 
 class TestIndex:
-    def test_links_to_the_suite_list_and_the_documentation(self, api_client: TestClient) -> None:
+    def test_links_to_the_project_list_and_the_documentation(self, api_client: TestClient) -> None:
         response = api_client.get("/api")
 
         assert response.status_code == 200
         assert response.json() == {
-            "links": {"suites": SUITES_PATH, "openapi": OPENAPI_PATH, "docs": DOCS_PATH},
+            "links": {"projects": PROJECTS_PATH, "openapi": OPENAPI_PATH, "docs": DOCS_PATH},
             "revision": None,
         }
 
@@ -29,7 +29,7 @@ class TestIndex:
         # The index is only useful if what it points at is actually served here.
         links = api_client.get("/api").json()["links"]
 
-        assert api_client.get(links["suites"]).status_code == 200
+        assert api_client.get(links["projects"]).status_code == 200
         assert api_client.get(links["openapi"]).status_code == 200
         assert api_client.get(links["docs"]).status_code == 200
 
@@ -40,6 +40,6 @@ class TestIndex:
         assert response.status_code == 307
         assert response.headers["location"] == "/api"
 
-    def test_does_not_enumerate_the_suites_itself(self, api_client: TestClient) -> None:
-        # `GET /api/suites` is the canonical list; the index only points at it.
+    def test_does_not_enumerate_the_projects_itself(self, api_client: TestClient) -> None:
+        # `GET /api/projects` is the canonical list; the index only points at it.
         assert set(api_client.get("/api").json()) == {"links", "revision"}

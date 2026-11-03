@@ -21,6 +21,7 @@ import { readNdjson } from './ndjson'
 import { RequestSlots } from './request-slots'
 import type { operations } from './schema'
 import { scaffoldKey } from './scaffold'
+import type { SuiteRef } from './suites'
 
 /** One sample of a test, as the Graph page keeps it. */
 export interface Measurement {
@@ -43,13 +44,13 @@ type SeriesQuery = operations['get_series']['parameters']['query']
 
 /** Every line of `GET /series` in `suite` for `query`, once the whole response has arrived. */
 export async function fetchSeries(
-  suite: string,
+  suite: SuiteRef,
   query: SeriesQuery,
   signal: AbortSignal,
 ): Promise<Schemas['DataPoint'][]> {
   const body = await unwrap(
-    api.GET('/api/suites/{testsuite}/series', {
-      params: { path: { testsuite: suite }, query },
+    api.GET('/api/projects/{project}/suites/{suite}/series', {
+      params: { path: suite, query },
       parseAs: 'stream',
       signal,
     }),
@@ -86,7 +87,7 @@ interface Trace {
  * places (GR3).
  */
 async function fetchTrace(
-  suite: string,
+  suite: SuiteRef,
   metric: string,
   { machine, test }: Trace,
   signal: AbortSignal,
@@ -104,7 +105,7 @@ const NO_MEASUREMENTS: Measurement[] = []
  * refuses a request naming a test that does not exist (E9).
  */
 export function useSeries(
-  suite: string,
+  suite: SuiteRef,
   metric: string,
   selected: ReadonlySet<string>,
   testsOf: ReadonlyMap<string, ReadonlySet<string>>,
@@ -167,7 +168,7 @@ function combineTraces(traces: Trace[], results: TraceResult[]): Series {
  * observes then, so that a page mounted again at once, as StrictMode does in development, keeps
  * what it is still showing.
  */
-export function forgetGraphData(client: QueryClient, suite: string): void {
+export function forgetGraphData(client: QueryClient, suite: SuiteRef): void {
   setTimeout(() => {
     for (const queryKey of [queryKeys.series(suite), scaffoldKey(suite), queryKeys.tests(suite)]) {
       client.removeQueries({ queryKey, predicate: (query) => query.getObserversCount() === 0 })

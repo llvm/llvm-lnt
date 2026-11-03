@@ -30,10 +30,10 @@ from lnt_v5.suites.tables import SuiteTables
 
 NTS: dict[str, Any] = {"name": "nts", "metrics": [{"name": "execution_time", "type": "real"}]}
 
-MACHINES = MACHINES_PATH.format(testsuite="nts")
-COMMITS = COMMITS_PATH.format(testsuite="nts")
-RUNS = RUNS_PATH.format(testsuite="nts")
-REGRESSIONS = REGRESSIONS_PATH.format(testsuite="nts")
+MACHINES = MACHINES_PATH.format(project="nts", suite="nts")
+COMMITS = COMMITS_PATH.format(project="nts", suite="nts")
+RUNS = RUNS_PATH.format(project="nts", suite="nts")
+REGRESSIONS = REGRESSIONS_PATH.format(project="nts", suite="nts")
 
 
 @pytest.fixture
@@ -300,7 +300,7 @@ class TestDeletion:
         idle(31)
         registered = SuiteRegistry()
         with db_engine.connect() as connection:
-            nts = registered.fresh(connection)["nts"]
+            nts = registered.resolve(connection, "nts", "nts")
             connection.commit()
             machines = inactivity._kinds(nts)[0]
             due = inactivity._due_entities(connection, nts, machines)
@@ -328,7 +328,7 @@ class TestDeletion:
         submit({"name": "pr-1", "delete_after_inactive_days": 30}, "abc")
         idle(31)
         with db_engine.connect() as connection:
-            nts = SuiteRegistry().fresh(connection)["nts"]
+            nts = SuiteRegistry().resolve(connection, "nts", "nts")
             connection.commit()
             machines = inactivity._kinds(nts)[0]
             due = inactivity._due_entities(connection, nts, machines)
@@ -373,8 +373,9 @@ class TestRounds:
 
         result = {suite.suite: suite for suite in swept(db_engine)}
 
-        assert result["broken"].failures == 2
-        assert (result["nts"].deleted["machine"], result["nts"].failures) == (("pr-1",), 0)
+        assert result["broken/broken"].failures == 2
+        nts = result["nts/nts"]
+        assert (nts.deleted["machine"], nts.failures) == (("pr-1",), 0)
 
     def test_stops_before_its_next_statement_once_asked_to(
         self,

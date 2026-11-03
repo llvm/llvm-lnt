@@ -83,7 +83,7 @@ class Dataset:
         return {entry["name"]: fields.get(entry["name"]) for entry in self.schema[kind]}
 
     def url(self, template: str, **params: str) -> str:
-        return template.format(testsuite=self.name, **params)
+        return template.format(project=self.name, suite=self.name, **params)
 
 
 def load(name: str, *, series_test: str, search: tuple[str, list[str]]) -> Dataset:

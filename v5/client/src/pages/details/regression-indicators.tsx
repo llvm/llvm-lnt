@@ -3,7 +3,7 @@ import { Link } from 'react-router'
 import { VisuallyHidden } from 'react-aria-components'
 import { authedApi, unwrap, type Schemas } from '../../api/client'
 import { INDICATOR_BATCH, useRegressionMutation, withIndicators } from '../../api/regressions'
-import type { SuiteSchema } from '../../api/suites'
+import { refOf, type Suite, type SuiteRef } from '../../api/suites'
 import { useScopeGate, type ScopeGate } from '../../auth/scope'
 import { DisabledLink } from '../../components/button-link'
 import { ControlsPanel } from '../../components/controls-panel'
@@ -47,10 +47,10 @@ export function RegressionIndicators({
   schema,
   regression,
 }: {
-  schema: SuiteSchema
+  schema: Suite
   regression: Regression
 }) {
-  const suite = schema.name
+  const suite = refOf(schema)
   const all = regression.indicators
   const triage = useScopeGate('triage', suite)
   const [settings, update] = useUrlState(PARAMS)
@@ -94,8 +94,8 @@ export function RegressionIndicators({
     regression.uuid,
     ({ uuids }: Removal) =>
       unwrap(
-        authedApi.DELETE('/api/suites/{testsuite}/regressions/{uuid}/indicators', {
-          params: { path: { testsuite: suite, uuid: regression.uuid } },
+        authedApi.DELETE('/api/projects/{project}/suites/{suite}/regressions/{uuid}/indicators', {
+          params: { path: { ...suite, uuid: regression.uuid } },
           body: { indicator_uuids: uuids },
         }),
       ),
@@ -232,7 +232,7 @@ function heading(total: Counts, part?: Counts): string {
 }
 
 interface ColumnOptions {
-  suite: string
+  suite: SuiteRef
   rows: RowSelection
   /** The keys of the rows shown. */
   keys: readonly string[]
@@ -312,7 +312,7 @@ function GraphLink({
   indicator,
   metrics,
 }: {
-  suite: string
+  suite: SuiteRef
   indicator: Indicator
   metrics: Map<string, Metric>
 }) {

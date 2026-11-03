@@ -22,15 +22,14 @@ import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import Engine, event, insert, select, text
 
-from conftest import PROFILE_COLUMNS, code_of, walk_pages
+from conftest import PROFILE_COLUMNS, code_of, suite_path, walk_pages
 from introspection import counted, row_count
 from lnt_v5.querying import MAX_LIMIT
 from lnt_v5.routes.commits import COMMITS_PATH
-from lnt_v5.routes.suites import SUITES_PATH
 from lnt_v5.scopes import Scope
 from lnt_v5.suites.tables import NAME_LENGTH, SuiteTables
 
-COMMITS = COMMITS_PATH.format(testsuite="nts")
+COMMITS = COMMITS_PATH.format(project="nts", suite="nts")
 
 NTS: dict[str, Any] = {
     "name": "nts",
@@ -250,7 +249,7 @@ class TestList:
         assert api_client.get(f"{COMMITS}/abc").json()["previous"]["value"] == "a/b"
 
     def test_is_404_for_a_suite_that_is_not_there(self, api_client: TestClient) -> None:
-        response = api_client.get(f"{SUITES_PATH}/nope/commits")
+        response = api_client.get(f"{suite_path('nope')}/commits")
 
         assert response.status_code == 404
         assert code_of(response) == "not_found"
@@ -287,7 +286,7 @@ class TestListSearch:
     ) -> None:
         # D4: being the display field does not make a field searchable; the schema says so itself.
         response = api_client.patch(
-            f"{SUITES_PATH}/nts/schema",
+            f"{suite_path('nts')}/schema",
             json={"commit_fields": {"update": [{"name": "git_sha", "searchable": False}]}},
             headers=manage,
         )
@@ -767,13 +766,14 @@ class TestListPagination:
         assert values_in(response) == ["c2", "c3"], reason
 
     def test_refuses_a_cursor_issued_by_another_suite(
-        self, api_client: TestClient, manage: dict[str, str]
+        self, api_client: TestClient, make_api_suite: Callable[..., Any]
     ) -> None:
-        api_client.post(SUITES_PATH, json={**NTS, "name": "compile"}, headers=manage)
+        # Of the same name, in another project (D7).
+        make_api_suite(NTS, "other")
         cursor = page(api_client, "limit=2").json()["cursor"]["next"]
 
         elsewhere = api_client.get(
-            f"{COMMITS_PATH.format(testsuite='compile')}?limit=2&cursor={cursor}"
+            f"{COMMITS_PATH.format(project='other', suite='nts')}?limit=2&cursor={cursor}"
         )
 
         assert elsewhere.status_code == 400
@@ -786,7 +786,7 @@ class TestListPagination:
         # list the cursor was issued for.
         cursor = page(api_client, "limit=2").json()["cursor"]["next"]
         changed = api_client.patch(
-            f"{SUITES_PATH}/nts/schema",
+            f"{suite_path('nts')}/schema",
             json={"commit_fields": {"add": [{"name": "branch", "type": "text"}]}},
             headers=manage,
         )
@@ -1008,7 +1008,7 @@ class TestCreate:
         self, api_client: TestClient, manage: dict[str, str]
     ) -> None:
         response = api_client.post(
-            f"{SUITES_PATH}/nope/commits", json={"value": "abc"}, headers=manage
+            f"{suite_path('nope')}/commits", json={"value": "abc"}, headers=manage
         )
 
         assert response.status_code == 404
@@ -1088,7 +1088,7 @@ class TestDetail:
         assert code_of(response) == "not_found"
 
     def test_is_404_for_a_suite_that_is_not_there(self, api_client: TestClient) -> None:
-        assert api_client.get(f"{SUITES_PATH}/nope/commits/abc").status_code == 404
+        assert api_client.get(f"{suite_path('nope')}/commits/abc").status_code == 404
 
     def test_is_not_shadowed_by_the_spa_catch_all(
         self, api_client: TestClient, create: Callable[..., Any]
@@ -1458,7 +1458,9 @@ class TestResolve:
         assert code_of(response) == "invalid_request"
 
     def test_is_404_for_a_suite_that_is_not_there(self, api_client: TestClient) -> None:
-        response = api_client.post(f"{SUITES_PATH}/nope/commits/resolve", json={"commits": ["abc"]})
+        response = api_client.post(
+            f"{suite_path('nope')}/commits/resolve", json={"commits": ["abc"]}
+        )
 
         assert response.status_code == 404
 

@@ -5,9 +5,10 @@ import { MAX_PAGE_SIZE } from './client'
 import { fetchCommitPage } from './commits'
 import { fetchEveryPage } from './fetch-every-page'
 import { queryKeys } from './keys'
+import type { SuiteRef } from './suites'
 
 /** The root of the keys of the machines' scaffolds. */
-export function scaffoldKey(suite: string) {
+export function scaffoldKey(suite: SuiteRef) {
   return [...queryKeys.commits(suite), 'scaffold'] as const
 }
 
@@ -39,7 +40,7 @@ export interface Scaffold {
  * `commitChanged`); otherwise it is kept for as long as the page shows the suite (GR8; see
  * `forgetGraphData`).
  */
-export function useScaffold(suite: string, machines: readonly string[]): Scaffold {
+export function useScaffold(suite: SuiteRef, machines: readonly string[]): Scaffold {
   // Run again only when a result, or the machines, change, so that the commits are the same array
   // from one render to the next until then.
   const combine = useCallback(

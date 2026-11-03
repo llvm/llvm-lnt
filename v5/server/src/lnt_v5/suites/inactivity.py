@@ -68,6 +68,7 @@ class SweptSuite:
     such as `lnt-v5 server sweep`.
     """
 
+    # The suite's full name (D7).
     suite: str
     deleted: Mapping[str, tuple[str, ...]]
     failures: int
@@ -139,7 +140,7 @@ def sweep(
             return None
         try:
             with connection.begin():
-                suites = list(registry.fresh(connection).values())
+                suites = registry.suites(connection)
             swept = []
             for suite in suites:
                 if _interrupted(connection, stopping):
@@ -196,7 +197,7 @@ def _sweep_suite(
                 failures += 1
             elif outcome:
                 deleted[kind.noun] += (identity,)
-    return SweptSuite(suite=suite.schema.name, deleted=deleted, failures=failures)
+    return SweptSuite(suite=suite.full_name, deleted=deleted, failures=failures)
 
 
 def _interrupted(connection: Connection, stopping: threading.Event | None) -> bool:
@@ -221,7 +222,7 @@ def _due_entities(
         logger.warning(
             "Could not look for inactive %ss to delete in test suite '%s'; will retry next round",
             kind.noun,
-            suite.schema.name,
+            suite.full_name,
             exc_info=True,
         )
         return None
@@ -259,7 +260,7 @@ def _delete_if_due(
             "Could not delete inactive %s '%s' from test suite '%s'; will retry next round",
             kind.noun,
             identity,
-            suite.schema.name,
+            suite.full_name,
             exc_info=True,
         )
         return None
@@ -267,7 +268,7 @@ def _delete_if_due(
         "Deleted %s '%s' from test suite '%s' after it was inactive for longer than it asked",
         kind.noun,
         identity,
-        suite.schema.name,
+        suite.full_name,
     )
     return True
 

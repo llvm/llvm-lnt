@@ -5,7 +5,7 @@
  */
 
 import type { UseQueryResult } from '@tanstack/react-query'
-import type { SuiteSchema } from '../api/suites'
+import { findSuite, NO_SUITE, type Suite, type SuiteRef } from '../api/suites'
 import { useDropUnusable } from '../url-state'
 import { hasMachine } from '../api/machines'
 import { useMachineSuggestions, type Machines } from './machine-suggestions'
@@ -22,16 +22,17 @@ export function useSuiteAndMachine({
   onUnusableSuite,
   onUnusableMachine,
 }: {
-  suite: string
+  /** The side's suite, or `NO_SUITE` if it has none. */
+  suite: SuiteRef
   machine: string
-  suites: UseQueryResult<SuiteSchema[]>
+  suites: UseQueryResult<Suite[]>
   onUnusableSuite: () => void
   onUnusableMachine: () => void
-}): { schema: SuiteSchema | undefined; machines: Machines } {
-  const schema = suites.data?.find((entry) => entry.name === suite)
+}): { schema: Suite | undefined; machines: Machines } {
+  const schema = findSuite(suites.data, suite)
   useDropUnusable(
     suites,
-    (list) => suite === '' || list.some((entry) => entry.name === suite),
+    (list) => suite === NO_SUITE || findSuite(list, suite) !== undefined,
     onUnusableSuite,
   )
   const machines = useMachineSuggestions(suite, schema !== undefined)
@@ -60,4 +61,21 @@ export function runsListFailed(
   machine: string,
 ): boolean {
   return runs.isError && machineFailuresReportable(machines, machine)
+}
+
+/**
+ * The URL parameters that give a side the settings `changes`: each the parameter of the same name,
+ * suffixed with the side's, `side`, but for its suite, which changes both its project's parameter
+ * and its own, together (CP7, PF9).
+ */
+export function sideParams(
+  side: string,
+  changes: { suite?: SuiteRef } & Record<string, unknown>,
+): Record<string, unknown> {
+  const { suite, ...others } = changes
+  const entries = Object.entries(others).map(([key, value]) => [`${key}_${side}`, value])
+  if (suite !== undefined) {
+    entries.push([`project_${side}`, suite.project], [`suite_${side}`, suite.suite])
+  }
+  return Object.fromEntries(entries)
 }

@@ -1,8 +1,9 @@
 import type { ReactNode } from 'react'
-import type { SuiteSchema } from '../../../api/suites'
+import type { Suite, SuiteSchema } from '../../../api/suites'
 import { DataTable, type Column } from '../../../components/data-table'
 import { InfoBox, InfoRow } from '../../../components/info-box'
 import { MISSING, yesNo } from '../../../format'
+import { projectLabel } from '../../../labels'
 import { formatUnit, type Metric } from '../../../schema'
 import {
   isUrlKey,
@@ -116,14 +117,15 @@ export function RepositoryBox({ value }: { value(key: RepositoryKey): ReactNode 
 }
 
 /**
- * The suite a schema is of, by its name and its display name, `--` when it has none, rather than
- * repeating the name (TS6).
+ * The suite a schema is of, by its project's label, its name and its display name, `--` when it
+ * has none, rather than repeating the name (TS6).
  */
-function SuiteBox({ schema }: { schema: SuiteSchema }) {
+function SuiteBox({ schema }: { schema: Suite }) {
   return (
     <>
       <h2 className={styles.heading}>Suite</h2>
       <InfoBox label="Suite">
+        <InfoRow label="Project">{projectLabel(schema.project)}</InfoRow>
         <InfoRow label="Name">{schema.name}</InfoRow>
         <InfoRow label="Display name">{schema.display_name ?? MISSING}</InfoRow>
       </InfoBox>
@@ -136,7 +138,7 @@ function SuiteBox({ schema }: { schema: SuiteSchema }) {
  * repository, whose templates are text rather than links: they are not URLs until filled in (D4,
  * TS6).
  */
-export function SchemaTables({ schema }: { schema: SuiteSchema }) {
+export function SchemaTables({ schema }: { schema: Suite }) {
   return (
     <>
       <SuiteBox schema={schema} />

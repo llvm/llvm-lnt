@@ -35,7 +35,7 @@ from lnt_v5.routes.tests import test_id
 from lnt_v5.scopes import Scope
 from lnt_v5.suites.entities import DeclaredValue
 from lnt_v5.suites.registry import RegistryDep, Suite
-from lnt_v5.suites.scope import SuiteName, suite_responses, suite_scope
+from lnt_v5.suites.scope import ProjectName, SuiteName, suite_responses, suite_scope
 
 SAMPLES_PATH = f"{RUNS_PATH}/{{uuid}}/samples"
 
@@ -115,6 +115,7 @@ class Samples:
     responses=suite_responses(not_found=_NOT_FOUND),
 )
 def list_samples(
+    project: ProjectName,
     testsuite: SuiteName,
     uuid: RunKey,
     engine: EngineDep,
@@ -134,7 +135,10 @@ def list_samples(
     """The samples recorded by a run, one page at a time."""
     # The run is resolved to its id rather than read whole: this query filters on `run_id`, and the
     # 404 for an unknown UUID has to come from somewhere regardless.
-    with engine.connect() as connection, suite_scope(registry, connection, testsuite) as suite:
+    with (
+        engine.connect() as connection,
+        suite_scope(registry, connection, project, testsuite) as suite,
+    ):
         samples = Samples(suite)
         conditions: list[ColumnElement[bool]] = [
             samples.table.c.run_id == run_id(connection, suite, uuid)

@@ -150,24 +150,37 @@ def _check_token(client: Client, needed: str) -> None:
                           % (needed, ', not %s' % scope if scope else ''))
 
 
-def _create_suite(client: Client, suite: str, schema: Any) -> None:
+def _create_suite(client: Client, project: str, suite: str, full: str,
+                  schema: Any) -> None:
+    """Create the suite `suite`, whose full name is `full`, in the project
+    `project`, which must exist."""
     if not isinstance(schema, dict) or schema.get('name') != suite:
         raise SubmitError("--create-suite: the schema's name is not %r"
                           % suite)
-    response = client.request('POST', '/suites', json=schema)
+    response = client.request(
+        'POST', '/projects/%s/suites' % quote(project, safe=''), json=schema)
     if response.status_code == 409 and _error_code(response) == 'duplicate':
         raise SubmitError("suite '%s' already exists; submit to it without "
-                          '--create-suite' % suite)
+                          '--create-suite' % full)
+    if response.status_code == 404:
+        raise SubmitError("there is no project '%s'; create it first, "
+                          'with POST /api/projects' % project)
     if response.status_code != 201:
         raise SubmitError("suite '%s' could not be created: %s"
-                          % (suite, _message(response)))
+                          % (full, _message(response)))
 
 
 def _check_suite(client: Client, suite: str, path: str) -> None:
-    """Check that the suite exists. `path` is the suite's path in the API."""
+    """Check that the suite exists.
+
+    `suite` is its full name, and `path` its path in the API.
+    """
     response = client.request('GET', path)
     if response.status_code == 404:
-        raise SubmitError("there is no suite '%s'" % suite)
+        # The instance's message says whether the project or the suite is
+        # missing.
+        raise SubmitError("there is no suite '%s': %s"
+                          % (suite, _message(response)))
     if response.status_code != 200:
         raise SubmitError("suite '%s' cannot be read: %s"
                           % (suite, _message(response)))
@@ -229,32 +242,35 @@ def _lines(lines: Iterable[bytes]) -> Iterable[_Line]:
         yield _Line(number, data, submission)
 
 
-def submit(url: str, suite: str, lines: Iterable[bytes],
+def submit(url: str, project: str, suite: str, lines: Iterable[bytes],
            token: str | None = None, create_suite: Any = None,
            workers: int = 4, echo: Echo = print, *,
            skip_existing: bool = False, retries: int = 30,
            retry_delay: float = 10) -> int:
-    """Submit the runs in `lines`, one JSON object per line, to `suite`.
+    """Submit the runs in `lines`, one JSON object per line, to the suite
+    `suite` of the project `project`.
 
     `create_suite` is the schema given with --create-suite, if any. Returns
     the number of runs that could not be submitted. Raises SubmitError for
     problems that stop the command before it submits anything.
     """
     client = Client(url, token, retries, retry_delay, echo)
-    path = '/suites/%s' % quote(suite, safe='')
+    path = '/projects/%s/suites/%s' % (quote(project, safe=''),
+                                       quote(suite, safe=''))
+    full = '%s/%s' % (project, suite)
     existing: set[str] = set()
     try:
         _check_token(client, 'manage' if create_suite is not None
                      else 'submit')
         if create_suite is not None:
-            _create_suite(client, suite, create_suite)
-            echo("Created suite '%s'" % suite)
+            _create_suite(client, project, suite, full, create_suite)
+            echo("Created suite '%s'" % full)
         else:
-            _check_suite(client, suite, path)
+            _check_suite(client, full, path)
             if skip_existing:
-                existing = _existing_uuids(client, suite, path)
+                existing = _existing_uuids(client, full, path)
                 echo("Suite '%s' has %d run(s) already"
-                     % (suite, len(existing)))
+                     % (full, len(existing)))
     except requests.RequestException as e:
         raise SubmitError('%s cannot be reached: %s' % (url, e))
 

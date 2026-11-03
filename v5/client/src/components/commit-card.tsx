@@ -1,6 +1,6 @@
 import { Link } from 'react-router'
 import { useResolvedCommit } from '../api/commits'
-import type { SuiteSchema } from '../api/suites'
+import { refOf, type Suite, type SuiteRef } from '../api/suites'
 import { commitPath } from '../paths'
 import { commitDisplayValue, formatFieldValue, labelOf, type Commit } from '../schema'
 import { CopyButton } from './copy-button'
@@ -15,7 +15,7 @@ import styles from './commit-card.module.css'
 interface Props {
   /** From the trigger's `useHoverCard`. */
   card: HoverCardState
-  schema: SuiteSchema
+  schema: Suite
   /** The commit string. */
   value: string
   /** The commit, as the page loaded it for the trigger's text or name, if it has. */
@@ -49,7 +49,7 @@ export function CommitCard({ card, schema, value, commit }: Props) {
  * last character, so that it goes onto the next line with it, rather than on its own, when the
  * string does not fit on one.
  */
-function CommitString({ suite, value }: { suite: string; value: string }) {
+function CommitString({ suite, value }: { suite: SuiteRef; value: string }) {
   // By code point, which may split a character made of several, but commit strings are hashes or
   // numbers, rather than text.
   const characters = Array.from(value)
@@ -76,12 +76,12 @@ function Heading({ id, text }: { id: string; text: string }) {
 }
 
 interface ContentProps {
-  schema: SuiteSchema
+  schema: Suite
   headingId: string
 }
 
 function FetchedCommit({ schema, value, headingId }: ContentProps & { value: string }) {
-  const resolved = useResolvedCommit(schema.name, value)
+  const resolved = useResolvedCommit(refOf(schema), value)
   if (resolved.data) {
     return <CommitSummary schema={schema} commit={resolved.data} headingId={headingId} />
   }
@@ -113,7 +113,7 @@ function CommitSummary({ schema, commit, headingId }: ContentProps & { commit: C
       <Heading id={headingId} text={commitDisplayValue(commit, schema)} />
       <dl className={styles.rows}>
         <InfoRow label="Commit">
-          <CommitString suite={schema.name} value={commit.value} />
+          <CommitString suite={refOf(schema)} value={commit.value} />
         </InfoRow>
         {commit.ordinal !== null && <InfoRow label="Ordinal">{commit.ordinal}</InfoRow>}
         {fields.map(({ field, value }) => (

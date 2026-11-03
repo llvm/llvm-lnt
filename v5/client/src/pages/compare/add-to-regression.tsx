@@ -12,7 +12,7 @@ import {
   TEXT_LENGTH,
   withIndicators,
 } from '../../api/regressions'
-import type { SuiteSchema } from '../../api/suites'
+import { fullName, type Suite, type SuiteRef } from '../../api/suites'
 import { useScopeGate } from '../../auth/scope'
 import { usePickedCommitText } from '../../components/commit-lookup'
 import { ErrorMessage } from '../../components/feedback'
@@ -23,7 +23,7 @@ import {
   type PickedRegression,
 } from '../../components/regression-picker'
 import { plural, shortUuid } from '../../format'
-import { suiteLabel } from '../../labels'
+import { fullLabel } from '../../labels'
 import { regressionPath } from '../../paths'
 import type { ComparisonRow } from './comparison'
 import styles from './compare.module.css'
@@ -35,15 +35,15 @@ interface Report {
   /** What the message says before the link to the regression, and after it. */
   before: string
   after?: string
-  suite: string
+  suite: SuiteRef
   regression: PickedRegression
 }
 
 interface Props {
   /** Side B's suite, machine and commit, which the regression and its indicators are of. */
-  suite: string
+  suite: SuiteRef
   /** Side B's suite, once the suites are known to hold it, which shows its commit (AR6). */
-  schema: SuiteSchema | undefined
+  schema: Suite | undefined
   machine: string
   commit: string
   metric: string
@@ -82,19 +82,17 @@ export function AddToRegression({
   const [report, setReport] = useState<Report | null>(null)
 
   const create = useMutation({
-    mutationFn: ({ suite: testsuite, ...body }: CreateVariables) =>
-      createRegression(testsuite, body),
-    onSuccess: (created, { suite: testsuite }) =>
-      regressionCreated(queryClient, testsuite, created),
+    mutationFn: ({ suite, ...body }: CreateVariables) => createRegression(suite, body),
+    onSuccess: (created, { suite }) => regressionCreated(queryClient, suite, created),
   })
   const add = useMutation({
-    mutationFn: ({ suite: testsuite, regression, indicators }: AddVariables) =>
-      addIndicators(testsuite, regression.uuid, indicators),
+    mutationFn: ({ suite, regression, indicators }: AddVariables) =>
+      addIndicators(suite, regression.uuid, indicators),
     // A fetch of the regression under way could land after the answer, and show it as it was.
-    onMutate: ({ suite: testsuite, regression }) =>
-      queryClient.cancelQueries({ queryKey: regressionKey(testsuite, regression.uuid) }),
-    onSuccess: (result, { suite: testsuite, regression }) =>
-      regressionChanged(queryClient, testsuite, regression.uuid, (stored) =>
+    onMutate: ({ suite, regression }) =>
+      queryClient.cancelQueries({ queryKey: regressionKey(suite, regression.uuid) }),
+    onSuccess: (result, { suite, regression }) =>
+      regressionChanged(queryClient, suite, regression.uuid, (stored) =>
         withIndicators(result, stored),
       ),
   })
@@ -219,7 +217,7 @@ export function AddToRegression({
           />
           {/* The regression picked is one of side B's suite, as the sides were. */}
           <AddForm
-            key={`${suite}\0${swapped}`}
+            key={`${fullName(suite)}\0${swapped}`}
             suite={suite}
             disabled={blocked}
             why={why === undefined ? undefined : whyId}
@@ -234,7 +232,7 @@ export function AddToRegression({
 }
 
 interface SummaryProps {
-  schema: SuiteSchema
+  schema: Suite
   machine: string
   commit: string
   metric: string
@@ -251,7 +249,7 @@ function Summary({ schema, machine, commit, metric, tests, skipped }: SummaryPro
   const shown = usePickedCommitText(schema, { machine }, commit)
   const rows: [string, string][] = [
     ['Covers', plural(tests, 'selected test')],
-    ['Test Suite', suiteLabel(schema)],
+    ['Test Suite', fullLabel(schema)],
     ['Metric', metric],
     ['Machine', machine],
     ['Commit', shown],
@@ -278,14 +276,14 @@ function Summary({ schema, machine, commit, metric, tests, skipped }: SummaryPro
 }
 
 interface CreateVariables {
-  suite: string
+  suite: SuiteRef
   title: string | null
   commit: string
   indicators: IndicatorObject[]
 }
 
 interface AddVariables {
-  suite: string
+  suite: SuiteRef
   regression: PickedRegression
   indicators: IndicatorObject[]
 }
@@ -333,7 +331,7 @@ function CreateForm({ disabled, why, creating, error, onCreate }: CreateFormProp
 }
 
 interface AddFormProps {
-  suite: string
+  suite: SuiteRef
   disabled: boolean
   /** The id of what says why nothing can be added, while nothing can. */
   why: string | undefined

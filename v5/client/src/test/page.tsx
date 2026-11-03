@@ -11,10 +11,10 @@ import { Outlet, useLocation, useNavigate } from 'react-router'
 import { expect } from 'vitest'
 import { routes } from '../app'
 import type { Schemas } from '../api/client'
-import type { SuiteSchema } from '../api/suites'
+import { schemaOf, type ProjectName, type Suite, type SuiteSchema } from '../api/suites'
 import { INACTIVITY_HELP } from '../inactivity'
 import type { Commit } from '../schema'
-import { BARE_SUITE, SUITE, cursorPage } from './fixtures'
+import { BARE_SUITE, PROJECT, SUITE, cursorPage } from './fixtures'
 import { mockApi, type Operation, type PathWith, type RequestBody } from './mock-api'
 import { renderRoutes } from './render'
 import { server } from './server'
@@ -87,27 +87,62 @@ export function query() {
   return entries
 }
 
-/** The suites the mocked API holds, as it lists them, and how many times it was asked. */
+/**
+ * The projects and suites the mocked API holds, as it lists them, and how many times it was asked.
+ * A suite without a project is in `PROJECT`.
+ */
 export interface SuiteStore {
-  suites: SuiteSchema[]
+  projects: ProjectName[]
+  suites: (Suite | SuiteSchema)[]
   requests: number
 }
 
+/** The project of `suite`: its own, or `PROJECT`. */
+const projectOf = (suite: Suite | SuiteSchema) => ('project' in suite ? suite.project : PROJECT)
+
 /**
- * Answer `GET /api/suites` with the suites the returned store holds when the request arrives,
- * `items` at first, once `wait` resolves.
+ * The list of `projects`, by default those of `suites`, or `PROJECT` alone when there are none,
+ * holding `suites`, as `GET /api/projects` answers it.
+ */
+export function projectList(
+  suites: readonly (Suite | SuiteSchema)[],
+  projects: readonly ProjectName[] = defaultProjects(suites),
+): Schemas['ProjectList'] {
+  return {
+    items: projects.map(({ name, display_name }) => ({
+      name,
+      display_name,
+      suites: suites
+        .filter((suite) => projectOf(suite).name === name)
+        .map((suite) => schemaOf(suite as Suite)),
+    })),
+  }
+}
+
+function defaultProjects(suites: readonly (Suite | SuiteSchema)[]): ProjectName[] {
+  const of = suites.length > 0 ? suites.map(projectOf) : [PROJECT]
+  return [...new Map(of.map((project) => [project.name, project])).values()]
+}
+
+/**
+ * Answer `GET /api/projects` with the projects and suites the returned store holds when the request
+ * arrives, once `wait` resolves: `items` at first, in `projects` (see `projectList`).
  */
 export function mockSuites(
-  items: SuiteSchema[] = [SUITE, BARE_SUITE],
-  { wait }: { wait?: () => Promise<void> } = {},
+  items: (Suite | SuiteSchema)[] = [SUITE, BARE_SUITE],
+  { wait, projects }: { wait?: () => Promise<void>; projects?: ProjectName[] } = {},
 ): SuiteStore {
-  const store: SuiteStore = { suites: [...items], requests: 0 }
+  const store: SuiteStore = {
+    projects: projects ?? defaultProjects(items),
+    suites: [...items],
+    requests: 0,
+  }
   server.use(
-    mockApi('get', '/api/suites', async () => {
+    mockApi('get', '/api/projects', async () => {
       store.requests++
-      const listed = [...store.suites]
+      const listed = projectList(store.suites, store.projects)
       await wait?.()
-      return HttpResponse.json({ items: listed })
+      return HttpResponse.json(listed)
     }),
   )
   return store
@@ -147,7 +182,7 @@ export function recording<Body>(respond: Respond<Body>) {
 export function mockRuns(respond: Respond<Page<Schemas['Run']>>) {
   const { queries, answer } = recording(respond)
   server.use(
-    mockApi('get', '/api/suites/{testsuite}/runs', async ({ request }) =>
+    mockApi('get', '/api/projects/{project}/suites/{suite}/runs', async ({ request }) =>
       HttpResponse.json(await answer(request)),
     ),
   )
@@ -157,7 +192,7 @@ export function mockRuns(respond: Respond<Page<Schemas['Run']>>) {
 export function mockMachines(respond: Respond<Schemas['MachineList']>) {
   const { queries, answer } = recording(respond)
   server.use(
-    mockApi('get', '/api/suites/{testsuite}/machines', async ({ request }) =>
+    mockApi('get', '/api/projects/{project}/suites/{suite}/machines', async ({ request }) =>
       HttpResponse.json(await answer(request)),
     ),
   )
@@ -168,7 +203,7 @@ export function mockMachines(respond: Respond<Schemas['MachineList']>) {
 export function mockTrends(respond: Respond<Schemas['TrendPoint'][]>) {
   const { queries, answer } = recording(respond)
   server.use(
-    mockApi('get', '/api/suites/{testsuite}/trends', async ({ request }) =>
+    mockApi('get', '/api/projects/{project}/suites/{suite}/trends', async ({ request }) =>
       HttpResponse.json({ items: await answer(request) }),
     ),
   )
@@ -178,7 +213,7 @@ export function mockTrends(respond: Respond<Schemas['TrendPoint'][]>) {
 export function mockTests(respond: Respond<Page<Schemas['Test']>>) {
   const { queries, answer } = recording(respond)
   server.use(
-    mockApi('get', '/api/suites/{testsuite}/tests', async ({ request }) =>
+    mockApi('get', '/api/projects/{project}/suites/{suite}/tests', async ({ request }) =>
       HttpResponse.json(await answer(request)),
     ),
   )
@@ -188,7 +223,7 @@ export function mockTests(respond: Respond<Page<Schemas['Test']>>) {
 export function mockCommits(respond: Respond<Page<Commit>>) {
   const { queries, answer } = recording(respond)
   server.use(
-    mockApi('get', '/api/suites/{testsuite}/commits', async ({ request }) =>
+    mockApi('get', '/api/projects/{project}/suites/{suite}/commits', async ({ request }) =>
       HttpResponse.json(await answer(request)),
     ),
   )
@@ -200,7 +235,7 @@ export function mockRegressions(
 ) {
   const { queries, answer } = recording(respond)
   server.use(
-    mockApi('get', '/api/suites/{testsuite}/regressions', async ({ request }) =>
+    mockApi('get', '/api/projects/{project}/suites/{suite}/regressions', async ({ request }) =>
       HttpResponse.json(await answer(request)),
     ),
   )
@@ -209,10 +244,10 @@ export function mockRegressions(
 
 /** Answer `POST regressions` with `created`; returns each request's suite and body. */
 export function mockCreateRegression(created: Schemas['RegressionDetail']) {
-  const requests: { suite: string; body: Schemas['RegressionCreate'] }[] = []
+  const requests: { project: string; suite: string; body: Schemas['RegressionCreate'] }[] = []
   server.use(
-    mockApi('post', '/api/suites/{testsuite}/regressions', async ({ request, params }) => {
-      requests.push({ suite: params.testsuite, body: await request.json() })
+    mockApi('post', '/api/projects/{project}/suites/{suite}/regressions', async ({ request, params }) => {
+      requests.push({ project: params.project, suite: params.suite, body: await request.json() })
       return HttpResponse.json(created, { status: 201 })
     }),
   )
@@ -223,7 +258,7 @@ export function mockCreateRegression(created: Schemas['RegressionDetail']) {
 export function mockResolve(known: Commit[] = []) {
   const requests: string[][] = []
   server.use(
-    mockApi('post', '/api/suites/{testsuite}/commits/resolve', async ({ request }) => {
+    mockApi('post', '/api/projects/{project}/suites/{suite}/commits/resolve', async ({ request }) => {
       const { commits } = await request.json()
       requests.push(commits)
       const found = known.filter((c) => commits.includes(c.value))

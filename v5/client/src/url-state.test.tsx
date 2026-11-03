@@ -6,6 +6,7 @@ import { describe, expect, it } from 'vitest'
 import { api, unwrap } from './api/client'
 import { BARE_SUITE } from './test/fixtures'
 import { errorResponse, mockApi } from './test/mock-api'
+import { projectList } from './test/page'
 import { providers } from './test/render'
 import { server } from './test/server'
 import {
@@ -33,14 +34,11 @@ const FLAGS = { on: booleanParam(true), off: booleanParam(false) }
 
 /** The settings, the URL they come from, and `navigate`, starting at `url`. */
 function renderSettings(url: string) {
-  const { result } = renderHook(
-    () => {
-      const [state, setState] = useUrlState(PARAMS)
-      const { pathname, search } = useLocation()
-      return { state, setState, url: pathname + search, navigate: useNavigate() }
-    },
-    providers({ url }),
-  )
+  const { result } = renderHook(() => {
+    const [state, setState] = useUrlState(PARAMS)
+    const { pathname, search } = useLocation()
+    return { state, setState, url: pathname + search, navigate: useNavigate() }
+  }, providers({ url }))
   return result
 }
 
@@ -65,7 +63,9 @@ describe('useUrlState', () => {
   it('writes a setting to the URL, leaving out the ones at their default', () => {
     const result = renderSettings('/graph?agg=min')
 
-    act(() => result.current.setState({ metric: 'compile_time', machine: ['a', 'b'], agg: 'median' }))
+    act(() =>
+      result.current.setState({ metric: 'compile_time', machine: ['a', 'b'], agg: 'median' }),
+    )
 
     expect(result.current.url).toBe('/graph?metric=compile_time&machine=a&machine=b')
     expect(result.current.state.agg).toBe('median')
@@ -139,16 +139,18 @@ describe('useUrlState', () => {
         const { pathname, search } = useLocation()
         return { state, setState, url: pathname + search }
       },
-      providers({ url: '/suites/nts?state=fixed&state=bogus&state=active&state=fixed' }),
+      providers({
+        url: '/projects/llvm/suites/nts?state=fixed&state=bogus&state=active&state=fixed',
+      }),
     )
 
     expect(result.current.state.state).toEqual(['active', 'fixed'])
-    expect(result.current.url).toBe('/suites/nts?state=active&state=fixed')
+    expect(result.current.url).toBe('/projects/llvm/suites/nts?state=active&state=fixed')
 
     act(() => result.current.setState({ state: ['fixed', 'detected'] }))
-    expect(result.current.url).toBe('/suites/nts?state=detected&state=fixed')
+    expect(result.current.url).toBe('/projects/llvm/suites/nts?state=detected&state=fixed')
     act(() => result.current.setState({ state: [] }))
-    expect(result.current.url).toBe('/suites/nts')
+    expect(result.current.url).toBe('/projects/llvm/suites/nts')
   })
 
   it('reads a boolean spelled true or false, and drops any other spelling', () => {
@@ -222,7 +224,7 @@ describe('useUrlState', () => {
         const { pathname, search } = useLocation()
         return { setFilter, setSearch, url: pathname + search }
       },
-      providers({ url: '/suites/nts?filter=y' }),
+      providers({ url: '/projects/llvm/suites/nts?filter=y' }),
     )
 
     act(() => {
@@ -230,7 +232,7 @@ describe('useUrlState', () => {
       result.current.setFilter({ filter: '' })
     })
 
-    expect(result.current.url).toBe('/suites/nts?search=x')
+    expect(result.current.url).toBe('/projects/llvm/suites/nts?search=x')
   })
 
   it('does not navigate for a change that leaves the URL as it is', () => {
@@ -251,24 +253,24 @@ describe('useUrlState', () => {
   })
 
   it('ignores a change made after the path changed', () => {
-    const result = renderSettings('/suites/nts')
+    const result = renderSettings('/projects/llvm/suites/nts')
     const stale = result.current.setState
 
-    act(() => void result.current.navigate('/suites/other?metric=b'))
+    act(() => void result.current.navigate('/projects/llvm/suites/other?metric=b'))
     act(() => stale({ metric: 'late' }))
 
-    expect(result.current.url).toBe('/suites/other?metric=b')
+    expect(result.current.url).toBe('/projects/llvm/suites/other?metric=b')
   })
 
   it('ignores a change made right after the path changed, before the page renders again', () => {
-    const result = renderSettings('/suites/nts')
+    const result = renderSettings('/projects/llvm/suites/nts')
 
     act(() => {
-      void result.current.navigate('/suites/other?metric=b')
+      void result.current.navigate('/projects/llvm/suites/other?metric=b')
       result.current.setState({ metric: 'late' })
     })
 
-    expect(result.current.url).toBe('/suites/other?metric=b')
+    expect(result.current.url).toBe('/projects/llvm/suites/other?metric=b')
   })
 })
 
@@ -297,20 +299,23 @@ describe('history', () => {
 })
 
 describe('useDropUnusable', () => {
-  const SUITE_PARAMS = { suite: stringParam() }
+  const SUITE_PARAMS = { project: stringParam(), suite: stringParam() }
 
-  /** A page keeping `suite` only if the suite list has it, starting at `url`. */
+  /** A page keeping its suite only if the list of projects has it, starting at `url`. */
   function renderSuitePicker(url: string) {
     const { result } = renderHook(() => {
-      const [{ suite }, set] = useUrlState(SUITE_PARAMS)
+      const [{ project, suite }, set] = useUrlState(SUITE_PARAMS)
       const suites = useQuery({
-        queryKey: ['suites'],
-        queryFn: ({ signal }) => unwrap(api.GET('/api/suites', { signal })),
+        queryKey: ['projects'],
+        queryFn: ({ signal }) => unwrap(api.GET('/api/projects', { signal })),
       })
       useDropUnusable(
         suites,
-        (data) => suite === '' || data.items.some((s) => s.name === suite),
-        () => set({ suite: '' }),
+        (data) =>
+          (project === '' && suite === '') ||
+          data.items.some((p) => p.name === project && p.suites.some((s) => s.name === suite)),
+        // The project and the suite go together, in one change.
+        () => set({ project: '', suite: '' }),
       )
       const { pathname, search } = useLocation()
       return { suites, url: pathname + search }
@@ -318,52 +323,63 @@ describe('useDropUnusable', () => {
     return result
   }
 
-  const suite = (name: string) => ({ ...BARE_SUITE, name })
+  const listing = (name: string) => projectList([{ ...BARE_SUITE, name }])
 
   it('drops a value once a response shows it is unusable', async () => {
-    server.use(mockApi('get', '/api/suites', () => HttpResponse.json({ items: [suite('nts')] })))
-    const result = renderSuitePicker('/graph?suite=gone&other=1')
+    server.use(mockApi('get', '/api/projects', () => HttpResponse.json(listing('nts'))))
+    const result = renderSuitePicker('/graph?project=llvm&suite=gone&other=1')
+
+    await waitFor(() => expect(result.current.suites.isSuccess).toBe(true))
+    expect(result.current.url).toBe('/graph?other=1')
+  })
+
+  it('drops a suite named by one of its two names alone', async () => {
+    server.use(mockApi('get', '/api/projects', () => HttpResponse.json(listing('nts'))))
+    const result = renderSuitePicker('/graph?suite=nts&other=1')
 
     await waitFor(() => expect(result.current.suites.isSuccess).toBe(true))
     expect(result.current.url).toBe('/graph?other=1')
   })
 
   it('keeps a value the response shows is usable', async () => {
-    server.use(mockApi('get', '/api/suites', () => HttpResponse.json({ items: [suite('nts')] })))
-    const result = renderSuitePicker('/graph?suite=nts')
+    server.use(mockApi('get', '/api/projects', () => HttpResponse.json(listing('nts'))))
+    const result = renderSuitePicker('/graph?project=llvm&suite=nts')
 
     await waitFor(() => expect(result.current.suites.isSuccess).toBe(true))
-    expect(result.current.url).toBe('/graph?suite=nts')
+    expect(result.current.url).toBe('/graph?project=llvm&suite=nts')
   })
 
   it('drops nothing when the request fails', async () => {
-    server.use(mockApi('get', '/api/suites', () => errorResponse(500, 'internal_error', 'Oops')))
-    const result = renderSuitePicker('/graph?suite=gone')
+    server.use(mockApi('get', '/api/projects', () => errorResponse(500, 'internal_error', 'Oops')))
+    const result = renderSuitePicker('/graph?project=llvm&suite=gone')
 
     await waitFor(() => expect(result.current.suites.isError).toBe(true))
-    expect(result.current.url).toBe('/graph?suite=gone')
+    expect(result.current.url).toBe('/graph?project=llvm&suite=gone')
   })
 
   it('settles when the check also rejects the default', async () => {
-    server.use(mockApi('get', '/api/suites', () => HttpResponse.json({ items: [suite('nts')] })))
+    server.use(mockApi('get', '/api/projects', () => HttpResponse.json(listing('nts'))))
     // Should it not settle, the drops stop after a while, so that the test fails rather than hangs.
     let drops = 0
     let renders = 0
-    const { result } = renderHook(() => {
-      renders++
-      const [{ suite }, set] = useUrlState(SUITE_PARAMS)
-      const suites = useQuery({
-        queryKey: ['suites'],
-        queryFn: ({ signal }) => unwrap(api.GET('/api/suites', { signal })),
-      })
-      // Wrong for the default, '', which no suite is named: `drop` is called on every render.
-      useDropUnusable(
-        suites,
-        (data) => data.items.some((s) => s.name === suite),
-        () => drops++ < 100 && set({ suite: '' }),
-      )
-      return { suites, location: useLocation() }
-    }, providers({ url: '/graph?suite=gone' }))
+    const { result } = renderHook(
+      () => {
+        renders++
+        const [{ suite }, set] = useUrlState(SUITE_PARAMS)
+        const suites = useQuery({
+          queryKey: ['projects'],
+          queryFn: ({ signal }) => unwrap(api.GET('/api/projects', { signal })),
+        })
+        // Wrong for the default, '', which no suite is named: `drop` is called on every render.
+        useDropUnusable(
+          suites,
+          (data) => data.items.some((p) => p.suites.some((s) => s.name === suite)),
+          () => drops++ < 100 && set({ project: '', suite: '' }),
+        )
+        return { suites, location: useLocation() }
+      },
+      providers({ url: '/graph?project=llvm&suite=gone' }),
+    )
 
     await waitFor(() => expect(result.current.suites.isSuccess).toBe(true))
     await waitFor(() => expect(result.current.location.search).toBe(''))

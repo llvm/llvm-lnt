@@ -25,9 +25,9 @@ from lnt_v5.scopes import Scope
 from lnt_v5.suites.entities import UuidKey, identifier
 from lnt_v5.suites.profile_document import document_json, instructions
 from lnt_v5.suites.registry import RegistryDep, Suite
-from lnt_v5.suites.scope import SuiteName, suite_responses, suite_scope
+from lnt_v5.suites.scope import ProjectName, SuiteName, suite_responses, suite_scope
 
-PROFILES_PATH = f"{SUITES_PATH}/{{testsuite}}/profiles"
+PROFILES_PATH = f"{SUITES_PATH}/{{suite}}/profiles"
 RUN_PROFILES_PATH = f"{RUNS_PATH}/{{uuid}}/profiles"
 
 router = APIRouter(prefix=PROFILES_PATH, tags=["Profiles"])
@@ -177,7 +177,7 @@ class Profiles:
     """
 
     def __init__(self, suite: Suite) -> None:
-        self.schema = suite.schema
+        self.suite = suite
         self.table: Table = suite.tables.profile
         self._function: Table = suite.tables.profile_function
         self._test: Table = suite.tables.test
@@ -270,7 +270,7 @@ class Profiles:
         if row.instructions is None:
             raise ApiError(
                 ErrorCode.NOT_FOUND,
-                f"Profile '{uuid}' in test suite '{self.schema.name}' holds no function named "
+                f"Profile '{uuid}' in test suite '{self.suite.full_name}' holds no function named "
                 f"'{name}'",
             )
         return row.disassembly_format, row.counters, row.instructions
@@ -298,7 +298,7 @@ class Profiles:
     def missing(self, uuid: str) -> ApiError:
         """The 404 for a profile that is not there, worded in one place for all its callers."""
         return ApiError(
-            ErrorCode.NOT_FOUND, f"No profile '{uuid}' in test suite '{self.schema.name}'"
+            ErrorCode.NOT_FOUND, f"No profile '{uuid}' in test suite '{self.suite.full_name}'"
         )
 
 
@@ -311,11 +311,18 @@ class Profiles:
     responses=suite_responses(not_found=NO_RUN),
 )
 def list_run_profiles(
-    testsuite: SuiteName, uuid: RunKey, engine: EngineDep, registry: RegistryDep
+    project: ProjectName,
+    testsuite: SuiteName,
+    uuid: RunKey,
+    engine: EngineDep,
+    registry: RegistryDep,
 ) -> Items[RunProfile]:
     """The run's profiles: which tests have one, and each profile's UUID, sorted by test name. A
     run has at most one profile per test."""
-    with engine.connect() as connection, suite_scope(registry, connection, testsuite) as suite:
+    with (
+        engine.connect() as connection,
+        suite_scope(registry, connection, project, testsuite) as suite,
+    ):
         profiles = Profiles(suite)
         rows = connection.execute(profiles.of_run(run_id(connection, suite, uuid)))
         return Items(items=[profiles.read(row) for row in rows])
@@ -328,10 +335,17 @@ def list_run_profiles(
     responses=suite_responses(not_found=_NO_PROFILE),
 )
 def get_profile(
-    testsuite: SuiteName, uuid: ProfileKey, engine: EngineDep, registry: RegistryDep
+    project: ProjectName,
+    testsuite: SuiteName,
+    uuid: ProfileKey,
+    engine: EngineDep,
+    registry: RegistryDep,
 ) -> ProfileMetadata:
     """Get a profile's test, run and top-level counters."""
-    with engine.connect() as connection, suite_scope(registry, connection, testsuite) as suite:
+    with (
+        engine.connect() as connection,
+        suite_scope(registry, connection, project, testsuite) as suite,
+    ):
         return Profiles(suite).metadata(connection, uuid)
 
 
@@ -343,11 +357,18 @@ def get_profile(
     responses=suite_responses(not_found=_NO_PROFILE),
 )
 def list_profile_functions(
-    testsuite: SuiteName, uuid: ProfileKey, engine: EngineDep, registry: RegistryDep
+    project: ProjectName,
+    testsuite: SuiteName,
+    uuid: ProfileKey,
+    engine: EngineDep,
+    registry: RegistryDep,
 ) -> Items[ProfileFunction]:
     """The functions in a profile, with their counters but without their instructions, sorted by
     name."""
-    with engine.connect() as connection, suite_scope(registry, connection, testsuite) as suite:
+    with (
+        engine.connect() as connection,
+        suite_scope(registry, connection, project, testsuite) as suite,
+    ):
         return Items(items=Profiles(suite).functions(connection, uuid))
 
 
@@ -358,6 +379,7 @@ def list_profile_functions(
     responses=suite_responses(not_found=_NO_FUNCTION),
 )
 def get_profile_disassembly(
+    project: ProjectName,
     testsuite: SuiteName,
     uuid: ProfileKey,
     function: Annotated[
@@ -374,7 +396,10 @@ def get_profile_disassembly(
 ) -> FunctionDisassembly:
     """One function of a profile, with the counters measured at each instruction. The function is
     passed as a query parameter because its name can contain '/'."""
-    with engine.connect() as connection, suite_scope(registry, connection, testsuite) as suite:
+    with (
+        engine.connect() as connection,
+        suite_scope(registry, connection, project, testsuite) as suite,
+    ):
         disassembly_format, counters, stored = Profiles(suite).disassembly(
             connection, uuid, function
         )
@@ -400,7 +425,11 @@ def get_profile_disassembly(
     responses=suite_responses(not_found=_NO_PROFILE),
 )
 def get_profile_document(
-    testsuite: SuiteName, uuid: ProfileKey, engine: EngineDep, registry: RegistryDep
+    project: ProjectName,
+    testsuite: SuiteName,
+    uuid: ProfileKey,
+    engine: EngineDep,
+    registry: RegistryDep,
 ) -> Response:
     """The complete profile in a single response.
 
@@ -408,7 +437,10 @@ def get_profile_document(
     and submit it as a test's `profile`. The result may be larger than what was originally
     submitted, so a profile close to the size limits may exceed them when copied.
     """
-    with engine.connect() as connection, suite_scope(registry, connection, testsuite) as suite:
+    with (
+        engine.connect() as connection,
+        suite_scope(registry, connection, project, testsuite) as suite,
+    ):
         disassembly_format, counters, functions = Profiles(suite).document(connection, uuid)
 
     # As for the disassembly, the connection is released before anything is decompressed. Encoded

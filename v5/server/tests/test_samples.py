@@ -16,15 +16,14 @@ from uuid import uuid4
 import pytest
 from fastapi.testclient import TestClient
 
-from conftest import code_of, entry, run_payload, walk_pages
+from conftest import code_of, entry, run_payload, suite_path, walk_pages
 from lnt_v5.routes.commits import COMMITS_PATH
 from lnt_v5.routes.runs import RUNS_PATH
 from lnt_v5.routes.samples import SAMPLES_PATH
-from lnt_v5.routes.suites import SUITES_PATH
 from lnt_v5.suites.tables import SuiteTables
 
-RUNS = RUNS_PATH.format(testsuite="nts")
-COMMITS = COMMITS_PATH.format(testsuite="nts")
+RUNS = RUNS_PATH.format(project="nts", suite="nts")
+COMMITS = COMMITS_PATH.format(project="nts", suite="nts")
 
 # One metric of every declared type (D3), so that `metrics` can be checked for the JSON
 # representation I4 gives each rather than only for the two numeric ones.
@@ -64,7 +63,7 @@ def submit(
 
 
 def samples_of(run: str) -> str:
-    return SAMPLES_PATH.format(testsuite="nts", uuid=run)
+    return SAMPLES_PATH.format(project="nts", suite="nts", uuid=run)
 
 
 def listed(api_client: TestClient, run: str, query: str = "") -> Any:
@@ -190,7 +189,7 @@ class TestList:
         assert code_of(response) == "not_found"
 
     def test_is_404_for_a_suite_that_is_not_there(self, api_client: TestClient) -> None:
-        assert api_client.get(f"{SUITES_PATH}/nope/runs/{uuid4()}/samples").status_code == 404
+        assert api_client.get(f"{suite_path('nope')}/runs/{uuid4()}/samples").status_code == 404
 
     def test_needs_no_credential(self, api_client: TestClient, submit: Callable[..., str]) -> None:
         run = submit(entry("t"))

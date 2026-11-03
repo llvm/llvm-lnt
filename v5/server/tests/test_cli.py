@@ -16,10 +16,11 @@ from fastapi.testclient import TestClient
 from sqlalchemy import Engine, func, inspect, select, text
 from sqlalchemy.exc import OperationalError
 
-from conftest import TOKEN_PATTERN, store_suite
+from conftest import TOKEN_PATTERN, ensure_suite, store_suite
 from introspection import namespace_of
 from lnt_v5 import cli, keys, migrate
 from lnt_v5.config import get_settings
+from lnt_v5.keys import Entry
 from lnt_v5.scopes import Scope
 from lnt_v5.suites import migrations as suite_migrations
 from lnt_v5.suites.inactivity import SWEEP_LOCK_KEY
@@ -291,12 +292,19 @@ class TestMigrate:
         monkeypatch: pytest.MonkeyPatch,
         capsys: pytest.CaptureFixture[str],
     ) -> None:
-        store_suite(configured_database, SuiteSchema.model_validate({"name": "nts"}), version=0)
+        # Two suites of the same name, told apart by their full names (D7).
+        for project_name in ("other", "llvm"):
+            ensure_suite(
+                configured_database, SuiteSchema.model_validate({"name": "nts"}), project_name
+            )
+        with configured_database.begin() as connection:
+            connection.execute(text("UPDATE schema SET migration_version = 0"))
         monkeypatch.setattr(suite_migrations, "STEPS", (lambda op, suite: None,))
 
         assert cli.main(["server", "migrate"]) == 0
 
-        assert "1 test suite(s) to migration version 1: nts" in capsys.readouterr().out
+        out = capsys.readouterr().out
+        assert "2 test suite(s) to migration version 1: llvm/nts, other/nts" in out
 
     def test_reports_a_database_it_must_not_serve_without_a_traceback(
         self,
@@ -389,23 +397,33 @@ class TestCreateKey:
 class TestCreateRestrictedKey:
     @pytest.fixture(autouse=True)
     def suites(self, configured_database: Engine) -> None:
-        for name in ("nts", "libcxx"):
-            store_suite(
-                configured_database,
-                SuiteSchema.model_validate({"name": name}),
-                suite_migrations.head(),
-            )
+        ensure_suite(configured_database, SuiteSchema.model_validate({"name": "nts"}), "llvm")
+        ensure_suite(
+            configured_database, SuiteSchema.model_validate({"name": "benchmarks"}), "libcxx"
+        )
 
     def test_restricts_the_key_to_every_suite_given(
         self, configured_database: Engine, capsys: pytest.CaptureFixture[str]
     ) -> None:
         argv = ["server", "create-key", "--name", "bot", "--scope", "submit"]
-        assert cli.main([*argv, "--suite", "nts", "--suite", "libcxx"]) == 0
+        assert cli.main([*argv, "--suite", "llvm/nts", "--suite", "libcxx/benchmarks"]) == 0
 
-        assert "libcxx, nts only" in capsys.readouterr().err
+        # By their full names (D7).
+        assert "libcxx/benchmarks, llvm/nts only" in capsys.readouterr().err
         with configured_database.connect() as connection:
             (key,) = keys.list_keys(connection)
-        assert key.suites == ("libcxx", "nts")
+        assert key.restricted_to == (Entry("libcxx", "benchmarks"), Entry("llvm", "nts"))
+
+    @pytest.mark.parametrize("suite", ["nts", "/nts", "llvm/", "llvm/nts/x", "llvm//nts"])
+    def test_refuses_a_suite_not_named_by_its_full_name(
+        self, configured_database: Engine, capsys: pytest.CaptureFixture[str], suite: str
+    ) -> None:
+        argv = ["server", "create-key", "--name", "bot", "--scope", "submit", "--suite", suite]
+        with pytest.raises(SystemExit) as raised:
+            cli.main(argv)
+
+        assert raised.value.code == 2
+        assert "PROJECT/SUITE" in capsys.readouterr().err
 
     def test_says_a_key_without_suites_is_valid_in_every_one(
         self, configured_database: Engine, capsys: pytest.CaptureFixture[str]
@@ -417,8 +435,9 @@ class TestCreateRestrictedKey:
     @pytest.mark.parametrize(
         ("scope", "suite", "says"),
         [
-            ("admin", "nts", "cannot be restricted"),
-            ("submit", "libcx", "'libcx'"),
+            ("admin", "llvm/nts", "cannot be restricted"),
+            ("submit", "llvm/ntss", "Project 'llvm' has no test suite named 'ntss'"),
+            ("submit", "swift/nts", "No project is named 'swift'"),
         ],
     )
     def test_reports_a_restriction_it_refuses_without_a_traceback(
@@ -444,27 +463,31 @@ class TestSweep:
     def test_deletes_what_is_due_and_says_what_it_deleted(
         self, configured_database: Engine, capsys: pytest.CaptureFixture[str]
     ) -> None:
-        store_suite(
-            configured_database,
-            SuiteSchema.model_validate({"name": "nts"}),
-            suite_migrations.head(),
-        )
-        machine = f"{namespace_of(configured_database, 'nts')}.machine"
-        with configured_database.begin() as connection:
-            connection.execute(
-                text(
-                    f"INSERT INTO {machine} (name, delete_after_inactive_days, first_seen_at) "
-                    "VALUES ('pr-1', 30, now() - INTERVAL '31 days'), ('linux', NULL, now())"
-                )
+        # Two suites of the same name, told apart by their full names (D7).
+        machines = []
+        for project_name in ("other", "llvm"):
+            ensure_suite(
+                configured_database, SuiteSchema.model_validate({"name": "nts"}), project_name
             )
+            machine = f"{namespace_of(configured_database, 'nts', project_name)}.machine"
+            machines.append(machine)
+            with configured_database.begin() as connection:
+                connection.execute(
+                    text(
+                        f"INSERT INTO {machine} (name, delete_after_inactive_days, first_seen_at) "
+                        "VALUES ('pr-1', 30, now() - INTERVAL '31 days'), ('linux', NULL, now())"
+                    )
+                )
 
         assert cli.main(["server", "sweep"]) == 0
 
         assert capsys.readouterr().out == (
-            "Deleted 1 inactive machine(s) from test suite 'nts': pr-1.\n"
+            "Deleted 1 inactive machine(s) from test suite 'llvm/nts': pr-1.\n"
+            "Deleted 1 inactive machine(s) from test suite 'other/nts': pr-1.\n"
         )
         with configured_database.connect() as connection:
-            assert connection.scalars(text(f"SELECT name FROM {machine}")).all() == ["linux"]
+            for machine in machines:
+                assert connection.scalars(text(f"SELECT name FROM {machine}")).all() == ["linux"]
 
     def test_says_so_when_nothing_was_due(
         self, configured_database: Engine, capsys: pytest.CaptureFixture[str]

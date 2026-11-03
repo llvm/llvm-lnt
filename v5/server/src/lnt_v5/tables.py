@@ -67,11 +67,11 @@ metadata = MetaData(naming_convention=NAMING_CONVENTION)
 # server names namespaces in ASCII.
 IDENTIFIER_MAX_LENGTH = 63
 
-# D4's limit on a suite name. Unlike an entry name, a suite name names nothing in the database, so
-# it is not bound by the identifier limit above.
+# D4's limit on a suite name, which D7 applies to a project's too. Unlike an entry name, neither
+# names anything in the database, so neither is bound by the identifier limit above.
 SUITE_NAME_MAX_LENGTH = 64
 
-# D4's limit on a suite's display name.
+# D4's limit on a suite's display name, which D7 applies to a project's too.
 DISPLAY_NAME_MAX_LENGTH = 256
 
 # I5: a token is 64 lowercase hex characters, of which the first 8 are the published prefix, and
@@ -88,13 +88,27 @@ KEY_NAME_MAX_LENGTH = 256
 SCHEMA_VERSION_ID = 1
 
 
+project = Table(
+    "project",
+    metadata,
+    # The project's identity, which no response shows (D5).
+    Column("id", Integer, Identity(), primary_key=True),
+    Column("name", String(SUITE_NAME_MAX_LENGTH), nullable=False, unique=True),
+    Column("display_name", String(DISPLAY_NAME_MAX_LENGTH), nullable=True),
+)
+"""One row per project, which groups test suites (D5, D7)."""
+
+
 schema = Table(
     "schema",
     metadata,
     # The suite's identity, which no response shows (D5): what an API key's restriction refers to,
     # so that it follows the suite rather than its name.
     Column("id", Integer, Identity(), primary_key=True),
-    Column("name", String(SUITE_NAME_MAX_LENGTH), nullable=False, unique=True),
+    # No cascade: a project that still has suites cannot be deleted (D7), which is what makes its
+    # deletion and the creation of a suite in it never both succeed (D2).
+    Column("project_id", Integer, ForeignKey(project.c.id), nullable=False),
+    Column("name", String(SUITE_NAME_MAX_LENGTH), nullable=False),
     # Chosen by the server when the suite is created, and never changed afterwards (D5). Unique
     # because a namespace holds the tables of one suite only.
     Column("namespace", String(IDENTIFIER_MAX_LENGTH), nullable=False, unique=True),
@@ -104,6 +118,8 @@ schema = Table(
     # `suites/migrations.py`). A suite recorded at too low a version would have steps applied again
     # to tables that already have them.
     Column("migration_version", Integer, nullable=False),
+    # A suite's name is unique within its project only (D7).
+    UniqueConstraint("project_id", "name"),
 )
 """One row per test suite, holding that suite's normalized schema (D2, D5).
 

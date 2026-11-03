@@ -25,7 +25,7 @@ from fastapi.testclient import TestClient
 from sqlalchemy import Engine, update
 
 from lnt_v5 import keys
-from lnt_v5.auth import iter_routes, required_scope
+from lnt_v5.auth import Coverage, iter_routes, required_scope, route_requirement, suite_parameters
 from lnt_v5.querying import _takes_several
 from lnt_v5.scopes import UNRESTRICTABLE_SCOPES, Scope
 from lnt_v5.tables import api_key
@@ -41,9 +41,14 @@ EXEMPT_API_PATHS = {"/api/openapi.json", "/api/docs"}
 # Well-formed as a Bearer credential, but not a token this server ever issued.
 UNKNOWN_TOKEN = "f" * 64
 
-# The operations a restrictable scope reaches that address no suite, so that a key restricted to
-# some suites can never call them (I5).
-UNRESTRICTED_ONLY = {("POST", "/api/suites")}
+# The operations a restrictable scope reaches that address no suite: those that need the project
+# covered in full, which a key restricted to single suites never does, and those that need an
+# instance-wide key (I5).
+IN_FULL_ONLY = {
+    ("POST", "/api/projects/{project}/suites"),
+    ("PATCH", "/api/projects/{project}"),
+}
+UNRESTRICTED_ONLY = {("POST", "/api/projects"), ("DELETE", "/api/projects/{project}")}
 
 # A suite of the smallest shape, for the tests that need one to exist.
 NTS: dict[str, Any] = {"name": "nts", "metrics": [{"name": "execution_time", "type": "real"}]}
@@ -207,11 +212,11 @@ class TestSuiteRestriction:
     ) -> None:
         """The guard that keeps a future endpoint from letting a restricted key out of its suites.
 
-        Every operation a restrictable scope reaches is called on suite `x` with a `manage` key
-        restricted to another suite, while `x` does not exist, and then with one restricted to `x`,
-        once it does. The first is refused everywhere, before the missing suite is noticed (I5's
-        order of checks), and the second only where no suite is addressed. An endpoint whose suite
-        is not where the authorization looks for it fails one or the other.
+        Every operation a restrictable scope reaches is called on suite `x` of project `x` with a
+        `manage` key restricted to another suite, while `x` does not exist, and then with one
+        restricted to `x`, once it does. The first is refused everywhere, before the missing suite
+        is noticed (I5's order of checks), and the second only where no suite is addressed. An
+        endpoint whose suite is not where the authorization looks for it fails one or the other.
         """
         elsewhere = bearer(restricted_key(Scope.MANAGE, "other"))
         restrictable = set(Scope) - set(UNRESTRICTABLE_SCOPES)
@@ -230,13 +235,33 @@ class TestSuiteRestriction:
         }
 
         # Had an operation deleted `x`, the key would have lost it, and been refused for that.
-        assert api_client.get("/api/suites/x").status_code == 200
-        assert refused_here == UNRESTRICTED_ONLY
+        assert api_client.get("/api/projects/x/suites/x").status_code == 200
+        assert refused_here == IN_FULL_ONLY | UNRESTRICTED_ONLY
+
+    def test_every_operation_that_addresses_no_suite_says_what_a_key_needs(
+        self, api_app: FastAPI
+    ) -> None:
+        # Authorization fails closed: an operation addressing no suite needs an instance-wide key
+        # unless it declares that a key covering its project in full will do. The declarations
+        # are what this pins, so that a new one is a deliberate change.
+        restrictable = set(Scope) - set(UNRESTRICTABLE_SCOPES)
+        declared: dict[Coverage, set[tuple[str, str]]] = {}
+        for route in iter_routes(api_app.routes):
+            requirement = route_requirement(route)
+            if requirement is None or requirement.scope not in restrictable:
+                continue
+            assert route.path_format is not None
+            if suite_parameters(route.path_format) is not None:
+                continue
+            for method in route.methods or ():
+                declared.setdefault(requirement.coverage, set()).add((method, route.path_format))
+
+        assert declared == {Coverage.PROJECT: IN_FULL_ONLY, Coverage.INSTANCE: UNRESTRICTED_ONLY}
 
     def test_reads_every_other_suite(
         self,
         api_client: TestClient,
-        make_api_suite: Callable[[dict[str, Any]], Any],
+        make_api_suite: Callable[..., Any],
         restricted_key: Callable[..., str],
         bearer: Callable[[str], dict[str, str]],
     ) -> None:
@@ -244,9 +269,47 @@ class TestSuiteRestriction:
         make_api_suite(NTS)
         headers = bearer(restricted_key(Scope.MANAGE, "other"))
 
-        assert api_client.get("/api/suites/nts/machines", headers=headers).status_code == 200
+        response = api_client.get("/api/projects/nts/suites/nts/machines", headers=headers)
+        assert response.status_code == 200
 
-    def test_cannot_create_a_suite_even_one_it_names(
+    def test_does_not_cover_a_suite_of_the_same_name_in_another_project(
+        self,
+        api_client: TestClient,
+        make_api_suite: Callable[..., Any],
+        restricted_key: Callable[..., str],
+        bearer: Callable[[str], dict[str, str]],
+    ) -> None:
+        # A suite is identified by its project's name and its own together (D7).
+        make_api_suite(NTS, "other")
+        headers = bearer(restricted_key(Scope.MANAGE, "llvm/nts"))
+        machine = {"name": "m"}
+
+        mine = api_client.post(
+            "/api/projects/llvm/suites/nts/machines", json=machine, headers=headers
+        )
+        theirs = api_client.post(
+            "/api/projects/other/suites/nts/machines", json=machine, headers=headers
+        )
+
+        assert mine.status_code == 201
+        assert theirs.status_code == 403
+        assert "test suite 'other/nts'" in theirs.json()["error"]["message"]
+
+    def test_cannot_create_a_suite_in_the_project_of_one_it_names(
+        self,
+        api_client: TestClient,
+        restricted_key: Callable[..., str],
+        bearer: Callable[[str], dict[str, str]],
+    ) -> None:
+        # That needs the project covered in full (I5), which a key listing a suite does not.
+        headers = bearer(restricted_key(Scope.MANAGE, "nts"))
+
+        response = api_client.post("/api/projects/nts/suites", json=NTS, headers=headers)
+
+        assert response.status_code == 403
+        assert "covering project 'nts' in full" in response.json()["error"]["message"]
+
+    def test_cannot_change_the_project_of_a_suite_it_names(
         self,
         api_client: TestClient,
         restricted_key: Callable[..., str],
@@ -254,31 +317,57 @@ class TestSuiteRestriction:
     ) -> None:
         headers = bearer(restricted_key(Scope.MANAGE, "nts"))
 
-        response = api_client.post("/api/suites", json=NTS, headers=headers)
+        response = api_client.patch(
+            "/api/projects/nts", json={"display_name": "NTS"}, headers=headers
+        )
 
         assert response.status_code == 403
-        assert "unrestricted" in response.json()["error"]["message"]
+        assert "covering project 'nts' in full" in response.json()["error"]["message"]
+
+    @pytest.mark.parametrize(
+        ("method", "path", "body"),
+        [
+            ("POST", "/api/projects", {"name": "new"}),
+            ("DELETE", "/api/projects/nts", None),
+        ],
+    )
+    def test_cannot_create_or_delete_a_project(
+        self,
+        api_client: TestClient,
+        restricted_key: Callable[..., str],
+        bearer: Callable[[str], dict[str, str]],
+        method: str,
+        path: str,
+        body: Any,
+    ) -> None:
+        headers = bearer(restricted_key(Scope.MANAGE, "nts"))
+
+        response = api_client.request(method, path, json=body, headers=headers)
+
+        assert response.status_code == 403
+        assert "instance-wide" in response.json()["error"]["message"]
 
     def test_changes_and_deletes_a_suite_it_names(
         self,
         api_client: TestClient,
-        make_api_suite: Callable[[dict[str, Any]], Any],
+        make_api_suite: Callable[..., Any],
         make_key: Callable[..., str],
         bearer: Callable[[str], dict[str, str]],
     ) -> None:
         make_api_suite(NTS)
         headers = bearer(make_key(Scope.MANAGE, suites=["nts"]))
         patch = {"metrics": {"add": [{"name": "size", "type": "integer"}]}}
+        suite = "/api/projects/nts/suites/nts"
 
-        assert api_client.patch("/api/suites/nts/schema", json=patch, headers=headers).is_success
-        assert api_client.delete("/api/suites/nts?confirm=true", headers=headers).status_code == 204
+        assert api_client.patch(f"{suite}/schema", json=patch, headers=headers).is_success
+        assert api_client.delete(f"{suite}?confirm=true", headers=headers).status_code == 204
         # Which removes the suite from the key itself (I5).
-        assert api_client.get("/api/auth", headers=headers).json()["key"]["suites"] == []
+        assert api_client.get("/api/auth", headers=headers).json()["key"]["restricted_to"] == []
 
     def test_does_not_cover_a_suite_created_again_under_its_name(
         self,
         api_client: TestClient,
-        make_api_suite: Callable[[dict[str, Any]], Any],
+        make_api_suite: Callable[..., Any],
         make_key: Callable[..., str],
         manage: dict[str, str],
         bearer: Callable[[str], dict[str, str]],
@@ -287,10 +376,11 @@ class TestSuiteRestriction:
         # key, and the suite that takes the name next is another suite (I5).
         make_api_suite(NTS)
         headers = bearer(make_key(Scope.MANAGE, suites=["nts"]))
-        assert api_client.delete("/api/suites/nts?confirm=true", headers=manage).status_code == 204
+        suite = "/api/projects/nts/suites/nts"
+        assert api_client.delete(f"{suite}?confirm=true", headers=manage).status_code == 204
         make_api_suite(NTS)
 
-        response = api_client.post("/api/suites/nts/machines", json={"name": "m"}, headers=headers)
+        response = api_client.post(f"{suite}/machines", json={"name": "m"}, headers=headers)
 
         assert response.status_code == 403
 
@@ -302,10 +392,11 @@ class TestSuiteRestriction:
         bearer: Callable[[str], dict[str, str]],
     ) -> None:
         headers = bearer(restricted_key(Scope.MANAGE, "libcxx", "nts"))
-        assert api_client.delete("/api/suites/nts?confirm=true", headers=manage).status_code == 204
+        deleted = api_client.delete("/api/projects/nts/suites/nts?confirm=true", headers=manage)
+        assert deleted.status_code == 204
 
         response = api_client.post(
-            "/api/suites/libcxx/machines", json={"name": "m"}, headers=headers
+            "/api/projects/libcxx/suites/libcxx/machines", json={"name": "m"}, headers=headers
         )
 
         assert response.status_code == 201
@@ -313,21 +404,25 @@ class TestSuiteRestriction:
     def test_grants_only_read_once_its_suites_are_all_deleted(
         self,
         api_client: TestClient,
-        make_api_suite: Callable[[dict[str, Any]], Any],
+        make_api_suite: Callable[..., Any],
         restricted_key: Callable[..., str],
         manage: dict[str, str],
         bearer: Callable[[str], dict[str, str]],
     ) -> None:
         # I5: the key stays restricted, to nothing, rather than becoming valid across the instance.
         headers = bearer(restricted_key(Scope.MANAGE, "gone"))
-        assert api_client.delete("/api/suites/gone?confirm=true", headers=manage).status_code == 204
+        deleted = api_client.delete("/api/projects/gone/suites/gone?confirm=true", headers=manage)
+        assert deleted.status_code == 204
         make_api_suite(NTS)
+        machines = "/api/projects/nts/suites/nts/machines"
 
-        assert api_client.get("/api/suites/nts/machines", headers=headers).status_code == 200
-        write = api_client.post("/api/suites/nts/machines", json={"name": "m"}, headers=headers)
+        assert api_client.get(machines, headers=headers).status_code == 200
+        write = api_client.post(machines, json={"name": "m"}, headers=headers)
         assert write.status_code == 403
         assert "have all been deleted" in write.json()["error"]["message"]
-        creation = api_client.post("/api/suites", json={**NTS, "name": "new"}, headers=headers)
+        creation = api_client.post(
+            "/api/projects/nts/suites", json={**NTS, "name": "new"}, headers=headers
+        )
         assert creation.status_code == 403
         assert "have all been deleted" in creation.json()["error"]["message"]
 
@@ -335,9 +430,10 @@ class TestSuiteRestriction:
         ("scope", "path", "says"),
         [
             # Under-scoped wherever it is used: the restriction is beside the point.
-            (Scope.SUBMIT, "/api/suites/x/machines", "this API key grants 'submit'"),
-            (Scope.MANAGE, "/api/suites/y/machines", "grants it only in: x"),
-            (Scope.MANAGE, "/api/suites", "this one is restricted to test suites: x"),
+            (Scope.SUBMIT, "/api/projects/x/suites/x/machines", "this API key grants 'submit'"),
+            (Scope.MANAGE, "/api/projects/x/suites/y/machines", "grants it only in: x/x"),
+            (Scope.MANAGE, "/api/projects/x/suites", "is restricted to: x/x"),
+            (Scope.MANAGE, "/api/projects", "from an instance-wide API key"),
         ],
     )
     def test_a_403_says_why(
@@ -399,7 +495,7 @@ class TestExemptRoutes:
 
     @pytest.mark.parametrize(
         "path",
-        ["/api/openapi.json", "/api/docs", "/healthz", "/llms.txt", "/robots.txt", "/suites/nts"],
+        ["/api/openapi.json", "/api/docs", "/healthz", "/llms.txt", "/robots.txt", "/projects/nts"],
     )
     def test_a_query_parameter_has_no_effect(self, api_client: TestClient, path: str) -> None:
         # I3's refusal is for the REST API surface, which these are outside of: a proxy busting a
@@ -433,7 +529,9 @@ class TestUnknownQueryParameters:
             assert "'bogus'" in response.json()["error"]["message"]
 
     def test_names_every_one_and_what_the_endpoint_takes(self, client: TestClient) -> None:
-        response = client.get("/api/suites/nts/machines?machnie=linux&serch=x&search=y")
+        response = client.get(
+            "/api/projects/nts/suites/nts/machines?machnie=linux&serch=x&search=y"
+        )
 
         message = response.json()["error"]["message"]
         assert "'machnie'" in message
@@ -446,7 +544,9 @@ class TestUnknownQueryParameters:
     def test_points_an_endpoint_taking_a_body_at_it(self, client: TestClient) -> None:
         # The indicator lookup takes its filters in its body (I2), so a `limit` in the query string
         # was almost certainly meant to be a key of it.
-        response = client.post("/api/suites/nts/regressions/indicators/query?limit=5", json={})
+        response = client.post(
+            "/api/projects/nts/suites/nts/regressions/indicators/query?limit=5", json={}
+        )
 
         assert response.status_code == 400
         assert "request body" in response.json()["error"]["message"]
@@ -457,7 +557,7 @@ class TestUnknownQueryParameters:
     def test_a_single_valued_parameter_given_twice_is_refused(self, client: TestClient) -> None:
         # Rather than answered with the last value, which is what a client repeating `machine=`
         # in the belief that it took several would otherwise silently get.
-        response = client.get("/api/suites/nts/runs?machine=a&machine=b")
+        response = client.get("/api/projects/nts/suites/nts/runs?machine=a&machine=b")
 
         assert response.status_code == 400
         assert response.json()["error"]["code"] == "invalid_request"

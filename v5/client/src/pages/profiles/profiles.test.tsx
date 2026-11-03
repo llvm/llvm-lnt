@@ -58,7 +58,7 @@ describe('the Profiles page: side selection (PF2)', () => {
     const { commits } = mockWorld()
     renderPage('/profiles')
 
-    await pickOption('Suite', 'libcxx', await screen.findByRole('region', { name: 'Side A' }))
+    await pickOption('Suite', 'llvm/libcxx', await screen.findByRole('region', { name: 'Side A' }))
     await pick('Machine', 'm1', sideOf('A'))
     await pick('Commit', 'c1', sideOf('A'))
 
@@ -67,7 +67,7 @@ describe('the Profiles page: side selection (PF2)', () => {
     expect(selectButton('Run', sideOf('A'))).toHaveTextContent('2026-08-21, 10:00:00 AM 22222222')
     expect(within(sideOf('A')).getByRole('link', { name: /^Run 22222222/ })).toHaveAttribute(
       'href',
-      `/suites/libcxx/runs/${uuidOf('2')}`,
+      `/projects/llvm/suites/libcxx/runs/${uuidOf('2')}`,
     )
     expect(await testOptions('A')).toEqual(['alpha', 'gamma'])
     expect(query().test_a).toBeUndefined()
@@ -129,7 +129,9 @@ describe('the Profiles page: side selection (PF2)', () => {
 
   it('clears the commit, run and test when another machine has no profiles at it', async () => {
     mockWorld()
-    renderPage(`/profiles?suite_a=libcxx&machine_a=m1&commit_a=c2&run_a=${uuidOf('3')}&test_a=beta`)
+    renderPage(
+      `/profiles?project_a=llvm&suite_a=libcxx&machine_a=m1&commit_a=c2&run_a=${uuidOf('3')}&test_a=beta`,
+    )
     await waitFor(() => expect(field('Commit', 'A')).toHaveValue('c2'))
 
     await pick('Machine', 'm2', sideOf('A'))
@@ -141,7 +143,7 @@ describe('the Profiles page: side selection (PF2)', () => {
 
   it('says when a machine has no profiles at all', async () => {
     mockWorld()
-    renderPage('/profiles?suite_a=libcxx&machine_a=m3')
+    renderPage('/profiles?project_a=llvm&suite_a=libcxx&machine_a=m3')
 
     await waitFor(() =>
       expect(field('Commit', 'A')).toHaveAttribute('placeholder', 'No profiles on this machine'),
@@ -217,7 +219,7 @@ describe('the Profiles page: side selection (PF2)', () => {
     renderPage(ALPHA)
     await waitFor(() => expect(field('Test', 'A')).toHaveValue('alpha'))
 
-    await pickOption('Suite', 'libcxx', sideOf('B'))
+    await pickOption('Suite', 'llvm/libcxx', sideOf('B'))
     await pick('Machine', 'm2', sideOf('B'))
     expect(field('Test', 'B')).toHaveAttribute('placeholder', 'Select a run first')
     await pick('Commit', 'c1', sideOf('B'))
@@ -236,7 +238,7 @@ describe('the Profiles page: side selection (PF2)', () => {
     renderPage(ALPHA)
     await waitFor(() => expect(field('Test', 'A')).toHaveValue('alpha'))
 
-    await pickOption('Suite', 'libcxx', sideOf('B'))
+    await pickOption('Suite', 'llvm/libcxx', sideOf('B'))
     await pick('Machine', 'm2', sideOf('B'))
     await pick('Commit', 'c3', sideOf('B'))
 
@@ -296,16 +298,16 @@ describe('the Profiles page: side selection (PF2)', () => {
     renderPage(ALPHA)
     await waitFor(() => expect(field('Test', 'A')).toHaveValue('alpha'))
 
-    await pickOption('Suite', 'other', sideOf('A'))
+    await pickOption('Suite', 'llvm/other', sideOf('A'))
 
-    await waitFor(() => expect(currentUrl()).toBe('/profiles?suite_a=other'))
+    await waitFor(() => expect(currentUrl()).toBe('/profiles?project_a=llvm&suite_a=other'))
   })
 })
 
 describe('the Profiles page: URL state (PF9)', () => {
   it('selects the latest run for a commit named without one, checking the test there', async () => {
     mockWorld()
-    renderPage('/profiles?suite_a=libcxx&machine_a=m1&commit_a=c1&test_a=gamma')
+    renderPage('/profiles?project_a=llvm&suite_a=libcxx&machine_a=m1&commit_a=c1&test_a=gamma')
 
     await waitFor(() => expect(query().run_a).toEqual([uuidOf('2')]))
     await profileShown('A')
@@ -326,8 +328,8 @@ describe('the Profiles page: URL state (PF9)', () => {
   it("drops a test the run has no profile of, rather than take the other side's", async () => {
     mockWorld()
     renderPage(
-      `/profiles?suite_a=libcxx&machine_a=m1&commit_a=c1&run_a=${uuidOf('1')}&test_a=gamma` +
-        `&suite_b=libcxx&machine_b=m1&commit_b=c1&run_b=${uuidOf('2')}&test_b=alpha`,
+      `/profiles?project_a=llvm&suite_a=libcxx&machine_a=m1&commit_a=c1&run_a=${uuidOf('1')}&test_a=gamma` +
+        `&project_b=llvm&suite_b=libcxx&machine_b=m1&commit_b=c1&run_b=${uuidOf('2')}&test_b=alpha`,
     )
 
     await waitFor(() => expect(query().test_a).toBeUndefined())
@@ -337,8 +339,8 @@ describe('the Profiles page: URL state (PF9)', () => {
   it('drops what is named without what it depends on', async () => {
     mockWorld()
     renderPage(
-      `/profiles?suite_a=libcxx&machine_a=m1&run_a=${uuidOf('1')}&test_a=alpha&function_a=main` +
-        '&suite_b=libcxx&function_b=main&machine_b=m1&commit_b=c1&run_b=',
+      `/profiles?project_a=llvm&suite_a=libcxx&machine_a=m1&run_a=${uuidOf('1')}&test_a=alpha&function_a=main` +
+        '&project_b=llvm&suite_b=libcxx&function_b=main&machine_b=m1&commit_b=c1&run_b=',
     )
 
     await waitFor(() => expect(query().run_a).toBeUndefined())
@@ -356,11 +358,41 @@ describe('the Profiles page: URL state (PF9)', () => {
           : undefined,
     })
     renderPage(
-      '/profiles?suite_a=libcxx&machine_a=bogus&commit_a=c1&test_a=alpha&suite_b=nope&machine_b=m1',
+      '/profiles?project_a=llvm&suite_a=libcxx&machine_a=bogus&commit_a=c1&test_a=alpha&project_b=llvm&suite_b=nope&machine_b=m1',
     )
 
-    await waitFor(() => expect(currentUrl()).toBe('/profiles?suite_a=libcxx'))
+    await waitFor(() => expect(currentUrl()).toBe('/profiles?project_a=llvm&suite_a=libcxx'))
     expect(screen.queryByText(/could not be (listed|looked up)/)).not.toBeInTheDocument()
+  })
+
+  it('drops a suite of another project with its project, and what depends on them', async () => {
+    mockWorld()
+    renderPage(
+      '/profiles?project_a=llvm&suite_a=libcxx&project_b=other&suite_b=libcxx&machine_b=m1' +
+        '&commit_b=c1',
+    )
+
+    await waitFor(() => expect(currentUrl()).toBe('/profiles?project_a=llvm&suite_a=libcxx'))
+  })
+
+  it('drops a suite named without its project, or a project named without its suite', async () => {
+    mockWorld()
+    renderPage('/profiles?suite_a=libcxx&machine_a=m1&project_b=llvm&machine_b=m1')
+
+    await waitFor(() => expect(currentUrl()).toBe('/profiles'))
+  })
+
+  it('keeps a suite that may not exist while the projects could not be listed', async () => {
+    mockWorld()
+    server.use(
+      mockApi('get', '/api/projects', () => errorResponse(500, 'internal_error', 'No suites')),
+    )
+    const url = '/profiles?project_a=other&suite_a=libcxx&machine_a=m1'
+    renderPage(url)
+
+    expect(await main().findByText(/The test suites could not be listed/)).toBeInTheDocument()
+    await settle()
+    expect(currentUrl()).toBe(url)
   })
 
   it('drops an unknown Values setting', async () => {
@@ -466,7 +498,7 @@ describe('the Profiles page: layout and data flow (PF7, PF8)', () => {
     let fail = true
     mockWorld()
     server.use(
-      mockApi('get', '/api/suites', () =>
+      mockApi('get', '/api/projects', () =>
         fail ? (errorResponse(500, 'internal_error', 'No suites') as never) : undefined,
       ),
     )
@@ -522,7 +554,7 @@ describe('the Profiles page: layout and data flow (PF7, PF8)', () => {
   it('reports runs that could not be listed while the suites could not be either', async () => {
     mockWorld({ runsAnswer: () => errorResponse(500, 'internal_error', 'Boom') })
     server.use(
-      mockApi('get', '/api/suites', () => errorResponse(500, 'internal_error', 'No suites')),
+      mockApi('get', '/api/projects', () => errorResponse(500, 'internal_error', 'No suites')),
     )
     renderPage(ALPHA)
 
@@ -563,7 +595,7 @@ describe('the Profiles page: layout and data flow (PF7, PF8)', () => {
         return HttpResponse.json(cursorPage([]))
       },
     })
-    renderPage('/profiles?suite_a=libcxx&machine_a=m1&commit_a=c2')
+    renderPage('/profiles?project_a=llvm&suite_a=libcxx&machine_a=m1&commit_a=c2')
 
     await waitFor(() =>
       expect(selectButton('Run', sideOf('A'))).toHaveTextContent('Loading runs...'),

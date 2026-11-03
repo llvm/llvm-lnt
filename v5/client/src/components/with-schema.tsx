@@ -1,12 +1,12 @@
 import type { ReactNode } from 'react'
-import { useSuites, type SuiteSchema } from '../api/suites'
+import { findSuite, fullName, useSuites, type Suite, type SuiteRef } from '../api/suites'
 import { Alert, ErrorMessage, Loading } from './feedback'
 
 interface Props {
   /** The suite named by the page's URL. */
-  suite: string
+  suite: SuiteRef
   /** The page's content, once it has the suite's schema. */
-  children(schema: SuiteSchema): ReactNode
+  children(schema: Suite): ReactNode
 }
 
 /**
@@ -19,7 +19,9 @@ export function WithSchema({ suite, children }: Props) {
   if (suites.isError) {
     return <ErrorMessage error={suites.error} onRetry={() => void suites.refetch()} />
   }
-  const schema = suites.data.find((entry) => entry.name === suite)
-  if (schema === undefined) return <Alert>Test suite '{suite}' not found.</Alert>
+  const schema = findSuite(suites.data, suite)
+  if (schema === undefined) {
+    return <Alert>Test suite '{fullName(suite)}' not found.</Alert>
+  }
   return children(schema)
 }

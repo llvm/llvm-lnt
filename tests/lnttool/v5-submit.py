@@ -1,6 +1,6 @@
 # Test `lnt v5 submit` against a fake v5 instance whose responses the test
-# scripts: creating suites, submitting runs a suite already has, skipping them
-# with --skip-existing, retries, interruptions, and failures.
+# scripts: creating suites in projects, submitting runs a suite already has,
+# skipping them with --skip-existing, retries, interruptions, and failures.
 #
 # RUN: python %s > %t.out
 # RUN: filecheck %s < %t.out
@@ -21,8 +21,8 @@ from lnt.lnttool.v5 import action_submit
 
 TOKENS = {'admin-token': 'admin', 'submit-token': 'submit',
           'read-token': 'read'}
-# The fake instance's suites: name -> {run UUID: submission}.
-suites: dict = {}
+# The fake instance's projects: name -> {suite name: {run UUID: submission}}.
+projects: dict = {'llvm': {}}
 # Run UUID -> responses to give to its submissions before storing it, as
 # (status, error code). Without an error code, the response is an HTML page, as
 # a proxy in front of the instance would give.
@@ -80,14 +80,16 @@ class Handler(BaseHTTPRequestHandler):
                     return self.reply(*error(401, 'unauthorized', 'bad token'))
                 key = {'prefix': 'x', 'scope': scope} if scope else None
                 return self.reply(200, {'key': key})
-            if len(parts) >= 3 and parts[:2] == ['api', 'suites'] and \
-                    parts[2] not in suites:
+            # /api/projects/{project}/suites/{suite}[/runs]
+            if parts[2] not in projects:
+                return self.reply(*error(404, 'not_found', 'no such project'))
+            if parts[4] not in projects[parts[2]]:
                 return self.reply(*error(404, 'not_found', 'no such suite'))
-            if len(parts) == 3:
-                return self.reply(200, {'name': parts[2]})
+            if len(parts) == 5:
+                return self.reply(200, {'name': parts[4]})
             listed.append(url.query)
             # Two runs per page, whatever the limit, to exercise paging.
-            uuids = sorted(suites[parts[2]])
+            uuids = sorted(projects[parts[2]][parts[4]])
             start = int(parse_qs(url.query).get('cursor', ['0'])[0])
             more = start + 2 < len(uuids)
             return self.reply(200, {
@@ -106,12 +108,16 @@ class Handler(BaseHTTPRequestHandler):
             data = gzip.decompress(data)
         body = json.loads(data)
         with lock:
-            if parts == ['api', 'suites']:
+            if parts[2] not in projects:
+                return self.reply(*error(404, 'not_found', 'no such project'))
+            suites = projects[parts[2]]
+            # /api/projects/{project}/suites
+            if len(parts) == 4:
                 if body['name'] in suites:
                     return self.reply(*error(409, 'duplicate', 'exists'))
                 suites[body['name']] = {}
                 return self.reply(201, body)
-            runs = suites[parts[2]]
+            runs = suites[parts[4]]
             uuid = body.get('uuid')
             posts.append(uuid)
             uuid = uuid.lower()  # as v5 does
@@ -145,10 +151,12 @@ def write(name, content):
 def submit(*args, input=None):
     del posts[:]
     del listed[:]
-    # Retry immediately, rather than after the delay meant for a real instance.
-    result = CliRunner().invoke(action_submit,
-                                [URL, '--retry-delay', '0'] + list(args),
-                                input=input)
+    # Into the project 'llvm', unless the test names another. Retrying
+    # immediately, rather than after the delay meant for a real instance.
+    project = [] if '--project' in args else ['--project', 'llvm']
+    result = CliRunner().invoke(
+        action_submit, [URL, '--retry-delay', '0'] + project + list(args),
+        input=input)
     print(result.output, end='')
     print('exit: %d, posted: %d, listed: %d'
           % (result.exit_code, len(posts), len(listed)))
@@ -162,7 +170,7 @@ print('# CREATE')
 submit('--suite', 'nts', '--create-suite', SCHEMA, '--token', 'admin-token',
        RUNS)
 # CHECK-LABEL: # CREATE
-# CHECK-NEXT: Created suite 'nts'
+# CHECK-NEXT: Created suite 'llvm/nts'
 # CHECK-NEXT: Submitted 3 run(s), 0 the suite already had; 0 failure(s).
 # CHECK-NEXT: exit: 0, posted: 3, listed: 0
 
@@ -170,14 +178,14 @@ submit('--suite', 'nts', '--create-suite', SCHEMA, '--token', 'admin-token',
 FRESH = write('fresh.json', json.dumps({'name': 'fresh', 'metrics': []}))
 submit('--suite', 'fresh', '--create-suite', FRESH, '--token', 'admin-token',
        '--skip-existing', RUNS)
-# CHECK-NEXT: Created suite 'fresh'
+# CHECK-NEXT: Created suite 'llvm/fresh'
 # CHECK-NEXT: Submitted 3 run(s), 0 the suite already had; 0 failure(s).
 # CHECK-NEXT: exit: 0, posted: 3, listed: 0
 
 # A suite that exists already is not created again, and nothing is submitted.
 submit('--suite', 'nts', '--create-suite', SCHEMA, '--token', 'admin-token',
        RUNS)
-# CHECK-NEXT: error: suite 'nts' already exists; submit to it without --create-suite
+# CHECK-NEXT: error: suite 'llvm/nts' already exists; submit to it without --create-suite
 # CHECK-NEXT: exit: 1, posted: 0, listed: 0
 
 # The schema must be the suite's.
@@ -188,8 +196,22 @@ submit('--suite', 'other', '--create-suite', SCHEMA, '--token', 'admin-token',
 
 # Without --create-suite, the suite must exist, even without --skip-existing.
 submit('--suite', 'missing', '--token', 'submit-token', RUNS)
-# CHECK-NEXT: error: there is no suite 'missing'
+# CHECK-NEXT: error: there is no suite 'llvm/missing': 404 no such suite
 # CHECK-NEXT: exit: 1, posted: 0, listed: 0
+
+# The project must exist, with --create-suite too, which does not create it.
+submit('--project', 'nope', '--suite', 'nts', '--token', 'submit-token', RUNS)
+submit('--project', 'nope', '--suite', 'nts', '--create-suite', SCHEMA,
+       '--token', 'admin-token', RUNS)
+# CHECK-NEXT: error: there is no suite 'nope/nts': 404 no such project
+# CHECK-NEXT: exit: 1, posted: 0, listed: 0
+# CHECK-NEXT: error: there is no project 'nope'; create it first, with POST /api/projects
+# CHECK-NEXT: exit: 1, posted: 0, listed: 0
+
+# The suite is named by its project and its own name, which are both required.
+result = CliRunner().invoke(action_submit, [URL, '--suite', 'nts', RUNS])
+print('without --project: exit %d' % result.exit_code)
+# CHECK-NEXT: without --project: exit 2
 
 # ---------------------------------------------------------------------------
 print('# TOKENS')
@@ -211,7 +233,7 @@ submit('--suite', 'new', '--create-suite', SCHEMA, '--token', 'submit-token',
 # The token can also come from the environment.
 del posts[:]
 result = CliRunner(env={'LNT_TOKEN': 'submit-token'}).invoke(
-    action_submit, [URL, '--suite', 'nts', RUNS])
+    action_submit, [URL, '--project', 'llvm', '--suite', 'nts', RUNS])
 print(result.output, end='')
 # CHECK-NEXT: Submitted 0 run(s), 3 the suite already had; 0 failure(s).
 
@@ -233,7 +255,7 @@ more = '\n'.join(run(u) for u in ('u1', 'U2', 'u6', 'u3', 'u6', 'u4', 'u5'))
 submit('--suite', 'nts', '--token', 'submit-token', '--skip-existing',
        write('more.jsonl', more))
 # CHECK-LABEL: # SKIP EXISTING
-# CHECK-NEXT: Suite 'nts' has 5 run(s) already
+# CHECK-NEXT: Suite 'llvm/nts' has 5 run(s) already
 # CHECK-NEXT: Submitted 1 run(s), 6 the suite already had; 0 failure(s).
 # CHECK-NEXT: exit: 0, posted: 2, listed: 3
 
@@ -279,13 +301,13 @@ submit('--suite', 'nts', '--token', 'submit-token', '--retries', '0',
 scripted['q3'] = [(502, None)] * 2
 submit('--suite', 'nts', '--token', 'submit-token', '--retries', '1',
        input=run('q3'))
-# CHECK-NEXT:   POST /api/suites/nts/runs failed (502 Bad Gateway); retrying in 0s (retry 1 of 1)
+# CHECK-NEXT:   POST /api/projects/llvm/suites/nts/runs failed (502 Bad Gateway); retrying in 0s (retry 1 of 1)
 # CHECK-NEXT:   line 1 (run q3 of machine m at commit c1): 502 Bad Gateway
 # CHECK-NEXT: Submitted 0 run(s), 0 the suite already had; 1 failure(s).
 # CHECK-NEXT: exit: 1, posted: 2, listed: 0
 scripted['q4'] = [(520, None)]
 submit('--suite', 'nts', '--token', 'submit-token', input=run('q4'))
-# CHECK-NEXT:   POST /api/suites/nts/runs failed (520 <html> <body> proxy error</body> </html>); retrying {{.*}}
+# CHECK-NEXT:   POST {{.*}}/runs failed (520 <html> <body> proxy error</body> </html>); retrying {{.*}}
 # CHECK-NEXT: Submitted 1 run(s), 0 the suite already had; 0 failure(s).
 # CHECK-NEXT: exit: 0, posted: 2, listed: 0
 
@@ -302,16 +324,16 @@ start = time.monotonic()
 submit('--suite', 'nts', '--token', 'submit-token', '--retry-delay', '0.1',
        input=run('q5'))
 print('waited at least 0.2s: %s' % (time.monotonic() - start >= 0.2))
-# CHECK-NEXT:   POST /api/suites/nts/runs failed (409 scripted 409 retry); retrying in 0.1s (retry 1 of 30)
-# CHECK-NEXT:   POST /api/suites/nts/runs failed (500 scripted 500 internal_error); retrying in 0.1s (retry 2 of 30)
+# CHECK-NEXT:   POST {{.*}}/runs failed (409 scripted 409 retry); retrying in 0.1s (retry 1 of 30)
+# CHECK-NEXT:   POST {{.*}}/runs failed (500 scripted 500 internal_error); retrying in 0.1s (retry 2 of 30)
 # CHECK-NEXT: Submitted 1 run(s), 0 the suite already had; 0 failure(s).
 # CHECK-NEXT: exit: 0, posted: 3, listed: 0
 # CHECK-NEXT: waited at least 0.2s: True
 
 # Neither option can be negative.
 for option in ('--retries', '--retry-delay'):
-    result = CliRunner().invoke(action_submit, [URL, '--suite', 'nts', option,
-                                                '-1', RUNS])
+    result = CliRunner().invoke(action_submit, [
+        URL, '--project', 'llvm', '--suite', 'nts', option, '-1', RUNS])
     print('%s -1: exit %d' % (option, result.exit_code))
 # CHECK-NEXT: --retries -1: exit 2
 # CHECK-NEXT: --retry-delay -1: exit 2
@@ -319,8 +341,8 @@ for option in ('--retries', '--retry-delay'):
 # A request that would fail again, such as one to a URL without a scheme, is
 # not retried.
 result = CliRunner().invoke(action_submit, [
-    'lnt.example.com', '--suite', 'nts', '--retries', '1', '--retry-delay',
-    '60', RUNS])
+    'lnt.example.com', '--project', 'llvm', '--suite', 'nts', '--retries', '1',
+    '--retry-delay', '60', RUNS])
 print(result.output, end='')
 # CHECK-NEXT: error: lnt.example.com cannot be reached: {{.*}}No scheme supplied{{.*}}
 
@@ -342,7 +364,8 @@ def interrupted():
 reported: list = []
 start = time.monotonic()
 try:
-    lnt.util.v5_submit.submit(URL, 'nts', interrupted(), 'submit-token',
+    lnt.util.v5_submit.submit(URL, 'llvm', 'nts', interrupted(),
+                              'submit-token',
                               workers=1, echo=reported.append, retries=1,
                               retry_delay=60)
 except KeyboardInterrupt:

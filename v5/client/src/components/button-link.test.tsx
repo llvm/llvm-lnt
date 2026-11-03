@@ -6,13 +6,13 @@ import { ButtonLink } from './button-link'
 describe('ButtonLink', () => {
   it('is a link while it leads somewhere', () => {
     renderWithProviders(
-      <ButtonLink to="/compare?suite_a=nts" title="Compare them">
+      <ButtonLink to="/compare?project_a=llvm&suite_a=nts" title="Compare them">
         Compare
       </ButtonLink>,
     )
 
     const link = screen.getByRole('link', { name: 'Compare' })
-    expect(link).toHaveAttribute('href', '/compare?suite_a=nts')
+    expect(link).toHaveAttribute('href', '/compare?project_a=llvm&suite_a=nts')
     expect(link).not.toHaveAttribute('aria-disabled')
   })
 

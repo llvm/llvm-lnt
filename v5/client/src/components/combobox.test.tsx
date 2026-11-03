@@ -381,7 +381,7 @@ function serveCommits({ hold = false } = {}): Requests {
   const seen: string[] = []
   const waiting: (() => void)[] = []
   server.use(
-    mockApi('get', '/api/suites/{testsuite}/commits', async ({ request }) => {
+    mockApi('get', '/api/projects/{project}/suites/{suite}/commits', async ({ request }) => {
       const url = new URL(request.url)
       const search = url.searchParams.get('search') ?? ''
       const cursor = url.searchParams.get('cursor')
@@ -431,7 +431,7 @@ function serveRestarts({ total, rejects = () => false, restart }: RestartOptions
   const held = gate()
   let generation = 0
   server.use(
-    mockApi('get', '/api/suites/{testsuite}/commits', async ({ request }) => {
+    mockApi('get', '/api/projects/{project}/suites/{suite}/commits', async ({ request }) => {
       const cursor = new URL(request.url).searchParams.get('cursor')
       const label = cursor ?? '@'
       request.signal.addEventListener('abort', () => aborted.push(label))
@@ -468,15 +468,21 @@ function toSuggestion(c: Commit): Suggestion {
     : { key: c.value, text: c.value }
 }
 
-function ServerCommitPicker({ initial = null, delayMs }: { initial?: Suggestion | null; delayMs?: number }) {
+function ServerCommitPicker({
+  initial = null,
+  delayMs,
+}: {
+  initial?: Suggestion | null
+  delayMs?: number
+}) {
   const [picked, setPicked] = useState(initial)
   const suggestions = useServerSuggestions({
     queryKey: ['commits', 'nts'],
     fetchPage: (search, cursor, signal) =>
       unwrap(
-        api.GET('/api/suites/{testsuite}/commits', {
+        api.GET('/api/projects/{project}/suites/{suite}/commits', {
           params: {
-            path: { testsuite: 'nts' },
+            path: { project: 'llvm', suite: 'nts' },
             query: { search: search || undefined, cursor, sort: '-first_seen', limit: PAGE_SIZE },
           },
           signal,
@@ -511,10 +517,11 @@ describe('Combobox with suggestions in groups', () => {
     await openList(user)
     expect(options()).toEqual(['linux-x86_64', 'macos-arm64', 'linux-O3', 'Untracked'])
     const group = screen.getByRole('group', { name: 'Untracked' })
-    expect(within(group).getAllByRole('option').map((option) => option.textContent)).toEqual([
-      'linux-O3',
-      'Untracked',
-    ])
+    expect(
+      within(group)
+        .getAllByRole('option')
+        .map((option) => option.textContent),
+    ).toEqual(['linux-O3', 'Untracked'])
   })
 
   it('moves past the heading with the arrow keys, and picks what is under it', async () => {
@@ -915,7 +922,7 @@ describe('Combobox with server-side suggestions', () => {
   it('stops loading more once loading more fails, and says why', async () => {
     const requests = serveCommits()
     server.use(
-      mockApi('get', '/api/suites/{testsuite}/commits', ({ request }) => {
+      mockApi('get', '/api/projects/{project}/suites/{suite}/commits', ({ request }) => {
         if (new URL(request.url).searchParams.get('cursor') === null) return undefined
         requests.seen.push('failed')
         return errorResponse(500, 'internal_error', 'The server failed.')
@@ -939,7 +946,7 @@ describe('Combobox with server-side suggestions', () => {
     const requests = serveRestarts({ total: 4, restart: 'hold' })
     let failing = true
     server.use(
-      mockApi('get', '/api/suites/{testsuite}/commits', ({ request }) => {
+      mockApi('get', '/api/projects/{project}/suites/{suite}/commits', ({ request }) => {
         if (!failing || new URL(request.url).searchParams.get('cursor') === null) return undefined
         return errorResponse(500, 'internal_error', 'The server failed.')
       }),
@@ -988,7 +995,7 @@ describe('Combobox with server-side suggestions', () => {
 
   it('shows why the suggestions could not be loaded', async () => {
     server.use(
-      mockApi('get', '/api/suites/{testsuite}/commits', () =>
+      mockApi('get', '/api/projects/{project}/suites/{suite}/commits', () =>
         errorResponse(404, 'not_found', "Test suite 'nts' not found"),
       ),
     )

@@ -188,4 +188,5 @@ export async function addMachine(name: string) {
   await user.click(await screen.findByRole('option', { name }))
 }
 
-export const GRAPHED = '/graph?suite=libcxx&machine=m1&machine=m2&metric=execution_time'
+export const GRAPHED =
+  '/graph?project=llvm&suite=libcxx&machine=m1&machine=m2&metric=execution_time'

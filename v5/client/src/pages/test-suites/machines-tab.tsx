@@ -3,7 +3,7 @@ import { Link } from 'react-router'
 import type { Schemas } from '../../api/client'
 import { machinesQuery } from '../../api/machines'
 import { shownData } from '../../api/shown-data'
-import type { SuiteSchema } from '../../api/suites'
+import { refOf, type Suite } from '../../api/suites'
 import { Badge } from '../../components/badge'
 import { DataTable, type Column } from '../../components/data-table'
 import { useServerSearch } from '../../components/use-server-search'
@@ -15,14 +15,14 @@ import { TabContent } from './tab-content'
 type Machine = Schemas['Machine']
 
 interface Props {
-  schema: SuiteSchema
+  schema: Suite
   search: string
   onSearch(text: string): void
 }
 
 /** Every machine of the suite, by name, with the fields the schema lists (TS3). */
 export function MachinesTab({ schema, search, onSearch }: Props) {
-  const suite = schema.name
+  const suite = refOf(schema)
   const input = useServerSearch(search, onSearch)
   const machines = useQuery({
     ...machinesQuery(suite, { search: search || undefined }),
@@ -54,7 +54,7 @@ export function MachinesTab({ schema, search, onSearch }: Props) {
   )
 }
 
-function columns(schema: SuiteSchema): Column<Machine>[] {
+function columns(schema: Suite): Column<Machine>[] {
   return [
     {
       id: 'name',
@@ -62,7 +62,7 @@ function columns(schema: SuiteSchema): Column<Machine>[] {
       looks: ['nowrap'],
       cell: (machine) => (
         <>
-          <Link to={machinePath(schema.name, machine.name)}>{machine.name}</Link>
+          <Link to={machinePath(refOf(schema), machine.name)}>{machine.name}</Link>
           {!machine.tracked && (
             <>
               {' '}

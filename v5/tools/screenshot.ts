@@ -4,13 +4,13 @@
  *     node tools/screenshot.ts <path> [--out FILE] [--url BASE] [--width W] [--height H]
  *                              [--full-page] [--wait-for SELECTOR] [--token TOKEN]
  *
- * `<path>` is the page's path and query, e.g. `/suites/libcxx?tab=machines`. `--url` defaults to
- * the Vite dev server that `npm run dev` starts, http://localhost:5173 unless `DEV_CLIENT_PORT` in
- * `.env` moves it (see .env.example). The page is captured once the network has been idle for a
- * moment, and, with `--wait-for`, once SELECTOR is visible. Errors the page reports are printed, so
- * that a blank screenshot comes with its reason. `--token` stores TOKEN in the browser before the
- * page loads, as the Settings panel does, so that the page is captured as a holder of that token
- * sees it.
+ * `<path>` is the page's path and query, e.g. `/projects/libcxx/suites/benchmarks?tab=machines`.
+ * `--url` defaults to the Vite dev server that `npm run dev` starts, http://localhost:5173 unless
+ * `DEV_CLIENT_PORT` in `.env` moves it (see .env.example). The page is captured once the network
+ * has been idle for a moment, and, with `--wait-for`, once SELECTOR is visible. Errors the page
+ * reports are printed, so that a blank screenshot comes with its reason. `--token` stores TOKEN in
+ * the browser before the page loads, as the Settings panel does, so that the page is captured as a
+ * holder of that token sees it.
  */
 
 import { tmpdir } from 'node:os'
@@ -39,7 +39,9 @@ function fail(message: string): never {
   process.exit(1)
 }
 
-if (positionals.length !== 1) fail('expected exactly one page path, e.g. /suites/libcxx')
+if (positionals.length !== 1) {
+  fail('expected exactly one page path, e.g. /projects/libcxx/suites/benchmarks')
+}
 
 const browser = await chromium.launch()
 try {

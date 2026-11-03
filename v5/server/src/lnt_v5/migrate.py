@@ -24,7 +24,7 @@ from sqlalchemy import Connection, Engine, select, text, update
 from lnt_v5.suites import migrations
 from lnt_v5.suites.schema import SuiteSchema
 from lnt_v5.suites.store import StoredSuite
-from lnt_v5.tables import schema
+from lnt_v5.tables import project, schema
 
 # Inside the package rather than beside it, because the Dockerfile copies only `server/src` and
 # installs the result into site-packages -- migrations left outside would simply not exist in the
@@ -52,6 +52,7 @@ class MigrationResult:
 
     before: str | None
     after: str | None
+    # By their full names (D7).
     suites_migrated: tuple[str, ...]
 
     @property
@@ -94,7 +95,7 @@ def is_up_to_date(connection: Connection) -> bool:
     if current_revision(connection) != head_revision():
         return False
     behind = connection.execute(
-        select(schema.c.name).where(schema.c.migration_version != migrations.head()).limit(1)
+        select(schema.c.id).where(schema.c.migration_version != migrations.head()).limit(1)
     ).first()
     return behind is None
 
@@ -149,7 +150,7 @@ def _upgrade_global_tables(connection: Connection) -> tuple[str | None, str | No
 
 
 def _upgrade_suites(connection: Connection) -> tuple[str, ...]:
-    """Migrate the tables of every suite that is behind, and return the names of those suites.
+    """Migrate the tables of every suite that is behind, and return the full names of those suites.
 
     Every suite is checked before any of them is migrated, so that if this build has to refuse the
     database, it does so before changing anything.
@@ -157,12 +158,17 @@ def _upgrade_suites(connection: Connection) -> tuple[str, ...]:
     head = migrations.head()
     with connection.begin():
         rows = connection.execute(
-            select(schema.c.name, schema.c.migration_version, schema.c.schema_json).order_by(
-                schema.c.name
+            select(
+                schema.c.id,
+                (project.c.name + "/" + schema.c.name).label("full_name"),
+                schema.c.migration_version,
+                schema.c.schema_json,
             )
+            .select_from(schema.join(project))
+            .order_by(project.c.name, schema.c.name)
         ).all()
 
-    for name, version, schema_json in rows:
+    for _, name, version, schema_json in rows:
         if version > head:
             raise MigrationError(
                 f"test suite '{name}' is at migration version {version}, but this build only knows "
@@ -181,13 +187,13 @@ def _upgrade_suites(connection: Connection) -> tuple[str, ...]:
                 ) from error
 
     migrated: list[str] = []
-    for name, version, _ in rows:
-        if version < head and _upgrade_suite(connection, name, head):
+    for id_, name, version, _ in rows:
+        if version < head and _upgrade_suite(connection, id_, head):
             migrated.append(name)
     return tuple(migrated)
 
 
-def _upgrade_suite(connection: Connection, name: str, head: int) -> bool:
+def _upgrade_suite(connection: Connection, id_: int, head: int) -> bool:
     """Run one suite's outstanding steps in a single transaction. Returns whether any steps ran.
 
     Like every change to a suite (see `store.py`), this first locks the suite's `schema` row, so
@@ -197,25 +203,35 @@ def _upgrade_suite(connection: Connection, name: str, head: int) -> bool:
     """
     with connection.begin():
         row = connection.execute(
-            select(schema.c.schema_json, schema.c.namespace, schema.c.migration_version)
-            .where(schema.c.name == name)
-            .with_for_update()
+            select(
+                project.c.name.label("project"),
+                schema.c.name,
+                schema.c.schema_json,
+                schema.c.namespace,
+                schema.c.migration_version,
+            )
+            .select_from(schema.join(project))
+            .where(schema.c.id == id_)
+            .with_for_update(of=schema)
         ).one_or_none()
         if row is None or row.migration_version >= head:
-            # Only possible if a running server deleted the suite since the first pass, or deleted
-            # it and created it again at the latest version.
+            # Only possible if a running server deleted the suite since the first pass.
             return False
 
-        suite = StoredSuite(name, SuiteSchema.model_validate_json(row.schema_json), row.namespace)
+        suite = StoredSuite(
+            id_,
+            row.project,
+            row.name,
+            SuiteSchema.model_validate_json(row.schema_json),
+            row.namespace,
+        )
         operations = Operations(MigrationContext.configure(connection))
         for step in migrations.STEPS[row.migration_version : head]:
             step(operations, suite)
             # A step may have moved the suite to another namespace (D6), where the next one works.
             moved = connection.execute(
-                select(schema.c.namespace).where(schema.c.name == name)
+                select(schema.c.namespace).where(schema.c.id == id_)
             ).scalar_one()
             suite = replace(suite, namespace=moved)
-        connection.execute(
-            update(schema).where(schema.c.name == name).values(migration_version=head)
-        )
+        connection.execute(update(schema).where(schema.c.id == id_).values(migration_version=head))
     return True

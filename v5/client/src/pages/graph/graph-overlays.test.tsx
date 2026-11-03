@@ -116,12 +116,12 @@ function scatter() {
   }))
 }
 
-const ONE_MACHINE = '/graph?suite=libcxx&machine=m1&metric=execution_time'
+const ONE_MACHINE = '/graph?project=llvm&suite=libcxx&machine=m1&metric=execution_time'
 
 describe('hover (GR7, GR10)', () => {
   it("emphasizes the hovered row's test, its baseline's lines too, fading others", async () => {
     mockWorld()
-    renderPage(`${GRAPHED}&test=a&test=b&baseline=libcxx/m1/c10`)
+    renderPage(`${GRAPHED}&test=a&test=b&baseline=llvm/libcxx/m1/c10`)
     await waitFor(() => expect(chart().data).toHaveLength(5))
 
     fireEvent.mouseEnter(testTable().getByText('b').closest('tr')!)
@@ -132,8 +132,8 @@ describe('hover (GR7, GR10)', () => {
       trace.line.width,
     ])
     expect(looks).toEqual([
-      ['a - baseline libcxx/m1/r10', 0.2, 1.5],
-      ['b - baseline libcxx/m1/r10', undefined, 3],
+      ['a - baseline llvm/libcxx/m1/r10', 0.2, 1.5],
+      ['b - baseline llvm/libcxx/m1/r10', undefined, 3],
       ['a - m1', 0.2, 1.5],
       ['b - m1', undefined, 3],
       ['b - m2', undefined, 3],
@@ -172,10 +172,10 @@ describe('hover (GR7, GR10)', () => {
 
   it("highlights the row of the test whose baseline's line is hovered", async () => {
     mockWorld()
-    renderPage(`${ONE_MACHINE}&test=a&test=b&baseline=libcxx/m1/c10`)
+    renderPage(`${ONE_MACHINE}&test=a&test=b&baseline=llvm/libcxx/m1/c10`)
     await waitFor(() => expect(chart().data).toHaveLength(4))
 
-    hover('b - baseline libcxx/m1/r10', 50)
+    hover('b - baseline llvm/libcxx/m1/r10', 50)
 
     expect(testTable().getByText('b').closest('span')).toHaveClass('hovered')
   })
@@ -288,11 +288,11 @@ describe('the point details (GR11)', () => {
     expect(dialog).toHaveFocus()
     expect(details().getByRole('link', { name: 'm1' })).toHaveAttribute(
       'href',
-      '/suites/libcxx/machines/m1',
+      '/projects/llvm/suites/libcxx/machines/m1',
     )
     expect(details().getByRole('link', { name: 'r20' })).toHaveAttribute(
       'href',
-      '/suites/libcxx/commits/c20',
+      '/projects/llvm/suites/libcxx/commits/c20',
     )
     expect(details().getByText('2 (2 runs)')).toBeInTheDocument()
     const table = details().getByRole('table', { name: 'Runs' })
@@ -303,8 +303,8 @@ describe('the point details (GR11)', () => {
     ])
     const runs = within(table).getAllByRole('row').slice(1)
     expect(runs.map((run) => within(run).getByRole('link').getAttribute('href'))).toEqual([
-      '/suites/libcxx/runs/r3',
-      '/suites/libcxx/runs/r2',
+      '/projects/llvm/suites/libcxx/runs/r3',
+      '/projects/llvm/suites/libcxx/runs/r2',
     ])
     expect(runs.map((run) => within(run).getAllByRole('cell').at(-1)?.textContent)).toEqual([
       '4 · 6',
@@ -313,8 +313,8 @@ describe('the point details (GR11)', () => {
     const compare = details().getByRole('link', { name: 'Compare prev' })
     expect(compare).toHaveAttribute(
       'href',
-      '/compare?suite_a=libcxx&machine_a=m1&commit_a=c10' +
-        '&suite_b=libcxx&machine_b=m1&commit_b=c20' +
+      '/compare?project_a=llvm&suite_a=libcxx&machine_a=m1&commit_a=c10' +
+        '&project_b=llvm&suite_b=libcxx&machine_b=m1&commit_b=c20' +
         '&metric=execution_time&run_agg=min&sample_agg=max',
     )
     // Beside the point, at c20's position, 1, and its value, 2.
@@ -384,7 +384,7 @@ describe('the point details (GR11)', () => {
     it('are not shown when the suite has no templates of their URLs', async () => {
       const bare = { ...GRAPH_SUITE, name: 'bare', repository: NO_REPOSITORY }
       mockWorld({ samples: SAMPLES, suites: [bare] })
-      renderPage('/graph?suite=bare&machine=m1&metric=execution_time&test=a')
+      renderPage('/graph?project=llvm&suite=bare&machine=m1&metric=execution_time&test=a')
       await waitFor(() => expect(dataTraces()).toHaveLength(1))
       draw()
 
@@ -400,7 +400,7 @@ describe('the point details (GR11)', () => {
     it('say "in repository" when the repository has no label', async () => {
       const repository = { ...GRAPH_SUITE.repository, label: null }
       mockWorld({ samples: SAMPLES, suites: [{ ...GRAPH_SUITE, name: 'unlabelled', repository }] })
-      renderPage('/graph?suite=unlabelled&machine=m1&metric=execution_time&test=a')
+      renderPage('/graph?project=llvm&suite=unlabelled&machine=m1&metric=execution_time&test=a')
       await waitFor(() => expect(dataTraces()).toHaveLength(1))
       draw()
 
@@ -426,7 +426,7 @@ describe('the point details (GR11)', () => {
       // No request resolves the commit: the world answers none.
       const { link, card } = await openCard()
 
-      expect(link).toHaveAttribute('href', '/suites/libcxx/commits/c20')
+      expect(link).toHaveAttribute('href', '/projects/llvm/suites/libcxx/commits/c20')
       expect(card).toHaveAccessibleName('r20')
       expect(within(card).getByRole('link', { name: 'View on GitHub' })).toHaveAttribute(
         'href',
@@ -528,7 +528,7 @@ describe('the point details (GR11)', () => {
   it('closes on a change to the regressions or machines, not the filter or baselines', async () => {
     mockWorld({ samples: SAMPLES })
     mockRegressionWorld()
-    renderPage(`${GRAPHED}&test=a&baseline=libcxx/m1/c10`)
+    renderPage(`${GRAPHED}&test=a&baseline=llvm/libcxx/m1/c10`)
     await waitFor(() => expect(dataTraces()).toHaveLength(1))
     draw()
     const user = userEvent.setup()
@@ -551,7 +551,7 @@ describe('the point details (GR11)', () => {
 
     // A click without a press, as from the keyboard, unlike a press outside the details.
     reopen()
-    fireEvent.click(screen.getByRole('button', { name: 'Remove baseline libcxx/m1/r10' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Remove baseline llvm/libcxx/m1/r10' }))
     expect(query().baseline).toBeUndefined()
     // Its lines change neither the point nor what its details show (GR11).
     expect(screen.getByRole('dialog')).toBeInTheDocument()
@@ -717,7 +717,7 @@ const REGRESSIONS = [
 function mockRegressionWorld(regressions: Schemas['Regression'][] = REGRESSIONS) {
   const lookups: Schemas['IndicatorQuery'][] = []
   server.use(
-    mockApi('post', '/api/suites/{testsuite}/regressions/indicators/query', async ({ request }) => {
+    mockApi('post', '/api/projects/{project}/suites/{suite}/regressions/indicators/query', async ({ request }) => {
       const body = await request.json()
       lookups.push(body)
       const items = regressions.map(({ uuid }, i) => ({
@@ -817,7 +817,7 @@ describe('the regression annotations (GR15)', () => {
     expect(details().getByText('active')).toBeInTheDocument()
     expect(details().getByRole('link', { name: 'r20' })).toHaveAttribute(
       'href',
-      '/suites/libcxx/commits/c20',
+      '/projects/llvm/suites/libcxx/commits/c20',
     )
     expect(details().getByRole('link', { name: 'https://example.com/bugs/1' })).toHaveAttribute(
       'target',
@@ -826,7 +826,7 @@ describe('the regression annotations (GR15)', () => {
     const tests = details().getByRole('list', { name: 'Selected tests affected' })
     expect(within(tests).getAllByRole('listitem').map((item) => item.textContent)).toEqual(['a'])
     const link = details().getByRole('link', { name: `${uuidOf('1').slice(0, 8)}…` })
-    expect(link).toHaveAttribute('href', `/suites/libcxx/regressions/${uuidOf('1')}`)
+    expect(link).toHaveAttribute('href', `/projects/llvm/suites/libcxx/regressions/${uuidOf('1')}`)
     expect(link).toHaveAttribute('title', uuidOf('1'))
     // Beside the marker, below it: at c20's position, 1, near the top of the plot.
     expect(dialog).toHaveStyle({ left: '150px', top: '18px', transform: 'translate(12px, -12px)' })
@@ -881,7 +881,7 @@ describe('the regression annotations (GR15)', () => {
     mockWorld()
     const held = gate()
     let lookups = 0
-    const path = '/api/suites/{testsuite}/regressions/indicators/query'
+    const path = '/api/projects/{project}/suites/{suite}/regressions/indicators/query'
     server.use(
       mockApi('post', path, async ({ request }) => {
         const { test } = await request.json()
@@ -921,7 +921,7 @@ describe('the regression annotations (GR15)', () => {
     mockRegressionWorld()
     let failing = true
     server.use(
-      mockApi('get', '/api/suites/{testsuite}/regressions', () =>
+      mockApi('get', '/api/projects/{project}/suites/{suite}/regressions', () =>
         failing
           ? errorResponse(500, 'internal_error', 'The regressions broke.')
           : HttpResponse.json(cursorPage(REGRESSIONS)),
@@ -967,6 +967,7 @@ describe('creating a regression from a point (GR11)', () => {
     const status = await details().findByRole('status')
     expect(requests).toEqual([
       {
+        project: 'llvm',
         suite: 'libcxx',
         body: {
           title: 'b slowed down',
@@ -977,7 +978,7 @@ describe('creating a regression from a point (GR11)', () => {
     ])
     expect(status).toHaveTextContent(/^Regression created: b slowed down$/)
     const link = within(status).getByRole('link')
-    expect(link).toHaveAttribute('href', `/suites/libcxx/regressions/${uuidOf('d')}`)
+    expect(link).toHaveAttribute('href', `/projects/llvm/suites/libcxx/regressions/${uuidOf('d')}`)
     // In place of the form, which had the focus, for the dialog to keep it.
     expect(link).toHaveFocus()
     expect(details().queryByRole('form')).not.toBeInTheDocument()
@@ -1067,7 +1068,7 @@ describe('creating a regression from a point (GR11)', () => {
     mockWorld()
     let tries = 0
     server.use(
-      mockApi('post', '/api/suites/{testsuite}/regressions', () => {
+      mockApi('post', '/api/projects/{project}/suites/{suite}/regressions', () => {
         tries++
         return errorResponse(404, 'not_found', 'No such commit.')
       }),
@@ -1125,46 +1126,46 @@ const OTHER_UNIT: SuiteSchema = {
 describe('the baselines (GR9)', () => {
   it('draws a line per baseline and selected test across the chart, by display value', async () => {
     const recorded = mockWorld()
-    renderPage(`${ONE_MACHINE}&test=a&test=b&baseline=libcxx/m1/c10`)
+    renderPage(`${ONE_MACHINE}&test=a&test=b&baseline=llvm/libcxx/m1/c10`)
 
     await waitFor(() =>
       expect(baselineLines()).toEqual([
-        'a - baseline libcxx/m1/r10: 1',
-        'b - baseline libcxx/m1/r10: 3',
+        'a - baseline llvm/libcxx/m1/r10: 1',
+        'b - baseline llvm/libcxx/m1/r10: 3',
       ]),
     )
     // Before the traces, so that the points on a line keep their tooltips and details (GR9).
     expect(drawn()).toEqual([
-      'a - baseline libcxx/m1/r10',
-      'b - baseline libcxx/m1/r10',
+      'a - baseline llvm/libcxx/m1/r10',
+      'b - baseline llvm/libcxx/m1/r10',
       'a - m1',
       'b - m1',
     ])
     const line = curve('a - m1') as PlotData
-    const a = curve('a - baseline libcxx/m1/r10') as PlotData
+    const a = curve('a - baseline llvm/libcxx/m1/r10') as PlotData
     expect(a.x).toHaveLength(101)
     expect(a.line.dash).toBe('dash')
     expect(a.line.color).toBe(line.line.color)
-    expect(hoverText(a, 0)).toContain('Suite: libcxx<br>Machine: m1<br>Commit: r10<br>Test: a')
+    expect(hoverText(a, 0)).toContain('Suite: llvm/libcxx<br>Machine: m1<br>Commit: r10<br>Test: a')
     // Every test's data at the commit, without `has_ordinal`, which leaves in commits without an
     // ordinal.
     const baseline = recorded.series.find(({ query }) => query.has('commit'))
     expect(baseline?.query.toString()).toBe('metric=execution_time&machine=m1&commit=c10')
     const chips = within(baselineChips())
-    expect(chips.getByRole('listitem')).toHaveTextContent('libcxx/m1/r10')
+    expect(chips.getByRole('listitem')).toHaveTextContent('llvm/libcxx/m1/r10')
   })
 
   it("names a baseline's suite by its label (AR22)", async () => {
     mockWorld({ suites: [{ ...GRAPH_SUITE, name: 'other', display_name: 'Other suite' }] })
-    renderPage(`${ONE_MACHINE}&test=a&baseline=other/m1/c10`)
+    renderPage(`${ONE_MACHINE}&test=a&baseline=llvm/other/m1/c10`)
 
-    await waitFor(() => expect(baselineLines()).toEqual(['a - baseline Other suite/m1/r10: 1']))
-    expect(hoverText(curve('a - baseline Other suite/m1/r10') as PlotData, 0)).toContain(
-      'Suite: Other suite<br>',
+    await waitFor(() => expect(baselineLines()).toEqual(['a - baseline llvm/Other suite/m1/r10: 1']))
+    expect(hoverText(curve('a - baseline llvm/Other suite/m1/r10') as PlotData, 0)).toContain(
+      'Suite: llvm/Other suite<br>',
     )
-    expect(within(baselineChips()).getByRole('listitem')).toHaveTextContent('Other suite/m1/r10')
+    expect(within(baselineChips()).getByRole('listitem')).toHaveTextContent('llvm/Other suite/m1/r10')
     // The URL names the suite by its name.
-    expect(query().baseline).toEqual(['other/m1/c10'])
+    expect(query().baseline).toEqual(['llvm/other/m1/c10'])
   })
 
   it("does not wait for the traces' requests, even when they take every turn (GR2)", async () => {
@@ -1178,9 +1179,9 @@ describe('the baselines (GR9)', () => {
         : ndjsonResponse([], { wait: () => held.promise }),
     )
     const tests = names.map((name) => `&test=${name}`).join('')
-    renderPage(`${ONE_MACHINE}${tests}&baseline=libcxx/m1/c10`)
+    renderPage(`${ONE_MACHINE}${tests}&baseline=llvm/libcxx/m1/c10`)
 
-    await waitFor(() => expect(baselineLines()).toEqual(['a - baseline libcxx/m1/r10: 1']))
+    await waitFor(() => expect(baselineLines()).toEqual(['a - baseline llvm/libcxx/m1/r10: 1']))
     const traces = recorded.series.filter(({ query }) => !query.has('commit'))
     expect(traces).toHaveLength(6)
     expect(traces.every(({ signal }) => !signal.aborted)).toBe(true)
@@ -1196,19 +1197,19 @@ describe('the baselines (GR9)', () => {
       ],
     }
     mockWorld({ samples })
-    renderPage(`${ONE_MACHINE}&test=a&baseline=libcxx/m1/c10&run_agg=max`)
+    renderPage(`${ONE_MACHINE}&test=a&baseline=llvm/libcxx/m1/c10&run_agg=max`)
 
-    await waitFor(() => expect(baselineLines()).toEqual(['a - baseline libcxx/m1/r10: 10']))
+    await waitFor(() => expect(baselineLines()).toEqual(['a - baseline llvm/libcxx/m1/r10: 10']))
     await pickOption('Run aggregation', 'min')
-    expect(baselineLines()).toEqual(['a - baseline libcxx/m1/r10: 3'])
+    expect(baselineLines()).toEqual(['a - baseline llvm/libcxx/m1/r10: 3'])
   })
 
   it("drops a baseline whose suite, machine or commit doesn't exist, or is malformed", async () => {
     mockWorld()
-    const kept = 'baseline=libcxx%2Fm1%2Fc10'
+    const kept = 'baseline=llvm%2Flibcxx%2Fm1%2Fc10'
     renderPage(
-      `${ONE_MACHINE}&baseline=nope/m1/c10&baseline=libcxx/gone/c10&baseline=libcxx/m1/c40` +
-        `&baseline=a/b&${kept}`,
+      `${ONE_MACHINE}&baseline=llvm/nope/m1/c10&baseline=llvm/libcxx/gone/c10&baseline=llvm/libcxx/m1/c40` +
+        `&baseline=llvm/a/b&${kept}`,
     )
 
     await waitFor(() => expect(currentUrl()).toBe(`${ONE_MACHINE}&${kept}`))
@@ -1216,19 +1217,19 @@ describe('the baselines (GR9)', () => {
 
   it('draws nothing from a suite whose metric has another unit, and asks for nothing', async () => {
     const recorded = mockWorld({ suites: [OTHER_UNIT] })
-    renderPage(`${ONE_MACHINE}&test=a&baseline=other/m1/c10&baseline=libcxx/m1/c20`)
+    renderPage(`${ONE_MACHINE}&test=a&baseline=llvm/other/m1/c10&baseline=llvm/libcxx/m1/c20`)
 
-    await waitFor(() => expect(baselineLines()).toEqual(['a - baseline libcxx/m1/r20: 2']))
+    await waitFor(() => expect(baselineLines()).toEqual(['a - baseline llvm/libcxx/m1/r20: 2']))
     const baselines = recorded.series.filter(({ query }) => query.has('commit'))
     expect(baselines.map(({ query }) => query.get('commit'))).toEqual(['c20'])
-    expect(query().baseline).toEqual(['other/m1/c10', 'libcxx/m1/c20'])
+    expect(query().baseline).toEqual(['llvm/other/m1/c10', 'llvm/libcxx/m1/c20'])
   })
 
   it('says that there is nothing to plot while only a baseline is drawn (GR12)', async () => {
     mockWorld({ samples: { 'm2/b': [['c40', 'r3', 4]] } })
-    renderPage(`${ONE_MACHINE}&test=b&baseline=libcxx/m2/c40`)
+    renderPage(`${ONE_MACHINE}&test=b&baseline=llvm/libcxx/m2/c40`)
 
-    await waitFor(() => expect(baselineLines()).toEqual(['b - baseline libcxx/m2/r40: 4']))
+    await waitFor(() => expect(baselineLines()).toEqual(['b - baseline llvm/libcxx/m2/r40: 4']))
     await waitFor(() => expect(layout().annotations?.[0]?.text).toBe('No data to plot'))
   })
 
@@ -1239,21 +1240,21 @@ describe('the baselines (GR9)', () => {
     const user = userEvent.setup()
 
     await user.click(screen.getByRole('button', { name: 'Add a baseline' }))
-    await pickOption('Baseline suite', 'libcxx')
+    await pickOption('Baseline suite', 'llvm/libcxx')
     await user.type(screen.getByRole('combobox', { name: 'Baseline machine' }), 'm1')
     await user.click(await screen.findByRole('option', { name: 'm1' }))
     const commit = screen.getByRole('combobox', { name: 'Baseline commit' })
     await user.type(commit, 'r20')
     await user.click(await screen.findByRole('option', { name: 'r20' }))
 
-    await waitFor(() => expect(query().baseline).toEqual(['libcxx/m1/c20']))
+    await waitFor(() => expect(query().baseline).toEqual(['llvm/libcxx/m1/c20']))
     expect(screen.queryByRole('group', { name: 'New baseline' })).not.toBeInTheDocument()
     const add = screen.getByRole('button', { name: 'Add a baseline' })
     expect(add).toHaveFocus()
     expect(add).toHaveAttribute('aria-expanded', 'false')
-    await waitFor(() => expect(baselineLines()).toEqual(['a - baseline libcxx/m1/r20: 2']))
+    await waitFor(() => expect(baselineLines()).toEqual(['a - baseline llvm/libcxx/m1/r20: 2']))
 
-    await user.click(screen.getByRole('button', { name: 'Remove baseline libcxx/m1/r20' }))
+    await user.click(screen.getByRole('button', { name: 'Remove baseline llvm/libcxx/m1/r20' }))
     expect(query().baseline).toBeUndefined()
     // The focus goes to the button adding one, once none is left.
     expect(screen.getByRole('button', { name: 'Add a baseline' })).toHaveFocus()
@@ -1261,8 +1262,8 @@ describe('the baselines (GR9)', () => {
 
   it("is added from a point's details, and removed, which stay open with the focus", async () => {
     const recorded = mockWorld()
-    renderPage(`${GRAPHED}&test=a&test=b&baseline=libcxx/m2/c40`)
-    await waitFor(() => expect(baselineLines()).toEqual(['b - baseline libcxx/m2/r40: 4']))
+    renderPage(`${GRAPHED}&test=a&test=b&baseline=llvm/libcxx/m2/c40`)
+    await waitFor(() => expect(baselineLines()).toEqual(['b - baseline llvm/libcxx/m2/r40: 4']))
     draw()
     const user = userEvent.setup()
 
@@ -1270,14 +1271,14 @@ describe('the baselines (GR9)', () => {
     await user.click(details().getByRole('button', { name: 'Add baseline' }))
 
     // Besides the baselines added before.
-    expect(query().baseline).toEqual(['libcxx/m2/c40', 'libcxx/m1/c20'])
-    expect(baselineChips()).toHaveTextContent(/^libcxx\/m2\/r40×libcxx\/m1\/r20×$/)
+    expect(query().baseline).toEqual(['llvm/libcxx/m2/c40', 'llvm/libcxx/m1/c20'])
+    expect(baselineChips()).toHaveTextContent(/^llvm\/libcxx\/m2\/r40×llvm\/libcxx\/m1\/r20×$/)
     const remove = details().getByRole('button', { name: 'Remove baseline' })
     expect(remove).toHaveFocus()
     await waitFor(() =>
       expect(baselineLines()).toEqual([
-        'b - baseline libcxx/m2/r40: 4',
-        'a - baseline libcxx/m1/r20: 2',
+        'b - baseline llvm/libcxx/m2/r40: 4',
+        'a - baseline llvm/libcxx/m1/r20: 2',
       ]),
     )
     // Its point shows that the machine has runs at the commit, which is not looked up (GR9): only
@@ -1288,8 +1289,8 @@ describe('the baselines (GR9)', () => {
 
     await user.click(remove)
 
-    expect(query().baseline).toEqual(['libcxx/m2/c40'])
-    expect(baselineLines()).toEqual(['b - baseline libcxx/m2/r40: 4'])
+    expect(query().baseline).toEqual(['llvm/libcxx/m2/c40'])
+    expect(baselineLines()).toEqual(['b - baseline llvm/libcxx/m2/r40: 4'])
     expect(details().getByRole('button', { name: 'Add baseline' })).toHaveFocus()
 
     // The details of a point that is a baseline already remove it.
@@ -1308,12 +1309,12 @@ describe('the baselines (GR9)', () => {
       const listed = COMMITS.m1.map(commitAt)
       return cursorPage(only === null ? listed : listed.filter((entry) => entry.value === only))
     })
-    renderPage(`${ONE_MACHINE}&test=a&baseline=libcxx/m1/c20`)
+    renderPage(`${ONE_MACHINE}&test=a&baseline=llvm/libcxx/m1/c20`)
     await waitFor(() => expect(dataTraces()).toHaveLength(1))
     draw()
 
     click('a - m1', 1)
-    expect(baselineChips()).toHaveTextContent('libcxx/m1/c20')
+    expect(baselineChips()).toHaveTextContent('llvm/libcxx/m1/c20')
     await userEvent
       .setup()
       .click(details().getByRole('button', { name: 'Remove baseline' }))
@@ -1324,18 +1325,19 @@ describe('the baselines (GR9)', () => {
 
   it('keeps the baselines and the regression mode on a new suite', async () => {
     mockWorld()
-    renderPage(`${ONE_MACHINE}&baseline=libcxx/m1/c10&regressions=active`)
+    renderPage(`${ONE_MACHINE}&baseline=llvm/libcxx/m1/c10&regressions=active`)
     await waitFor(() =>
       expect(baselineChips()).toHaveTextContent('r10'),
     )
 
-    await pickOption('Suite', 'text_only')
+    await pickOption('Suite', 'llvm/text_only')
 
     await waitFor(() =>
       expect(query()).toEqual({
+        project: ['llvm'],
         suite: ['text_only'],
         regressions: ['active'],
-        baseline: ['libcxx/m1/c10'],
+        baseline: ['llvm/libcxx/m1/c10'],
       }),
     )
   })
@@ -1348,14 +1350,14 @@ describe('the baselines (GR9)', () => {
         ? errorResponse(500, 'internal_error', 'The baseline broke.')
         : ndjsonResponse([[pointOf('m1', 'a', ['c10', 'r1', 1])]]),
     )
-    renderPage(`${ONE_MACHINE}&test=a&baseline=libcxx/m1/c10`)
+    renderPage(`${ONE_MACHINE}&test=a&baseline=llvm/libcxx/m1/c10`)
 
     expect(
       await main().findByText(/A baseline could not be loaded: The baseline broke\./),
     ).toBeInTheDocument()
     failing = false
     fireEvent.click(within(main().getByRole('alert')).getByRole('button', { name: 'Retry' }))
-    await waitFor(() => expect(baselineLines()).toEqual(['a - baseline libcxx/m1/r10: 1']))
+    await waitFor(() => expect(baselineLines()).toEqual(['a - baseline llvm/libcxx/m1/r10: 1']))
   })
 })
 
@@ -1582,9 +1584,9 @@ describe('the highlighted commits (GR16)', () => {
     expect(main().queryByRole('list', { name: 'Highlighted commits' })).toBeNull()
     expect(query().highlight).toEqual(['c20'])
 
-    await pickOption('Suite', 'libcxx')
+    await pickOption('Suite', 'llvm/libcxx')
 
-    await waitFor(() => expect(query()).toEqual({ suite: ['libcxx'] }))
+    await waitFor(() => expect(query()).toEqual({ project: ['llvm'], suite: ['libcxx'] }))
   })
 })
 

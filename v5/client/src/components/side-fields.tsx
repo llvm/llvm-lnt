@@ -5,8 +5,8 @@
 
 import { useMemo, type ReactNode } from 'react'
 import type { CommitFilters } from '../api/commits'
-import type { SuiteSchema } from '../api/suites'
-import { suiteLabel, suiteOption } from '../labels'
+import { refOf, fullName, suiteOfFullName, type Suite, type SuiteRef } from '../api/suites'
+import { fullLabel, suiteOption } from '../labels'
 import { Combobox } from './combobox'
 import { CommitPicker } from './commit-picker'
 import { ControlsPanel } from './controls-panel'
@@ -22,9 +22,9 @@ function noop() {}
 const NO_FILTERS: Omit<CommitFilters, 'machine'> = {}
 
 interface Props {
-  suites: SuiteSchema[]
+  suites: Suite[]
   /** The side's suite, once known to exist (see `useSuiteAndMachine`). */
-  schema: SuiteSchema | undefined
+  schema: Suite | undefined
   /** The suite's machines (see `useSuiteAndMachine`). */
   machines: Machines
   /** The side's machine, or `''` for none. */
@@ -41,7 +41,7 @@ interface Props {
   /** What goes beside the commit picker's label, such as a ⓘ giving its card (see `Combobox`). */
   commitAside?: ReactNode
   /** A suite was picked. */
-  onSuite(suite: string): void
+  onSuite(suite: SuiteRef): void
   /**
    * Called with the machine picked, or with null when the machine is cleared. The commit picker
    * then decides whether to keep the commit: it keeps it only if the new machine has it (AR15).
@@ -75,9 +75,9 @@ export function SideFields({
       <Select
         label="Suite"
         options={suites.map(suiteOption)}
-        value={schema?.name ?? null}
+        value={schema ? fullName(refOf(schema)) : null}
         placeholder="-- Select suite --"
-        onChange={onSuite}
+        onChange={(key) => onSuite(suiteOfFullName(key))}
       />
       <Combobox
         label="Machine"
@@ -94,7 +94,7 @@ export function SideFields({
         isDisabled={schema === undefined}
       />
       {/* The machines are only fetched once the suite is known to exist. */}
-      {schema !== undefined && <MachinesError suite={suiteLabel(schema)} machines={machines} />}
+      {schema !== undefined && <MachinesError suite={fullLabel(schema)} machines={machines} />}
       {/* Without a machine, a commit picker would look its commit up among no machine's. */}
       {schema === undefined || machine === '' ? (
         <Combobox

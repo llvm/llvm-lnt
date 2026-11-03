@@ -14,13 +14,14 @@ from sqlalchemy import Connection, Engine, create_engine, delete, func, insert, 
 from conftest import TOKEN_PATTERN, UNREACHABLE_URL
 from introspection import counting_statements
 from lnt_v5 import keys
-from lnt_v5.keys import ApiKeyInfo, CreatedKey, UnknownSuitesError, create_key
+from lnt_v5.keys import ApiKeyInfo, CreatedKey, Entry, UnknownEntriesError, create_key
 from lnt_v5.scopes import Scope
 from lnt_v5.tables import (
     KEY_NAME_MAX_LENGTH,
     TOKEN_PREFIX_LENGTH,
     api_key,
     api_key_restriction,
+    project,
     schema,
 )
 
@@ -135,139 +136,204 @@ class TestCreateKey:
 class TestCreateRestrictedKey:
     @pytest.fixture(autouse=True)
     def suites(self, db: Connection) -> None:
-        # Rows alone: `create_key` only checks that the suites exist.
-        for name in ("nts", "libcxx", "a-b", "a_c", "ab"):
-            db.execute(
-                insert(schema).values(
-                    name=name, namespace=name, schema_json="{}", migration_version=0
+        # Rows alone: `create_key` only checks that the projects and suites exist. Two projects
+        # have a suite named `nts`, which are two suites (D7).
+        for project_name, names in {
+            "llvm": ["nts", "a-b", "a_c", "ab"],
+            "libcxx": ["benchmarks"],
+            "other": ["nts"],
+            "empty": [],
+        }.items():
+            project_id = db.execute(
+                insert(project).values(name=project_name).returning(project.c.id)
+            ).scalar_one()
+            for name in names:
+                db.execute(
+                    insert(schema).values(
+                        project_id=project_id,
+                        name=name,
+                        namespace=f"{project_name}_{name}",
+                        schema_json="{}",
+                        migration_version=0,
+                    )
                 )
-            )
 
-    def test_stores_and_describes_its_suites_sorted(self, db: Connection) -> None:
-        created = create_key(db, "bot", Scope.SUBMIT, ["nts", "libcxx"])
+    def test_stores_and_describes_its_entries_in_order(self, db: Connection) -> None:
+        created = create_key(
+            db, "bot", Scope.SUBMIT, [Entry("llvm", "nts"), Entry("libcxx", "benchmarks")]
+        )
 
-        assert created.suites == ("libcxx", "nts")
+        expected = (Entry("libcxx", "benchmarks"), Entry("llvm", "nts"))
+        assert created.restricted_to == expected
         assert db.execute(select(api_key.c.restricted)).scalar_one() is True
         # By identity rather than by name (I5).
         stored = db.execute(
-            select(schema.c.name).join(api_key_restriction).order_by(schema.c.name)
+            select(schema.c.namespace).join(api_key_restriction).order_by(schema.c.namespace)
         ).scalars()
-        assert list(stored) == ["libcxx", "nts"]
+        assert list(stored) == ["libcxx_benchmarks", "llvm_nts"]
         resolved = keys.resolve_token(db, created.token)
         assert resolved is not None
-        assert resolved.suites == ("libcxx", "nts")
+        assert resolved.restricted_to == expected
 
-    def test_sorts_its_suites_by_code_point(self, db: Connection) -> None:
+    def test_tells_suites_of_the_same_name_apart_by_their_project(self, db: Connection) -> None:
+        created = create_key(db, "bot", Scope.SUBMIT, [Entry("other", "nts")])
+
+        assert created.restricted_to == (Entry("other", "nts"),)
+        assert created.covers("other", "nts")
+        assert not created.covers("llvm", "nts")
+
+    def test_sorts_its_entries_by_code_point(self, db: Connection) -> None:
         # Not by the database's collation, which may ignore `-` and `_`.
-        created = create_key(db, "bot", Scope.SUBMIT, ["ab", "a_c", "a-b"])
+        created = create_key(
+            db,
+            "bot",
+            Scope.SUBMIT,
+            [Entry("llvm", "ab"), Entry("llvm", "a_c"), Entry("llvm", "a-b")],
+        )
 
-        assert created.suites == ("a-b", "a_c", "ab")
+        expected = (Entry("llvm", "a-b"), Entry("llvm", "a_c"), Entry("llvm", "ab"))
+        assert created.restricted_to == expected
         (listed,) = keys.list_keys(db)
-        assert listed.suites == ("a-b", "a_c", "ab")
+        assert listed.restricted_to == expected
 
     def test_is_not_restricted_by_default(self, db: Connection) -> None:
         created = create_key(db, "bot", Scope.SUBMIT)
 
-        assert created.suites is None
+        assert created.restricted_to is None
         assert db.execute(select(api_key.c.restricted)).scalar_one() is False
         assert db.execute(select(func.count()).select_from(api_key_restriction)).scalar_one() == 0
 
-    def test_is_resolved_with_its_suites_in_one_statement(self, db: Connection) -> None:
-        # I5 looks the key up on every request: its suites must not cost a round trip of their own.
-        created = create_key(db, "bot", Scope.SUBMIT, ["nts", "libcxx"])
+    def test_is_resolved_with_its_entries_in_one_statement(self, db: Connection) -> None:
+        # I5 looks the key up on every request: its entries must not cost a round trip of their own.
+        created = create_key(
+            db, "bot", Scope.SUBMIT, [Entry("llvm", "nts"), Entry("libcxx", "benchmarks")]
+        )
 
         # Every statement, whatever it names, since what is counted is round trips.
         with counting_statements("") as statements:
             resolved = keys.resolve_token(db, created.token)
 
         assert resolved is not None
-        assert resolved.suites == ("libcxx", "nts")
+        assert len(resolved.restricted_to or ()) == 2
         assert len(statements) == 1
 
     def test_loses_a_suite_that_is_deleted(self, db: Connection) -> None:
-        created = create_key(db, "bot", Scope.SUBMIT, ["nts", "libcxx"])
+        created = create_key(
+            db, "bot", Scope.SUBMIT, [Entry("llvm", "nts"), Entry("libcxx", "benchmarks")]
+        )
 
-        db.execute(delete(schema).where(schema.c.name == "nts"))
+        db.execute(delete(schema).where(schema.c.namespace == "llvm_nts"))
         resolved = keys.resolve_token(db, created.token)
         assert resolved is not None
-        assert resolved.suites == ("libcxx",)
+        assert resolved.restricted_to == (Entry("libcxx", "benchmarks"),)
 
         # Restricted to nothing, rather than valid across the instance (I5).
-        db.execute(delete(schema).where(schema.c.name == "libcxx"))
+        db.execute(delete(schema).where(schema.c.namespace == "libcxx_benchmarks"))
         resolved = keys.resolve_token(db, created.token)
         assert resolved is not None
-        assert resolved.suites == ()
+        assert resolved.restricted_to == ()
         (listed,) = keys.list_keys(db)
-        assert listed.suites == ()
+        assert listed.restricted_to == ()
 
     @pytest.mark.parametrize(
-        ("scope", "suites", "why"),
+        ("scope", "entries", "why"),
         [
-            (Scope.READ, ["nts"], "a read key"),
-            (Scope.ADMIN, ["nts"], "an admin key"),
-            (Scope.SUBMIT, [], "no suite at all"),
-            (Scope.SUBMIT, ["nts", "nts"], "a suite named twice"),
+            (Scope.READ, [Entry("llvm", "nts")], "a read key"),
+            (Scope.ADMIN, [Entry("llvm", "nts")], "an admin key"),
+            (Scope.SUBMIT, [], "no entry at all"),
+            (Scope.SUBMIT, [Entry("llvm", "nts"), Entry("llvm", "nts")], "an entry twice"),
+            (Scope.SUBMIT, [Entry("llvm", None)], "a whole project"),
         ],
     )
     def test_rejects_a_restriction_that_cannot_be_valid(
-        self, db: Connection, scope: Scope, suites: list[str], why: str
+        self, db: Connection, scope: Scope, entries: list[Entry], why: str
     ) -> None:
         # The API answers 400 for these; rejecting here means the CLI does too.
-        with pytest.raises(ValueError):
-            create_key(db, "bot", scope, suites)
+        with pytest.raises(ValueError) as raised:
+            create_key(db, "bot", scope, entries)
+        assert not isinstance(raised.value, UnknownEntriesError)
 
-    def test_names_the_suites_that_do_not_exist(self, db: Connection) -> None:
-        with pytest.raises(UnknownSuitesError) as raised:
-            create_key(db, "bot", Scope.SUBMIT, ["nts", "libcx", "ntss"])
+    def test_says_a_key_is_restricted_to_single_suites_for_now(self, db: Connection) -> None:
+        with pytest.raises(ValueError, match=r"single test suites.*: llvm$"):
+            create_key(db, "bot", Scope.SUBMIT, [Entry("llvm", None)])
 
-        assert raised.value.names == ("libcx", "ntss")
+    def test_names_the_projects_and_suites_that_do_not_exist(self, db: Connection) -> None:
+        entries = [Entry("llvm", "nts"), Entry("llvm", "ntss"), Entry("swift", "nts")]
+        with pytest.raises(UnknownEntriesError) as raised:
+            create_key(db, "bot", Scope.SUBMIT, entries)
+
+        assert str(raised.value) == (
+            "Project 'llvm' has no test suite named 'ntss'. No project is named 'swift'."
+        )
         assert db.execute(select(func.count()).select_from(api_key)).scalar_one() == 0
 
 
-def key_with(scope: Scope, suites: tuple[str, ...] | None) -> ApiKeyInfo:
+def key_with(scope: Scope, restricted_to: tuple[Entry, ...] | None) -> ApiKeyInfo:
     return ApiKeyInfo(
         prefix="0123abcd",
         name="a key",
         scope=scope,
-        suites=suites,
+        restricted_to=restricted_to,
         created_at=datetime.now(UTC),
         last_used_at=None,
         is_active=True,
     )
 
 
-class TestSuiteRestriction:
-    """`ApiKeyInfo.grants`: I5's scope hierarchy, narrowed to `read` outside a key's suites."""
+NTS = Entry("llvm", "nts")
+BENCHMARKS = Entry("libcxx", "benchmarks")
+LIBCXX = Entry("libcxx", None)
+
+
+class TestRestriction:
+    """`ApiKeyInfo.grants`: I5's scope hierarchy, narrowed to `read` outside what a key covers."""
 
     @pytest.mark.parametrize(
-        ("suites", "suite", "granted"),
+        ("restricted_to", "project_name", "suite", "granted"),
         [
-            (None, "nts", True),
-            (None, None, True),
-            (("libcxx", "nts"), "nts", True),
-            (("libcxx",), "nts", False),
-            (("libcxx",), None, False),
-            # Only None is "valid across the instance". A key whose suites have all been deleted
+            (None, "llvm", "nts", True),
+            (None, "llvm", None, True),
+            (None, None, None, True),
+            ((BENCHMARKS, NTS), "llvm", "nts", True),
+            ((BENCHMARKS,), "llvm", "nts", False),
+            # The same suite name in another project is another suite (D7).
+            ((NTS,), "other", "nts", False),
+            # A suite is not its project in full, nor the instance.
+            ((NTS,), "llvm", None, False),
+            ((NTS,), None, None, False),
+            # A whole project covers its suites and itself in full, and nothing else.
+            ((LIBCXX,), "libcxx", "benchmarks", True),
+            ((LIBCXX,), "libcxx", None, True),
+            ((LIBCXX,), "llvm", None, False),
+            ((LIBCXX,), None, None, False),
+            # Only None is "valid across the instance". A key whose entries have all been deleted
             # lists none, and is not mistaken for it.
-            ((), "nts", False),
-            ((), None, False),
+            ((), "llvm", "nts", False),
+            ((), None, None, False),
         ],
     )
-    def test_grants_its_scope_only_in_its_suites(
-        self, suites: tuple[str, ...] | None, suite: str | None, granted: bool
+    def test_grants_its_scope_only_where_it_covers(
+        self,
+        restricted_to: tuple[Entry, ...] | None,
+        project_name: str | None,
+        suite: str | None,
+        granted: bool,
     ) -> None:
-        assert key_with(Scope.MANAGE, suites).grants(Scope.MANAGE, suite) is granted
+        key = key_with(Scope.MANAGE, restricted_to)
+        assert key.grants(Scope.MANAGE, project_name, suite) is granted
 
-    @pytest.mark.parametrize("suite", ["nts", None])
-    def test_grants_read_everywhere(self, suite: str | None) -> None:
-        assert key_with(Scope.MANAGE, ("libcxx",)).grants(Scope.READ, suite)
-        assert key_with(Scope.MANAGE, ()).grants(Scope.READ, suite)
+    @pytest.mark.parametrize(
+        ("project_name", "suite"), [("llvm", "nts"), ("llvm", None), (None, None)]
+    )
+    def test_grants_read_everywhere(self, project_name: str | None, suite: str | None) -> None:
+        assert key_with(Scope.MANAGE, (BENCHMARKS,)).grants(Scope.READ, project_name, suite)
+        assert key_with(Scope.MANAGE, ()).grants(Scope.READ, project_name, suite)
 
-    def test_keeps_the_hierarchy_within_its_suites(self) -> None:
-        key = key_with(Scope.TRIAGE, ("nts",))
+    def test_keeps_the_hierarchy_within_what_it_covers(self) -> None:
+        key = key_with(Scope.TRIAGE, (NTS,))
 
-        assert key.grants(Scope.SUBMIT, "nts")
-        assert not key.grants(Scope.MANAGE, "nts")
+        assert key.grants(Scope.SUBMIT, "llvm", "nts")
+        assert not key.grants(Scope.MANAGE, "llvm", "nts")
 
 
 class TestLastUseRecorder:

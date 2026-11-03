@@ -132,15 +132,17 @@ def action_convert_profile(profile: str, output: Any, encode: bool,
 @click.argument("url")
 @click.argument("input_file", metavar="[FILE]", default="-",
                 type=click.File("rb"))
+@click.option("--project", required=True, metavar="NAME",
+              help="project of the test suite to submit the runs to")
 @click.option("--suite", required=True, metavar="NAME",
-              help="test suite to submit the runs to")
+              help="test suite to submit the runs to, in the project")
 @click.option("--token", envvar="LNT_TOKEN", metavar="TOKEN",
               help="API token, with submit scope (manage with "
                    "--create-suite) [default: $LNT_TOKEN]")
 @click.option("--create-suite", "schema_file", metavar="FILE",
               type=click.Path(exists=True, dir_okay=False),
-              help="create the suite, which must not exist yet, from the "
-                   "schema in FILE")
+              help="create the suite, which must not exist yet, in the "
+                   "project, which must, from the schema in FILE")
 @click.option("--workers", default=4, show_default=True,
               type=click.IntRange(min=1),
               help="number of runs to submit concurrently")
@@ -153,17 +155,18 @@ def action_convert_profile(profile: str, output: Any, encode: bool,
 @click.option("--retry-delay", default=10, show_default=True,
               type=click.FloatRange(min=0), metavar="SECONDS",
               help="seconds to wait before each retry")
-def action_submit(url: str, input_file: Any, suite: str, token: str | None,
-                  schema_file: str | None, workers: int,
+def action_submit(url: str, input_file: Any, project: str, suite: str,
+                  token: str | None, schema_file: str | None, workers: int,
                   skip_existing: bool, retries: int,
                   retry_delay: float) -> None:
     """submit runs to a test suite of an LNT v5 instance
 
-    URL is the root of the v5 instance, e.g. https://lnt.example.com. The runs
-    are read from FILE, or from standard input, as one JSON run submission per
-    line, and submitted in that order. With --skip-existing, runs whose UUID
-    already exists in the suite are skipped, so submitting the same runs again
-    only submits the missing ones.
+    URL is the root of the v5 instance, e.g. https://lnt.example.com. The
+    suite is named by its project, --project, and its own name, --suite. The
+    runs are read from FILE, or from standard input, as one JSON run
+    submission per line, and submitted in that order. With --skip-existing,
+    runs whose UUID already exists in the suite are skipped, so submitting the
+    same runs again only submits the missing ones.
 
     Requests that fail because of the network, a server error or a concurrent
     change are retried (see --retries). Any other failure is reported, and the
@@ -184,8 +187,9 @@ def action_submit(url: str, input_file: Any, suite: str, token: str | None,
         except (OSError, ValueError) as e:
             raise click.BadParameter(str(e), param_hint="--create-suite")
     try:
-        failures = submit(url, suite, input_file, token, schema, workers,
-                          echo=click.echo, skip_existing=skip_existing,
+        failures = submit(url, project, suite, input_file, token, schema,
+                          workers, echo=click.echo,
+                          skip_existing=skip_existing,
                           retries=retries, retry_delay=retry_delay)
     except SubmitError as e:
         click.echo("error: %s" % e, err=True)

@@ -11,10 +11,9 @@ import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import Engine, select
 
-from conftest import entry, run_payload
+from conftest import entry, run_payload, suite_path
 from introspection import counting_statements
 from lnt_v5.routes.runs import RUNS_PATH
-from lnt_v5.routes.suites import SUITES_PATH
 from lnt_v5.suites.aggregation import SampleAggregation, geomean
 from lnt_v5.suites.schema import Metric
 from lnt_v5.suites.submission import SubmittedTest
@@ -173,7 +172,7 @@ class TestSubmission:
         self, api_client: TestClient, submitter: dict[str, str], *tests: dict[str, Any]
     ) -> dict[str, Any]:
         response = api_client.post(
-            RUNS_PATH.format(testsuite="nts"),
+            RUNS_PATH.format(project="nts", suite="nts"),
             json=run_payload(tests=list(tests)),
             headers=submitter,
         )
@@ -260,7 +259,7 @@ class TestSubmission:
         run = self.submit(api_client, submitter, entry("a", {"time": 1.0}))
 
         response = api_client.delete(
-            f"{RUNS_PATH.format(testsuite='nts')}/{run['uuid']}", headers=manage
+            f"{RUNS_PATH.format(project='nts', suite='nts')}/{run['uuid']}", headers=manage
         )
 
         assert response.status_code == 204
@@ -277,7 +276,7 @@ class TestSubmission:
         self.submit(api_client, submitter, entry("a", {"time": 1.0, "size": 2}))
 
         response = api_client.patch(
-            f"{SUITES_PATH}/nts/schema?confirm=true",
+            f"{suite_path('nts')}/schema?confirm=true",
             json={"metrics": {"remove": ["size"]}},
             headers=manage,
         )

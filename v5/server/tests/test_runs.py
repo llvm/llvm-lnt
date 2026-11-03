@@ -33,6 +33,7 @@ from conftest import (
     ndjson_lines,
     recent,
     run_payload,
+    suite_path,
     uuids_in,
     walk_pages,
 )
@@ -42,16 +43,16 @@ from lnt_v5.config import Settings
 from lnt_v5.routes.commits import COMMITS_PATH
 from lnt_v5.routes.machines import MACHINES_PATH
 from lnt_v5.routes.runs import RUNS_PATH
-from lnt_v5.routes.suites import SUITES_PATH, patch_schema
+from lnt_v5.routes.suites import patch_schema
 from lnt_v5.scopes import Scope
 from lnt_v5.suites.evolve import SchemaPatch
 from lnt_v5.suites.profile_document import instructions, stored_profile
 from lnt_v5.suites.submission import validate_submission
 from lnt_v5.suites.tables import INTEGER_MAX, INTEGER_MIN, SuiteTables
 
-RUNS = RUNS_PATH.format(testsuite="nts")
-MACHINES = MACHINES_PATH.format(testsuite="nts")
-COMMITS = COMMITS_PATH.format(testsuite="nts")
+RUNS = RUNS_PATH.format(project="nts", suite="nts")
+MACHINES = MACHINES_PATH.format(project="nts", suite="nts")
+COMMITS = COMMITS_PATH.format(project="nts", suite="nts")
 
 # Two reals and an integer, so that a sample row can be checked for the columns a submission did
 # *not* mention as well as the ones it did, and fields on both entities for O2's reconciliation.
@@ -305,7 +306,7 @@ class TestSubmit:
     def test_is_404_for_a_suite_that_is_not_there(
         self, api_client: TestClient, submitter: dict[str, str]
     ) -> None:
-        response = api_client.post(f"{SUITES_PATH}/nope/runs", json=payload(), headers=submitter)
+        response = api_client.post(f"{suite_path('nope')}/runs", json=payload(), headers=submitter)
 
         assert response.status_code == 404
         assert code_of(response) == "not_found"
@@ -1014,7 +1015,7 @@ class TestSampleValues:
     ) -> Callable[..., None]:
         def post(*tests: dict[str, Any]) -> None:
             response = api_client.post(
-                RUNS_PATH.format(testsuite="types"),
+                RUNS_PATH.format(project="types", suite="types"),
                 json=run_payload(tests=list(tests)),
                 headers=submitter,
             )
@@ -1086,7 +1087,7 @@ class TestSampleValues:
         # A sample row then holds nothing but its run and its test.
         bare = make_api_suite({"name": "bare", "metrics": []})
         response = api_client.post(
-            RUNS_PATH.format(testsuite="bare"),
+            RUNS_PATH.format(project="bare", suite="bare"),
             json=run_payload(tests=[entry("a", {}, {}), entry("b", {})]),
             headers=submitter,
         )
@@ -1114,7 +1115,7 @@ class TestMetricsNamedLikeTheKeysOfATestEntry:
                 "metrics": [{"name": "name", "type": "real"}, {"name": "profile", "type": "real"}],
             }
         )
-        base = f"{SUITES_PATH}/keys"
+        base = f"{suite_path('keys')}"
         body = run_payload(
             commit={"value": "abc123", "ordinal": 1},
             tests=[
@@ -1578,7 +1579,7 @@ class TestList:
         assert listed(api_client).status_code == 200
 
     def test_is_404_for_a_suite_that_is_not_there(self, api_client: TestClient) -> None:
-        assert api_client.get(f"{SUITES_PATH}/nope/runs").status_code == 404
+        assert api_client.get(f"{suite_path('nope')}/runs").status_code == 404
 
 
 class TestListFilters:
@@ -1970,7 +1971,7 @@ class TestDetail:
         assert code_of(response) == "not_found"
 
     def test_is_404_for_a_suite_that_is_not_there(self, api_client: TestClient) -> None:
-        assert api_client.get(f"{SUITES_PATH}/nope/runs/{uuid4()}").status_code == 404
+        assert api_client.get(f"{suite_path('nope')}/runs/{uuid4()}").status_code == 404
 
     def test_is_not_shadowed_by_the_spa_catch_all(
         self, api_client: TestClient, submitted: Callable[..., Any]
@@ -2056,7 +2057,7 @@ class TestDelete:
     def test_is_404_for_a_suite_that_is_not_there(
         self, api_client: TestClient, manage: dict[str, str]
     ) -> None:
-        response = api_client.delete(f"{SUITES_PATH}/nope/runs/{uuid4()}", headers=manage)
+        response = api_client.delete(f"{suite_path('nope')}/runs/{uuid4()}", headers=manage)
 
         assert response.status_code == 404
 
@@ -2127,7 +2128,7 @@ class TestSchemaChangedUnderneath:
 
         def change_the_schema_first(*arguments: Any) -> Any:
             validated = validate_submission(*arguments)
-            patch_schema("nts", SchemaPatch.model_validate(change), db_engine, confirm=True)
+            patch_schema("nts", "nts", SchemaPatch.model_validate(change), db_engine, confirm=True)
             return validated
 
         monkeypatch.setattr("lnt_v5.routes.runs.validate_submission", change_the_schema_first)

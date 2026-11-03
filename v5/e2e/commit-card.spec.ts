@@ -19,7 +19,7 @@ test('a commit link of the Runs tab opens its card on hover, which stays open ov
 }) => {
   // To let time pass for the card without waiting for it.
   await page.clock.install()
-  await page.goto('/suites/libcxx')
+  await page.goto('/projects/libcxx/suites/benchmarks')
   // A commit with a display value, which hides its commit string.
   const link = table(page, 'Runs').getByRole('link', { name: /^r\d+/ }).first()
   const commit = await commitOf(link)
@@ -45,7 +45,7 @@ test('a commit link of the Runs tab opens its card on hover, which stays open ov
 })
 
 test('Escape closes a card', async ({ page }) => {
-  await page.goto('/suites/libcxx')
+  await page.goto('/projects/libcxx/suites/benchmarks')
   const link = rows(table(page, 'Runs')).first().getByRole('link').nth(2)
 
   await link.hover()
@@ -57,7 +57,7 @@ test('Escape closes a card', async ({ page }) => {
 
 test('keyboard focus does not open a card', async ({ page }) => {
   await page.clock.install()
-  await page.goto('/suites/libcxx')
+  await page.goto('/projects/libcxx/suites/benchmarks')
   const link = rows(table(page, 'Runs')).first().getByRole('link').nth(2)
   await expect(link).toBeVisible()
 
@@ -68,7 +68,7 @@ test('keyboard focus does not open a card', async ({ page }) => {
 })
 
 test("the Commits tab's card shows a commit without an ordinal", async ({ page }) => {
-  await page.goto(`/suites/libcxx?tab=commits&search=${EXPERIMENT}`)
+  await page.goto(`/projects/libcxx/suites/benchmarks?tab=commits&search=${EXPERIMENT}`)
   const link = table(page, 'Commits').getByRole('link', { name: EXPERIMENT, exact: true })
 
   await link.hover()
@@ -79,7 +79,7 @@ test("the Commits tab's card shows a commit without an ordinal", async ({ page }
 })
 
 test("the Run Detail page's commit has its card", async ({ page }) => {
-  await page.goto(`/suites/libcxx/runs/${REAL_RUN}`)
+  await page.goto(`/projects/libcxx/suites/benchmarks/runs/${REAL_RUN}`)
   const info = page.getByRole('group', { name: 'Run', exact: true })
   const link = info.getByRole('link', { name: 'r552558' })
 
@@ -92,5 +92,5 @@ test("the Run Detail page's commit has its card", async ({ page }) => {
   // Its Commit row leads to the commit's page, as its link does.
   const commit = await commitOf(link)
   await card.getByRole('link', { name: commit, exact: true }).click()
-  await expect(page).toHaveURL(`/suites/libcxx/commits/${commit}`)
+  await expect(page).toHaveURL(`/projects/libcxx/suites/benchmarks/commits/${commit}`)
 })

@@ -9,6 +9,7 @@ import pytest
 from sqlalchemy import Connection, Engine, insert, inspect, select, text
 from sqlalchemy.exc import IntegrityError
 
+from conftest import ensure_project
 from introspection import assert_names_survived, stored_names
 from lnt_v5.keys import PREFIX_CONSTRAINT
 from lnt_v5.scopes import UNRESTRICTABLE_SCOPES, Scope
@@ -123,7 +124,13 @@ class TestApiKeyRestriction:
         insert_key(scope=Scope.SUBMIT.value, restricted=True)
         suite = db.execute(
             insert(schema)
-            .values(name="nts", namespace="nts", schema_json="{}", migration_version=0)
+            .values(
+                project_id=ensure_project(db, "nts"),
+                name="nts",
+                namespace="nts",
+                schema_json="{}",
+                migration_version=0,
+            )
             .returning(schema.c.id)
         ).scalar_one()
         return db.execute(select(api_key.c.id)).scalar_one(), suite
@@ -151,7 +158,11 @@ class TestTimestamps:
         before = datetime.now(UTC)
         db.execute(
             insert(schema).values(
-                name="nts", namespace="nts", schema_json="{}", migration_version=0
+                project_id=ensure_project(db, "nts"),
+                name="nts",
+                namespace="nts",
+                schema_json="{}",
+                migration_version=0,
             )
         )
 

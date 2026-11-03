@@ -2,7 +2,7 @@ import { useId, useState, type FormEvent } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from 'react-router'
 import { createRegression, regressionCreated, TEXT_LENGTH } from '../../api/regressions'
-import type { SuiteSchema } from '../../api/suites'
+import { refOf, type Suite } from '../../api/suites'
 import { useScopeGate } from '../../auth/scope'
 import { CommitPicker, UNPICKED_COMMIT } from '../../components/commit-picker'
 import { ErrorMessage } from '../../components/feedback'
@@ -13,7 +13,7 @@ import { REGRESSION_STATES, stateLabel, type RegressionState } from '../../regre
 import styles from './test-suites.module.css'
 
 interface Props {
-  schema: SuiteSchema
+  schema: Suite
   onCancel(): void
 }
 
@@ -22,7 +22,7 @@ interface Props {
  * every commit of the suite. Once created, the regression's detail page is shown.
  */
 export function CreateRegression({ schema, onCancel }: Props) {
-  const suite = schema.name
+  const suite = refOf(schema)
   const navigate = useNavigate()
   const queryClient = useQueryClient()
   const triage = useScopeGate('triage', suite)

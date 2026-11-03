@@ -15,18 +15,17 @@ from typing import Any
 import pytest
 from fastapi.testclient import TestClient
 
-from conftest import code_of, entry, run_payload, walk_pages
+from conftest import code_of, entry, run_payload, suite_path, walk_pages
 from lnt_v5.routes.commits import COMMITS_PATH
 from lnt_v5.routes.machines import MACHINES_PATH
 from lnt_v5.routes.runs import RUNS_PATH
-from lnt_v5.routes.suites import SUITES_PATH
 from lnt_v5.routes.tests import TESTS_PATH
 from lnt_v5.suites.tables import SuiteTables
 
-TESTS = TESTS_PATH.format(testsuite="nts")
-RUNS = RUNS_PATH.format(testsuite="nts")
-COMMITS = COMMITS_PATH.format(testsuite="nts")
-MACHINES = MACHINES_PATH.format(testsuite="nts")
+TESTS = TESTS_PATH.format(project="nts", suite="nts")
+RUNS = RUNS_PATH.format(project="nts", suite="nts")
+COMMITS = COMMITS_PATH.format(project="nts", suite="nts")
+MACHINES = MACHINES_PATH.format(project="nts", suite="nts")
 
 NTS: dict[str, Any] = {
     "name": "nts",
@@ -123,7 +122,7 @@ class TestList:
         assert listed(api_client).status_code == 200
 
     def test_is_404_for_a_suite_that_is_not_there(self, api_client: TestClient) -> None:
-        assert api_client.get(f"{SUITES_PATH}/nope/tests").status_code == 404
+        assert api_client.get(f"{suite_path('nope')}/tests").status_code == 404
 
     def test_is_not_shadowed_by_the_spa_catch_all(
         self, api_client: TestClient, suite: SuiteTables

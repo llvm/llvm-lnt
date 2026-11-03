@@ -12,9 +12,10 @@ import { failuresOf, type Failures } from './failures'
 import { fetchEveryPage } from './fetch-every-page'
 import { queryKeys } from './keys'
 import type { paths } from './schema'
+import type { SuiteRef } from './suites'
 
 type RegressionListQuery = NonNullable<
-  paths['/api/suites/{testsuite}/regressions']['get']['parameters']['query']
+  paths['/api/projects/{project}/suites/{suite}/regressions']['get']['parameters']['query']
 >
 type RegressionDetail = Schemas['RegressionDetail']
 type Indicator = Schemas['Indicator']
@@ -28,10 +29,10 @@ export const TEXT_LENGTH = 256
 export const INDICATOR_BATCH = MAX_PAGE_SIZE
 
 /** One page of `GET /regressions` (E8). */
-export function fetchRegressions(suite: string, query: RegressionListQuery, signal?: AbortSignal) {
+export function fetchRegressions(suite: SuiteRef, query: RegressionListQuery, signal?: AbortSignal) {
   return unwrap(
-    api.GET('/api/suites/{testsuite}/regressions', {
-      params: { path: { testsuite: suite }, query },
+    api.GET('/api/projects/{project}/suites/{suite}/regressions', {
+      params: { path: suite, query },
       signal,
     }),
   )
@@ -42,7 +43,7 @@ export function fetchRegressions(suite: string, query: RegressionListQuery, sign
  * for the whole page, to show their display values (AR6).
  */
 export async function fetchRegressionPage(
-  suite: string,
+  suite: SuiteRef,
   query: RegressionListQuery,
   signal?: AbortSignal,
 ) {
@@ -55,36 +56,36 @@ export async function fetchRegressionPage(
 export type RegressionPage = Awaited<ReturnType<typeof fetchRegressionPage>>
 
 /** Create a regression in `suite` (E8): it answers with the regression created. */
-export function createRegression(suite: string, body: RegressionCreate) {
+export function createRegression(suite: SuiteRef, body: RegressionCreate) {
   return unwrap(
-    authedApi.POST('/api/suites/{testsuite}/regressions', {
-      params: { path: { testsuite: suite } },
+    authedApi.POST('/api/projects/{project}/suites/{suite}/regressions', {
+      params: { path: suite },
       body,
     }),
   )
 }
 
 /** Delete the regression `uuid` (E8). */
-export function deleteRegression(suite: string, uuid: string) {
+export function deleteRegression(suite: SuiteRef, uuid: string) {
   return unwrap(
-    authedApi.DELETE('/api/suites/{testsuite}/regressions/{uuid}', {
-      params: { path: { testsuite: suite, uuid } },
+    authedApi.DELETE('/api/projects/{project}/suites/{suite}/regressions/{uuid}', {
+      params: { path: { ...suite, uuid } },
     }),
   )
 }
 
 /** Add `indicators` to the regression `uuid` (E8): it answers with how many were new. */
-export function addIndicators(suite: string, uuid: string, indicators: IndicatorObject[]) {
+export function addIndicators(suite: SuiteRef, uuid: string, indicators: IndicatorObject[]) {
   return unwrap(
-    authedApi.POST('/api/suites/{testsuite}/regressions/{uuid}/indicators', {
-      params: { path: { testsuite: suite, uuid } },
+    authedApi.POST('/api/projects/{project}/suites/{suite}/regressions/{uuid}/indicators', {
+      params: { path: { ...suite, uuid } },
       body: { indicators },
     }),
   )
 }
 
 /** The query key of the regression `uuid`'s detail, with its notes and indicators (E8). */
-export function regressionKey(suite: string, uuid: string) {
+export function regressionKey(suite: SuiteRef, uuid: string) {
   return [...queryKeys.regressions(suite), 'detail', uuid] as const
 }
 
@@ -92,7 +93,7 @@ export function regressionKey(suite: string, uuid: string) {
  * The mutation scope of every change to the regression `uuid`, which runs them one after the
  * other, so that the answer to an earlier one, arriving late, does not replace a later one's.
  */
-export function regressionScope(suite: string, uuid: string) {
+export function regressionScope(suite: SuiteRef, uuid: string) {
   return { id: JSON.stringify(regressionKey(suite, uuid)) }
 }
 
@@ -100,14 +101,14 @@ export function regressionScope(suite: string, uuid: string) {
  * The regression `uuid` (E8), with its notes and indicators. Unless `fetch` is true, it is only read
  * from the cache, as another part of the page fetches it.
  */
-export function useRegression(suite: string, uuid: string, { fetch = true } = {}) {
+export function useRegression(suite: SuiteRef, uuid: string, { fetch = true } = {}) {
   return useQuery({
     queryKey: regressionKey(suite, uuid),
     enabled: fetch,
     queryFn: ({ signal }) =>
       unwrap(
-        api.GET('/api/suites/{testsuite}/regressions/{uuid}', {
-          params: { path: { testsuite: suite, uuid } },
+        api.GET('/api/projects/{project}/suites/{suite}/regressions/{uuid}', {
+          params: { path: { ...suite, uuid } },
           signal,
         }),
       ),
@@ -123,7 +124,7 @@ export function useRegression(suite: string, uuid: string, { fetch = true } = {}
  */
 export async function regressionChanged(
   queryClient: QueryClient,
-  suite: string,
+  suite: SuiteRef,
   uuid: string,
   change: (stored: RegressionDetail) => RegressionDetail,
 ): Promise<void> {
@@ -144,7 +145,7 @@ export async function regressionChanged(
  */
 export async function regressionCreated(
   queryClient: QueryClient,
-  suite: string,
+  suite: SuiteRef,
   created: RegressionDetail,
 ): Promise<void> {
   // The detail is among what this marks stale, so it is stored after, which leaves it fresh.
@@ -161,7 +162,7 @@ export async function regressionCreated(
  * regression runs in its scope (see `regressionScope`).
  */
 export function useRegressionMutation<Variables, Result>(
-  suite: string,
+  suite: SuiteRef,
   uuid: string,
   mutationFn: (variables: Variables) => Promise<Result>,
   change: (result: Result, stored: RegressionDetail) => RegressionDetail,
@@ -212,12 +213,12 @@ export interface MarkedRegressions extends Failures {
 }
 
 /** The query key of what the Graph page fetches to mark the suite's regressions (GR15). */
-function markedKey(suite: string) {
+function markedKey(suite: SuiteRef) {
   return [...queryKeys.regressions(suite), 'marked'] as const
 }
 
 /** Fetch again what the Graph page marks the suite's regressions from, if it is shown (GR11). */
-export function refetchMarkedRegressions(queryClient: QueryClient, suite: string): Promise<void> {
+export function refetchMarkedRegressions(queryClient: QueryClient, suite: SuiteRef): Promise<void> {
   return queryClient.refetchQueries({ queryKey: markedKey(suite), type: 'active' })
 }
 
@@ -235,7 +236,7 @@ const NO_FAILURES: Failures = { error: null, retry: () => {} }
  * marks stale.
  */
 export function useMarkedRegressions(
-  suite: string,
+  suite: SuiteRef,
   { machines, tests, metric, states }: MarkedOn,
   enabled: boolean,
 ): MarkedRegressions {
@@ -244,8 +245,8 @@ export function useMarkedRegressions(
     queryFn: ({ signal }) =>
       fetchEveryPage((cursor) =>
         unwrap(
-          api.POST('/api/suites/{testsuite}/regressions/indicators/query', {
-            params: { path: { testsuite: suite } },
+          api.POST('/api/projects/{project}/suites/{suite}/regressions/indicators/query', {
+            params: { path: suite },
             body: {
               machine: [...machines],
               test: [...tests],

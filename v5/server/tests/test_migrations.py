@@ -128,7 +128,7 @@ class TestUpgrade:
             }
         )
         with empty_engine.begin() as connection:
-            suite_tables.create(connection, suite, "nts")
+            suite_tables.create(connection, suite, "nts", "nts")
 
         assert_no_pending_revision(empty_engine)
 
@@ -325,14 +325,14 @@ class TestSchemaLabels:
         upgrade_by_hand(empty_engine, "0002")
         with empty_engine.begin() as connection:
             # As a build at 0002 created suites, in a namespace named after the suite.
-            suite_tables.create(connection, _CLEAN, "clean")
+            suite_tables.create(connection, _CLEAN, "clean", "clean")
         stale = _CLEAN.model_dump(mode="json")
         stale["metrics"][0]["display_name"] = ""
         store_schema_json(empty_engine, {"clean": json.dumps(stale)}, version=0)
 
         result = upgrade_to_head(empty_engine)
 
-        assert result.suites_migrated == ("clean",)
+        assert result.suites_migrated == ("clean/clean",)
         assert seen == [None]
 
 
@@ -809,6 +809,81 @@ class TestSuiteDisplayName:
         assert schema_version_of(empty_engine) == 2
 
 
+class TestProjects:
+    """0011 puts each existing suite in a project of its own, named after it (D7)."""
+
+    def test_gives_each_suite_a_project_named_after_it(self, empty_engine: Engine) -> None:
+        upgrade_by_hand(empty_engine, "0010")
+        store_schema_json(empty_engine, {"nts": "{}", "libcxx": "{}"})
+
+        upgrade_by_hand(empty_engine, "0011")
+
+        with empty_engine.connect() as connection:
+            rows = connection.execute(
+                text(
+                    "SELECT schema.name AS suite, project.name AS project, project.display_name "
+                    "FROM schema JOIN project ON project.id = schema.project_id ORDER BY suite"
+                )
+            ).all()
+        assert [tuple(row) for row in rows] == [("libcxx", "libcxx", None), ("nts", "nts", None)]
+        # Creating projects is a change workers have to notice (D2).
+        assert schema_version_of(empty_engine) == 1
+        unique = {c["name"] for c in inspect(empty_engine).get_unique_constraints("schema")}
+        assert unique == {"uq_schema_namespace", "uq_schema_project_id_name"}
+
+    def test_changes_nothing_workers_cache_in_an_empty_instance(self, empty_engine: Engine) -> None:
+        upgrade_by_hand(empty_engine, "0011")
+
+        assert schema_version_of(empty_engine) == 0
+
+    def test_keeps_the_restrictions_of_keys(self, empty_engine: Engine) -> None:
+        upgrade_by_hand(empty_engine, "0010")
+        store_schema_json(empty_engine, {"nts": "{}"})
+        insert_key_row(empty_engine, "aaaaaaaa", "submit")
+        with empty_engine.begin() as connection:
+            connection.execute(
+                text(
+                    "UPDATE api_key SET restricted = true; "
+                    "INSERT INTO api_key_restriction (api_key_id, suite_id) "
+                    "SELECT api_key.id, schema.id FROM api_key, schema"
+                )
+            )
+
+        upgrade_to_head(empty_engine)
+
+        assert restrictions(empty_engine) == {"aaaaaaaa": ["nts"]}
+
+    def test_downgrading_undoes_it(self, empty_engine: Engine) -> None:
+        upgrade_by_hand(empty_engine, "0010")
+        store_schema_json(empty_engine, {"nts": "{}"})
+        upgrade_by_hand(empty_engine, "0011")
+
+        downgrade_by_hand(empty_engine, "0010")
+
+        assert "project" not in inspect(empty_engine).get_table_names()
+        assert "project_id" not in column_names(empty_engine, "public", "schema")
+        unique = {c["name"] for c in inspect(empty_engine).get_unique_constraints("schema")}
+        assert unique == {"uq_schema_namespace", "uq_schema_name"}
+        assert list(stored_schema_json(empty_engine)) == ["nts"]
+
+    def test_downgrading_refuses_suites_that_share_a_name(self, empty_engine: Engine) -> None:
+        upgrade_by_hand(empty_engine, "0011")
+        with empty_engine.begin() as connection:
+            connection.execute(
+                text(
+                    "INSERT INTO project (name) VALUES ('llvm'), ('other'); "
+                    "INSERT INTO schema "
+                    "(project_id, name, namespace, schema_json, migration_version) "
+                    "SELECT id, 'nts', name, '{}', 0 FROM project"
+                )
+            )
+
+        with pytest.raises(RuntimeError, match="several projects have a suite named nts"):
+            downgrade_by_hand(empty_engine, "0010")
+
+        assert "project" in inspect(empty_engine).get_table_names()
+
+
 class TestSchemaNamespace:
     """0008 records each suite's namespace (D5), and widens suite names to 64 characters (D4)."""
 
@@ -845,7 +920,7 @@ class TestSchemaNamespace:
 
         result = upgrade_to_head(empty_engine)
 
-        assert result.suites_migrated == ("reference",)
+        assert result.suites_migrated == ("reference/reference",)
         with empty_engine.connect() as connection:
             row = connection.execute(text("SELECT namespace, migration_version FROM schema")).one()
         assert row.namespace.startswith(NAMESPACE_PREFIX)

@@ -13,14 +13,15 @@ token="$(mint_key compression manage)"
 readonly AUTH="Authorization: Bearer ${token}"
 readonly JSON='Content-Type: application/json'
 readonly GZIP='Content-Encoding: gzip'
-readonly RUNS="${BASE_URL}/api/suites/compression/runs"
+readonly RUNS="${BASE_URL}/api/projects/compression/suites/compression/runs"
 
 scratch="$(mktemp -d)"
 trap 'rm -rf "$scratch"' EXIT
 
+create_project compression "$AUTH"
 request -X POST -H "$AUTH" -H "$JSON" --data \
     '{"name": "compression", "metrics": [{"name": "execution_time", "type": "real"}]}' \
-    "${BASE_URL}/api/suites"
+    "${BASE_URL}/api/projects/compression/suites"
 expect_status 201
 
 printf '%s' '{"format_version": "5", "machine": {"name": "m"}, "commit": {"value": "c"},

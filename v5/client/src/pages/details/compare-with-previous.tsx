@@ -1,13 +1,13 @@
 import type { ReactNode } from 'react'
 import { errorMessage } from '../../api/client'
 import { usePreviousCommit, type PreviousCommit } from '../../api/commits'
-import type { SuiteSchema } from '../../api/suites'
+import { refOf, type Suite } from '../../api/suites'
 import { ButtonLink } from '../../components/button-link'
 import { comparePath } from '../../paths'
 import { commitDisplayValue } from '../../schema'
 
 interface Props {
-  schema: SuiteSchema
+  schema: Suite
   /** The run to compare, alone on side B, with its machine and its commit. */
   run: { uuid: string; machine: string; commit: string }
   /** The metric to compare. */
@@ -23,7 +23,7 @@ export const NO_ORDINAL = 'This commit has no ordinal.'
  * (DT2 "Compare with previous commit"), disabled, saying why, while there is no such commit.
  */
 export function CompareWithPrevious({ schema, run, metric, children }: Props) {
-  const suite = schema.name
+  const suite = refOf(schema)
   const previous = usePreviousCommit(suite, run.commit, run.machine)
   const to =
     previous.state === 'found'
@@ -41,7 +41,7 @@ export function CompareWithPrevious({ schema, run, metric, children }: Props) {
 }
 
 /** Which commit the link compares with, or why it compares with none. */
-function title(previous: PreviousCommit, machine: string, schema: SuiteSchema): string {
+function title(previous: PreviousCommit, machine: string, schema: Suite): string {
   switch (previous.state) {
     case 'pending':
       return 'Looking up the previous commit...'

@@ -2,7 +2,7 @@
 
 import { useMemo } from 'react'
 import type { UseQueryResult } from '@tanstack/react-query'
-import type { SuiteSchema } from '../../api/suites'
+import type { Suite } from '../../api/suites'
 import { isNumeric, type Metric } from '../../schema'
 import { useDropUnusable } from '../../url-state'
 import type { Settings } from './settings'
@@ -13,7 +13,7 @@ import type { Side } from './use-side'
  * those both declare alike, numeric, with the same `bigger_is_better` and `unit`. Labelled as the
  * first suite labels them.
  */
-export function offeredMetrics(a: SuiteSchema | undefined, b: SuiteSchema | undefined): Metric[] {
+export function offeredMetrics(a: Suite | undefined, b: Suite | undefined): Metric[] {
   const [first, second] = a === undefined ? [b, undefined] : [a, b]
   return (first?.metrics ?? []).filter(
     (entry) =>
@@ -38,7 +38,7 @@ export function useMetric(
   b: Side,
   all: Settings,
   update: (changes: Partial<Settings>) => void,
-  suites: UseQueryResult<SuiteSchema[]>,
+  suites: UseQueryResult<Suite[]>,
 ): { offered: Metric[]; metric: Metric | undefined } {
   const offered = useMemo(() => offeredMetrics(a.schema, b.schema), [a.schema, b.schema])
   const metric = offered.find((entry) => entry.name === all.metric)

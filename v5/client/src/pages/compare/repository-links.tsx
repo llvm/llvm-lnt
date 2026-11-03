@@ -3,7 +3,7 @@
  * (AR21), and the link to the changes between them in the repository (AR20).
  */
 
-import type { SuiteSchema } from '../../api/suites'
+import type { Suite } from '../../api/suites'
 import { usePickedCommit, usePickedCommitText } from '../../components/commit-lookup'
 import { CommitCardButton } from '../../components/commit-link'
 import { InfoIcon } from '../../components/icons'
@@ -13,7 +13,7 @@ import styles from './compare.module.css'
 
 /** A side that has a commit, in a suite known to exist. */
 interface Named {
-  schema: SuiteSchema
+  schema: Suite
   machine: string
   commit: string
 }

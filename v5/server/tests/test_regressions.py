@@ -29,21 +29,29 @@ import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import Engine, func, insert, select, update
 
-from conftest import code_of, entry, recent, run_payload, uuids_in, walk_cursor, walk_pages
+from conftest import (
+    code_of,
+    entry,
+    recent,
+    run_payload,
+    suite_path,
+    uuids_in,
+    walk_cursor,
+    walk_pages,
+)
 from lnt_v5.querying import MAX_LIMIT
 from lnt_v5.routes.commits import COMMITS_PATH
 from lnt_v5.routes.machines import MACHINES_PATH
 from lnt_v5.routes.regressions import INDICATOR_LOOKUP_PATH, MAX_INDICATORS, REGRESSIONS_PATH
 from lnt_v5.routes.runs import RUNS_PATH
-from lnt_v5.routes.suites import SUITES_PATH
 from lnt_v5.suites.states import RegressionState, RegressionStateName
 from lnt_v5.suites.tables import NAME_LENGTH, SuiteTables
 
-REGRESSIONS = REGRESSIONS_PATH.format(testsuite="nts")
-LOOKUP = INDICATOR_LOOKUP_PATH.format(testsuite="nts")
-RUNS = RUNS_PATH.format(testsuite="nts")
-COMMITS = COMMITS_PATH.format(testsuite="nts")
-MACHINES = MACHINES_PATH.format(testsuite="nts")
+REGRESSIONS = REGRESSIONS_PATH.format(project="nts", suite="nts")
+LOOKUP = INDICATOR_LOOKUP_PATH.format(project="nts", suite="nts")
+RUNS = RUNS_PATH.format(project="nts", suite="nts")
+COMMITS = COMMITS_PATH.format(project="nts", suite="nts")
+MACHINES = MACHINES_PATH.format(project="nts", suite="nts")
 
 NTS: dict[str, Any] = {
     "name": "nts",
@@ -163,7 +171,7 @@ def found(api_client: TestClient, **body: Any) -> set[tuple[str, str, str, str]]
 
 def remove_metric(api_client: TestClient, manage: dict[str, str], metric: str) -> Any:
     return api_client.patch(
-        f"{SUITES_PATH}/nts/schema?confirm=true",
+        f"{suite_path('nts')}/schema?confirm=true",
         json={"metrics": {"remove": [metric]}},
         headers=manage,
     )
@@ -362,7 +370,7 @@ class TestCreate:
     def test_is_404_for_a_suite_that_is_not_there(
         self, api_client: TestClient, triage: dict[str, str]
     ) -> None:
-        response = api_client.post(f"{SUITES_PATH}/nope/regressions", json={}, headers=triage)
+        response = api_client.post(f"{suite_path('nope')}/regressions", json={}, headers=triage)
 
         assert response.status_code == 404
 
@@ -739,7 +747,7 @@ class TestList:
         assert listed(api_client).json()["items"][0]["commit"] == "abc123"
 
     def test_is_404_for_a_suite_that_is_not_there(self, api_client: TestClient) -> None:
-        assert api_client.get(f"{SUITES_PATH}/nope/regressions").status_code == 404
+        assert api_client.get(f"{suite_path('nope')}/regressions").status_code == 404
 
 
 class TestCounts:
@@ -1683,7 +1691,9 @@ class TestIndicatorLookup:
         assert code_of(response) == "invalid_request"
 
     def test_is_404_for_a_suite_that_is_not_there(self, api_client: TestClient) -> None:
-        response = api_client.post(INDICATOR_LOOKUP_PATH.format(testsuite="nope"), json={})
+        response = api_client.post(
+            INDICATOR_LOOKUP_PATH.format(project="nope", suite="nope"), json={}
+        )
 
         assert response.status_code == 404
 
@@ -1830,7 +1840,7 @@ class TestCascades:
         remove_metric(api_client, manage, "compile_time")
 
         response = api_client.patch(
-            f"{SUITES_PATH}/nts/schema",
+            f"{suite_path('nts')}/schema",
             json={"metrics": {"add": [{"name": "compile_time", "type": "real"}]}},
             headers=manage,
         )
@@ -1846,7 +1856,7 @@ class TestCascades:
         data: None,
     ) -> None:
         uuid = create(indicators=[LINUX_ONE])["uuid"]
-        schema = f"{SUITES_PATH}/nts/schema"
+        schema = f"{suite_path('nts')}/schema"
         field = {"name": "os", "type": "text"}
         api_client.patch(schema, json={"machine_fields": {"add": [field]}}, headers=manage)
 

@@ -4,19 +4,20 @@ import { api, MAX_PAGE_SIZE, unwrap } from './client'
 import { failuresOf } from './failures'
 import { fetchEveryPage } from './fetch-every-page'
 import { queryKeys } from './keys'
+import type { SuiteRef } from './suites'
 
 /** The names of every test with a value for `metric` on `machine` (E5), however many pages. */
 async function fetchTestNames(
-  suite: string,
+  suite: SuiteRef,
   machine: string,
   metric: string,
   signal: AbortSignal,
 ): Promise<string[]> {
   const tests = await fetchEveryPage((cursor) =>
     unwrap(
-      api.GET('/api/suites/{testsuite}/tests', {
+      api.GET('/api/projects/{project}/suites/{suite}/tests', {
         params: {
-          path: { testsuite: suite },
+          path: suite,
           query: { machine, metric, cursor, limit: MAX_PAGE_SIZE },
         },
         signal,
@@ -54,7 +55,7 @@ interface MachineTests {
  * removed, as the Graph page does once it leaves their suite (GR8).
  */
 export function useTestNames(
-  suite: string,
+  suite: SuiteRef,
   machines: readonly string[],
   metric: string,
   { keep = false }: { keep?: boolean } = {},

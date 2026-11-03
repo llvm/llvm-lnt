@@ -77,6 +77,7 @@ from lnt_v5.suites.registry import RegistryDep, Suite
 from lnt_v5.suites.schema import CommitField
 from lnt_v5.suites.scope import (
     SUITE_SCHEMA_CHANGED,
+    ProjectName,
     SuiteName,
     suite_responses,
     suite_scope,
@@ -84,7 +85,7 @@ from lnt_v5.suites.scope import (
 from lnt_v5.suites.submission import SubmittedCommit
 from lnt_v5.suites.tables import COMMIT_ORDINAL_CONSTRAINT, COMMIT_VALUE_CONSTRAINT
 
-COMMITS_PATH = f"{SUITES_PATH}/{{testsuite}}/commits"
+COMMITS_PATH = f"{SUITES_PATH}/{{suite}}/commits"
 
 router = APIRouter(prefix=COMMITS_PATH, tags=["Commits"])
 
@@ -371,15 +372,15 @@ class Commits:
 
     def missing(self, value: str) -> ApiError:
         """The 404 for a commit that is not there, worded in one place for all its callers."""
-        return _missing(self.schema.name, value)
+        return _missing(self.suite.full_name, value)
 
     def taken(self, value: str) -> str:
-        return f"A commit '{value}' already exists in test suite '{self.schema.name}'"
+        return f"A commit '{value}' already exists in test suite '{self.suite.full_name}'"
 
     def ordinal_taken(self, ordinal: int | None) -> str:
         return (
             f"Ordinal {ordinal} is already held by another commit in test suite "
-            f"'{self.schema.name}'"
+            f"'{self.suite.full_name}'"
         )
 
     def get_or_create(self, connection: Connection, submitted: SubmittedCommit) -> int:
@@ -439,13 +440,13 @@ class Commits:
         def error(key: str, stored: Any, submitted: Any) -> ApiError:
             if key == "ordinal":
                 message = (
-                    f"Commit '{value}' in test suite '{self.schema.name}' is already at ordinal "
-                    f"{stored}, but this submission places it at {submitted}. Use PATCH to move a "
-                    f"commit once its ordinal is set."
+                    f"Commit '{value}' in test suite '{self.suite.full_name}' is already at "
+                    f"ordinal {stored}, but this submission places it at {submitted}. Use PATCH to "
+                    f"move a commit once its ordinal is set."
                 )
             else:
                 message = (
-                    f"Commit '{value}' in test suite '{self.schema.name}' already has "
+                    f"Commit '{value}' in test suite '{self.suite.full_name}' already has "
                     f"{key}={stored!r}, but this submission says {submitted!r}. A submission never "
                     f"overwrites stored metadata; use PATCH to change it."
                 )
@@ -454,10 +455,10 @@ class Commits:
         return error
 
 
-def _missing(testsuite: str, value: str) -> ApiError:
+def _missing(suite: str, value: str) -> ApiError:
     """The 404 for a commit no suite holds, shared by the commit routes and by every body that
     names one."""
-    return ApiError(ErrorCode.NOT_FOUND, f"No commit '{value}' in test suite '{testsuite}'")
+    return ApiError(ErrorCode.NOT_FOUND, f"No commit '{value}' in test suite '{suite}'")
 
 
 def commit_search(suite: Suite, term: str) -> ColumnElement[bool]:
@@ -481,7 +482,7 @@ def commit_id(connection: Connection, suite: Suite, value: str) -> int:
     """
     commit = suite.tables.commit
     return identifier(
-        connection, commit.c.commit, value, lambda missed: _missing(suite.schema.name, missed)
+        connection, commit.c.commit, value, lambda missed: _missing(suite.full_name, missed)
     )
 
 
@@ -503,11 +504,11 @@ def commit_ordinal(connection: Connection, suite: Suite, value: str) -> int:
     commit = suite.tables.commit
     row = connection.execute(select(commit.c.ordinal).where(commit.c.commit == value)).one_or_none()
     if row is None:
-        raise _missing(suite.schema.name, value)
+        raise _missing(suite.full_name, value)
     if row.ordinal is None:
         raise ApiError(
             ErrorCode.INVALID_REQUEST,
-            f"Commit '{value}' in test suite '{suite.schema.name}' has no ordinal, so it has no "
+            f"Commit '{value}' in test suite '{suite.full_name}' has no ordinal, so it has no "
             f"position in the commit order and cannot bound a range. Give it one with PATCH.",
         )
     return int(row.ordinal)
@@ -520,6 +521,7 @@ def commit_ordinal(connection: Connection, suite: Suite, value: str) -> int:
     responses=suite_responses(not_found=_NO_LIST_ENTITY),
 )
 def list_commits(
+    project: ProjectName,
     testsuite: SuiteName,
     engine: EngineDep,
     registry: RegistryDep,
@@ -610,7 +612,10 @@ def list_commits(
     For `sort=first_seen`, a commit's position is set when it is created (explicitly or by a run
     submission). Later runs or ordinal changes don't move it.
     """
-    with engine.connect() as connection, suite_scope(registry, connection, testsuite) as suite:
+    with (
+        engine.connect() as connection,
+        suite_scope(registry, connection, project, testsuite) as suite,
+    ):
         commits = Commits(suite)
         conditions: list[ColumnElement[bool]] = []
         if search is not None:
@@ -662,6 +667,7 @@ def list_commits(
     ),
 )
 def create_commit(
+    project: ProjectName,
     testsuite: SuiteName,
     body: Annotated[CommitObject, Body(openapi_examples=_CREATE_EXAMPLES)],
     engine: EngineDep,
@@ -675,7 +681,10 @@ def create_commit(
     doesn't exist yet. Creating a commit yourself is useful to give it an ordinal or a tag before
     any run arrives.
     """
-    with engine.begin() as connection, suite_scope(registry, connection, testsuite) as suite:
+    with (
+        engine.begin() as connection,
+        suite_scope(registry, connection, project, testsuite) as suite,
+    ):
         commits = Commits(suite)
         values = validate_fields(suite.schema, CommitField, body.fields)
         with (
@@ -699,7 +708,7 @@ def create_commit(
             )
         created = commits.detail(connection, body.value)
 
-    response.headers["Location"] = location_of(COMMITS_PATH, testsuite, body.value)
+    response.headers["Location"] = location_of(COMMITS_PATH, project, testsuite, body.value)
     return created
 
 
@@ -712,6 +721,7 @@ def create_commit(
     responses=suite_responses(),
 )
 def resolve_commits(
+    project: ProjectName,
     testsuite: SuiteName,
     body: Annotated[ResolveRequest, Body(openapi_examples=_RESOLVE_EXAMPLES)],
     engine: EngineDep,
@@ -720,7 +730,10 @@ def resolve_commits(
     """Look up many commits by value in a single request, for example all the commits referred to
     by a page of runs. This is a POST only because the list can be too long for a URL; it doesn't
     change anything."""
-    with engine.connect() as connection, suite_scope(registry, connection, testsuite) as suite:
+    with (
+        engine.connect() as connection,
+        suite_scope(registry, connection, project, testsuite) as suite,
+    ):
         commits = Commits(suite)
         # Deduplicated, keeping the order the request gave, so that a client can read the response
         # back in the order it asked -- `dict` preserves insertion order, and JSON objects render
@@ -749,10 +762,17 @@ def resolve_commits(
     responses=suite_responses(not_found=_NO_COMMIT),
 )
 def get_commit(
-    testsuite: SuiteName, value: CommitKey, engine: EngineDep, registry: RegistryDep
+    project: ProjectName,
+    testsuite: SuiteName,
+    value: CommitKey,
+    engine: EngineDep,
+    registry: RegistryDep,
 ) -> CommitDetail:
     """Get a commit, with the commits just before and after it."""
-    with engine.connect() as connection, suite_scope(registry, connection, testsuite) as suite:
+    with (
+        engine.connect() as connection,
+        suite_scope(registry, connection, project, testsuite) as suite,
+    ):
         return Commits(suite).detail(connection, value)
 
 
@@ -763,6 +783,7 @@ def get_commit(
     responses=suite_responses(not_found=_NO_COMMIT, conflict=_ORDINAL_TAKEN),
 )
 def update_commit(
+    project: ProjectName,
     testsuite: SuiteName,
     value: CommitKey,
     body: Annotated[CommitUpdate, Body(openapi_examples=_UPDATE_EXAMPLES)],
@@ -775,7 +796,10 @@ def update_commit(
     to change. If you change the ordinal, the tag or a field here, later run submissions that still
     send the old value are rejected with a 409 `conflict` until they are updated.
     """
-    with engine.begin() as connection, suite_scope(registry, connection, testsuite) as suite:
+    with (
+        engine.begin() as connection,
+        suite_scope(registry, connection, project, testsuite) as suite,
+    ):
         commits = Commits(suite)
         changes = body.model_dump(exclude_unset=True)
         values: dict[str, Any] = {
@@ -810,14 +834,21 @@ def update_commit(
     responses=suite_responses(not_found=_NO_COMMIT),
 )
 def delete_commit(
-    testsuite: SuiteName, value: CommitKey, engine: EngineDep, registry: RegistryDep
+    project: ProjectName,
+    testsuite: SuiteName,
+    value: CommitKey,
+    engine: EngineDep,
+    registry: RegistryDep,
 ) -> None:
     """Delete a commit, along with its runs and their samples and profiles. The regressions
     attributed to the commit are kept, with no commit."""
     # One statement: D5 gives `{suite}.run.commit_id` an `ON DELETE CASCADE`, and the runs take
     # their samples and profiles with them in turn. `{suite}.regression.commit_id` is set to null
     # instead, so the regressions stay.
-    with engine.begin() as connection, suite_scope(registry, connection, testsuite) as suite:
+    with (
+        engine.begin() as connection,
+        suite_scope(registry, connection, project, testsuite) as suite,
+    ):
         commits = Commits(suite)
         removed = connection.execute(delete(commits.table).where(commits.table.c.commit == value))
         if removed.rowcount == 0:

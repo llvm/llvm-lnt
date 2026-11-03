@@ -9,7 +9,7 @@ import { useQuery, type UseQueryResult } from '@tanstack/react-query'
 import type { Schemas } from '../../api/client'
 import { profileQuery } from '../../api/profiles'
 import { commitRunsQuery, runProfilesQuery } from '../../api/runs'
-import type { SuiteSchema } from '../../api/suites'
+import { isNamed, NO_SUITE, type Suite, type SuiteRef } from '../../api/suites'
 import { compareStrings } from '../../format'
 import type { Machines } from '../../components/machine-suggestions'
 import { runsListFailed, useSuiteAndMachine } from '../../components/side-selection'
@@ -46,7 +46,7 @@ export interface ProfileSide {
   /** Whether side B uses its default test, side A's: it has a commit, but no test picked. */
   usesDefaultTest: boolean
   /** The side's suite, once the suite list shows that it exists. */
-  schema: SuiteSchema | undefined
+  schema: Suite | undefined
   machines: Machines
   /** The runs of the machine at the commit that have profiles, in the order they were measured. */
   runs: UseQueryResult<Run[]>
@@ -78,7 +78,7 @@ export interface ProfileSide {
    * the side's picks may call this, while it renders (see `useProfileSide`).
    */
   settleFunction(held: HeldFunction): void
-  pickSuite(suite: string): void
+  pickSuite(suite: SuiteRef): void
   pickMachine(machine: string | null): void
   pickCommit(commit: string | null): void
   pickRun(run: string): void
@@ -101,7 +101,7 @@ export function useProfileSide(
   id: SideId,
   all: Settings,
   update: (changes: Partial<Settings>) => void,
-  suites: UseQueryResult<SuiteSchema[]>,
+  suites: UseQueryResult<Suite[]>,
   picks?: [SidePicks, Dispatch<SidePicksAction>],
 ): ProfileSide {
   const settings = sideSettings(all, id)
@@ -128,13 +128,13 @@ export function useProfileSide(
     suite,
     machine,
     suites,
-    onUnusableSuite: () => clear({ suite: '', ...CLEARED_WITH.suite }),
+    onUnusableSuite: () => clear({ suite: NO_SUITE, ...CLEARED_WITH.suite }),
     onUnusableMachine: () => clear({ machine: '', ...CLEARED_WITH.machine }),
   })
 
   const runs = useQuery({
     ...commitRunsQuery(suite, machine, commit, { has_profiles: true }),
-    enabled: suite !== '' && machine !== '' && commit !== '',
+    enabled: isNamed(suite) && machine !== '' && commit !== '',
   })
   // If a run list loaded once and a refetch fails, the side keeps using it. A failure is not
   // reported while the machine may not exist, unless the page cannot check that because the suites
@@ -146,14 +146,17 @@ export function useProfileSide(
   const selected = runs.data?.find((entry) => entry.uuid === run)
   const profiles = useQuery({
     ...runProfilesQuery(suite, run),
-    enabled: suite !== '' && run !== '',
+    enabled: isNamed(suite) && run !== '',
   })
   const profileOf = useMemo(
     () => profiles.data && new Map(profiles.data.map((profile) => [profile.test, profile.uuid])),
     [profiles.data],
   )
   const uuid = profileOf?.get(named)
-  const metadata = useQuery({ ...profileQuery(suite, uuid ?? ''), enabled: uuid !== undefined })
+  const metadata = useQuery({
+    ...profileQuery(suite, uuid ?? ''),
+    enabled: isNamed(suite) && uuid !== undefined,
+  })
   // The tests the side's run has a profile of, once the run is known to be the side's.
   const tested = selected ? profileOf : undefined
   const tests = useMemo(
@@ -181,7 +184,7 @@ export function useProfileSide(
   // Drop what the side names without the control it depends on, as clearing that does (PF9).
   // Side B's function needs a test, which may be its default test.
   useEffect(() => {
-    if (suite === '') drop(CLEARED_WITH.suite)
+    if (suite === NO_SUITE) drop(CLEARED_WITH.suite)
     else if (machine === '') drop(CLEARED_WITH.machine)
     else if (commit === '') drop(CLEARED_WITH.commit)
     else if (test === '') drop(CLEARED_WITH.test)
@@ -230,7 +233,7 @@ export function useProfileSide(
     carry,
     heldFunction,
     settleFunction,
-    pickSuite: (name) => clear({ suite: name, ...CLEARED_WITH.suite }),
+    pickSuite: (picked) => clear({ suite: picked, ...CLEARED_WITH.suite }),
     pickMachine: (name) =>
       // The new machine keeps the commit if it has profiles there, which the commit picker checks.
       name === null

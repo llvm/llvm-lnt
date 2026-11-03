@@ -4,7 +4,7 @@
  * Calls go through `openapi-fetch`, typed by the generated `schema.d.ts`, and are passed through
  * `unwrap`, which returns the response body or throws an `ApiError`:
  *
- *     const suites = await unwrap(api.GET('/api/suites', { signal }))
+ *     const projects = await unwrap(api.GET('/api/projects', { signal }))
  *
  * There are two clients. `api` never sends the stored token, because every `read` endpoint can be
  * used without it (I5) and a stale or revoked token would turn those into 401s. `authedApi` sends

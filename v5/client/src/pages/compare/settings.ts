@@ -1,6 +1,8 @@
 /** The Compare page's settings, as the URL keeps them (CP7). */
 
 import { AGGREGATIONS, DEFAULT_AGGREGATION } from '../../aggregation'
+import { suiteRef, type SuiteRef } from '../../api/suites'
+import { sideParams } from '../../components/side-selection'
 import { sortParam } from '../../components/table-sort'
 import type { NoiseKnob, NoiseSettings } from './comparison'
 import { OPTIONAL_KEYS, SORTABLE } from './columns'
@@ -22,11 +24,14 @@ export type SideId = 'a' | 'b'
 export const HIDDEN_IN_URL = 10
 
 export const PARAMS = {
+  // A side's suite, by its project's name and its own (AR22), which go together.
+  project_a: stringParam(),
   suite_a: stringParam(),
   machine_a: stringParam(),
   commit_a: stringParam(),
   /** The runs selected, unless every run is. */
   runs_a: listParam(),
+  project_b: stringParam(),
   suite_b: stringParam(),
   machine_b: stringParam(),
   commit_b: stringParam(),
@@ -56,16 +61,20 @@ export type Settings = { [K in keyof typeof PARAMS]: (typeof PARAMS)[K]['default
 
 /** One side's settings. */
 export interface SideSettings {
-  suite: string
+  /** The side's suite, or `NO_SUITE` for none. */
+  suite: SuiteRef
   machine: string
   commit: string
   runs: string[]
 }
 
-/** The settings of `side`, each the URL's parameter of the same name, suffixed with the side's. */
+/**
+ * The settings of `side`, each the URL's parameter of the same name, suffixed with the side's, but
+ * for its suite, which is also its project's (see `sideChanges`).
+ */
 export function sideSettings(settings: Settings, side: SideId): SideSettings {
   return {
-    suite: settings[`suite_${side}`],
+    suite: suiteRef(settings[`project_${side}`], settings[`suite_${side}`]),
     machine: settings[`machine_${side}`],
     commit: settings[`commit_${side}`],
     runs: settings[`runs_${side}`],
@@ -79,10 +88,9 @@ export const CLEARED_WITH = {
   commit: { runs: [] },
 } as const satisfies Record<string, Partial<SideSettings>>
 
-/** The changes to the URL that give `side` the settings `changes`. */
+/** The changes to the URL that give `side` the settings `changes` (see `sideParams`). */
 export function sideChanges(side: SideId, changes: Partial<SideSettings>): Partial<Settings> {
-  const entries = Object.entries(changes).map(([key, value]) => [`${key}_${side}`, value])
-  return Object.fromEntries(entries) as Partial<Settings>
+  return sideParams(side, changes) as Partial<Settings>
 }
 
 /** The URL parameter of each noise knob (CP7). */

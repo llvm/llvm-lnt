@@ -50,7 +50,7 @@ def canonical_server_path(path: str) -> str | None:
     """The slash-less form of a server path given with a trailing slash, or None if it is fine.
 
     Server paths are canonically slash-less -- every path in the endpoints spec is written that
-    way -- so `/api/suites/` names the same endpoint as `/api/suites`.
+    way -- so `/api/projects/` names the same endpoint as `/api/projects`.
     """
     if path == "/" or not path.endswith("/"):
         return None
@@ -112,8 +112,8 @@ class RedirectTrailingSlash:
 
     Starlette does this out of the box, but only once nothing has matched -- and the SPA mount at
     "/" matches every path, so its redirect is unreachable here. This does the same for the paths
-    the server owns, and leaves client routes alone: the SPA answers `/suites/nts` and
-    `/suites/nts/` alike, and bouncing the browser between them would be noise.
+    the server owns, and leaves client routes alone: the SPA answers `/projects/llvm` and
+    `/projects/llvm/` alike, and bouncing the browser between them would be noise.
 
     Purely syntactic, with no consultation of the route table: a trailing slash on a path that
     exists under neither spelling simply costs one extra round trip before its 404.
@@ -171,7 +171,7 @@ def _path_and_query(path: str, query: bytes) -> str:
 
     The path is the decoded one the router saw, so it is encoded again here: a natural key may
     carry `%`, `?` or `#`, and left bare each would change what the URL names. Encoding the raw
-    path instead would not do -- `/api/suites/x%2F` decodes to a trailing slash its raw form does
+    path instead would not do -- `/api/projects/x%2F` decodes to a trailing slash its raw form does
     not have, and would redirect to itself forever.
 
     The query string arrives encoded already, and is passed through rather than decoded: it is
@@ -190,9 +190,9 @@ def is_static_asset_path(path: str) -> bool:
 
     That is a path under /assets/, or one whose first segment contains a dot, such as
     `/favicon.ico`. Every page starts with a fixed segment that has none, so a page is never
-    misread as a file however its identifiers are spelled: `/suites/nts/machines/node.js` reaches
-    the client. A path that climbs out of the bundle (`/../secret.css`, once normalized) counts as
-    a file too, and so gets a 404.
+    misread as a file however its identifiers are spelled:
+    `/projects/llvm/suites/nts/machines/node.js` reaches the client. A path that climbs out of the
+    bundle (`/../secret.css`, once normalized) counts as a file too, and so gets a 404.
     """
     return path.startswith(f"/{ASSETS}/") or "." in path.split("/", 2)[1]
 
@@ -211,7 +211,7 @@ def _api_miss(scope: Scope, method: str | None) -> Exception:
     matched rather than of every route serving the path, as RFC 9110 requires.
 
     Matched against the path the router saw, not the one StaticFiles hands `get_response`: that one
-    is normalized, so `/api//suites` would match `/api/suites` and get a 405 allowing the very
+    is normalized, so `/api//projects` would match `/api/projects` and get a 405 allowing the very
     method it refused.
 
     `Allow` names HEAD wherever it names GET, since `AnswerHeadLikeGet` serves it there. Starlette's

@@ -42,8 +42,8 @@ import {
 import { server } from '../../test/server'
 
 const VALUE = 'abc123'
-const PAGE = `/suites/libcxx/commits/${VALUE}`
-const COMMIT_ROUTE = '/api/suites/{testsuite}/commits/{value}'
+const PAGE = `/projects/llvm/suites/libcxx/commits/${VALUE}`
+const COMMIT_ROUTE = '/api/projects/{project}/suites/{suite}/commits/{value}'
 
 const PREVIOUS = commit('prev99', {
   ordinal: 99,
@@ -101,11 +101,15 @@ function renderCommit({
       detailCalls.count++
       return detail()
     }),
-    mockApi('get', '/api/suites/{testsuite}/runs', ({ request }) => runList.answer(request)),
-    mockApi('get', '/api/suites/{testsuite}/regressions', ({ request }) =>
+    mockApi('get', '/api/projects/{project}/suites/{suite}/runs', ({ request }) =>
+      runList.answer(request),
+    ),
+    mockApi('get', '/api/projects/{project}/suites/{suite}/regressions', ({ request }) =>
       regressionList.answer(request),
     ),
-    mockApi('get', '/api/suites/{testsuite}/commits', ({ request }) => lookups.answer(request)),
+    mockApi('get', '/api/projects/{project}/suites/{suite}/commits', ({ request }) =>
+      lookups.answer(request),
+    ),
   )
   renderPage(url)
   return {
@@ -229,7 +233,7 @@ describe('the Commit Detail page', () => {
     expect(screen.queryByRole('heading', { name: 'Runs' })).not.toBeInTheDocument()
     expect(screen.queryByRole('heading', { name: 'Regressions' })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Retry' })).not.toBeInTheDocument()
-    expect(trailLink('Commits')).toHaveAttribute('href', '/suites/libcxx?tab=commits')
+    expect(trailLink('Commits')).toHaveAttribute('href', '/projects/llvm/suites/libcxx?tab=commits')
   })
 
   it('offers to fetch the commit again when it could not be', async () => {
@@ -270,9 +274,15 @@ describe('the Commit Detail page', () => {
       renderCommit()
 
       await screen.findByRole('group', { name: 'Commit' })
-      expect(link('← Previous commit')).toHaveAttribute('href', '/suites/libcxx/commits/prev99')
+      expect(link('← Previous commit')).toHaveAttribute(
+        'href',
+        '/projects/llvm/suites/libcxx/commits/prev99',
+      )
       expect(link('← Previous commit')).toHaveAttribute('title', 'r99')
-      expect(link('Next commit →')).toHaveAttribute('href', '/suites/libcxx/commits/next101')
+      expect(link('Next commit →')).toHaveAttribute(
+        'href',
+        '/projects/llvm/suites/libcxx/commits/next101',
+      )
       expect(link('Next commit →')).toHaveAttribute('title', 'next101 (v2)')
     })
 
@@ -313,7 +323,7 @@ describe('the Commit Detail page', () => {
 
       fireEvent.click(link('← Previous commit'))
 
-      await waitFor(() => expect(currentUrl()).toBe('/suites/libcxx/commits/prev99'))
+      await waitFor(() => expect(currentUrl()).toBe('/projects/llvm/suites/libcxx/commits/prev99'))
       expect(await screen.findByRole('heading', { level: 1 })).toHaveTextContent('Commit: prev99')
       await expectInfo(0, ['Commit', 'prev99'])
       expect(screen.queryByRole('textbox', { name: 'Tag' })).not.toBeInTheDocument()
@@ -390,7 +400,10 @@ describe('the Commit Detail page', () => {
       await expectInfo(1, ['Ordinal', '42Edit'])
       expect(sent).toEqual([{ body: { ordinal: 42 }, auth: `Bearer ${TOKEN}` }])
       // The neighbours are those of the new ordinal.
-      expect(link('← Previous commit')).toHaveAttribute('href', '/suites/libcxx/commits/before')
+      expect(link('← Previous commit')).toHaveAttribute(
+        'href',
+        '/projects/llvm/suites/libcxx/commits/before',
+      )
       expect(link('Next commit →')).not.toHaveAttribute('href')
     })
 
@@ -532,7 +545,7 @@ describe('the Commit Detail page', () => {
         stored = { ...stored, ...body }
         return HttpResponse.json(patched(body))
       })
-      renderCommit({ url: '/suites/libcxx?tab=commits' })
+      renderCommit({ url: '/projects/llvm/suites/libcxx?tab=commits' })
       const listQueries = mockCommits(() => cursorPage([stored]))
       server.use(mockApi('get', COMMIT_ROUTE, () => HttpResponse.json(DETAIL)))
       fireEvent.click(within(await table('Commits')).getByRole('link', { name: 'r100' }))
@@ -597,7 +610,7 @@ describe('the Commit Detail page', () => {
         stored = { ...stored, fields: { ...stored.fields, ...body.fields } }
         return HttpResponse.json({ ...DETAIL, ...stored })
       })
-      renderCommit({ url: '/suites/libcxx?tab=commits' })
+      renderCommit({ url: '/projects/llvm/suites/libcxx?tab=commits' })
       const listQueries = mockCommits(() => cursorPage([stored]))
       server.use(mockApi('get', COMMIT_ROUTE, () => HttpResponse.json(DETAIL)))
       fireEvent.click(within(await table('Commits')).getByRole('link', { name: 'r100' }))
@@ -747,7 +760,7 @@ describe('the Commit Detail page', () => {
 
       expect(await within(prompt).findByText(/may take a while/)).toBeInTheDocument()
       act(() => deletion.open())
-      await waitFor(() => expect(currentUrl()).toBe('/suites/libcxx?tab=commits'))
+      await waitFor(() => expect(currentUrl()).toBe('/projects/llvm/suites/libcxx?tab=commits'))
       expect(deleted).toEqual([`Bearer ${TOKEN}`])
       expect(await screen.findByText('No commits yet.')).toBeInTheDocument()
     })
@@ -772,7 +785,7 @@ describe('the Commit Detail page', () => {
       ])
       expect(within(list).getByRole('link', { name: 'bbbbbbbb…' })).toHaveAttribute(
         'href',
-        `/suites/libcxx/regressions/${uuidOf('b')}`,
+        `/projects/llvm/suites/libcxx/regressions/${uuidOf('b')}`,
       )
       expect(Object.fromEntries(regressionQueries[0])).toEqual({
         commit: VALUE,
@@ -839,15 +852,17 @@ describe('the Commit Detail page', () => {
       expect(screen.getByText('3 runs across 2 machines')).toBeInTheDocument()
       expect(within(runs).getByRole('link', { name: 'linux' })).toHaveAttribute(
         'href',
-        '/suites/libcxx/machines/linux',
+        '/projects/llvm/suites/libcxx/machines/linux',
       )
 
       // A link once the commit before is known, and no link at all until then.
       await waitFor(() => expect(compareLinks(runs)[0]).toHaveAttribute('href'))
       expect(queryOf(compareLinks(runs)[0])).toEqual({
+        project_a: 'llvm',
         suite_a: 'libcxx',
         machine_a: 'linux',
         commit_a: 'before',
+        project_b: 'llvm',
         suite_b: 'libcxx',
         machine_b: 'linux',
         commit_b: VALUE,

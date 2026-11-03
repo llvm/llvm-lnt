@@ -1,5 +1,6 @@
 import { useRef, useState, type ReactNode } from 'react'
 import clsx from 'clsx'
+import type { SuiteRef } from '../api/suites'
 import { useScopeGate, type Scope } from '../auth/scope'
 import { Confirmation } from './confirmation'
 import { DangerButton } from './danger-button'
@@ -12,7 +13,7 @@ export interface Deletion {
   /** The scope deleting needs. */
   scope: Scope
   /** The suite the deletion addresses, which the scope is needed in. */
-  suite: string
+  suite: SuiteRef
   /** What to type to confirm (AR16). */
   expected: string
   /** What the deletion destroys. */

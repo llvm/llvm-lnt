@@ -1,6 +1,7 @@
 import { PAGE_SIZE } from '../api/client'
 import { queryKeys } from '../api/keys'
 import { fetchRegressions } from '../api/regressions'
+import type { SuiteRef } from '../api/suites'
 import { shortUuid } from '../format'
 import { Combobox } from './combobox'
 import { useServerSuggestions, type Suggestion } from './suggestions'
@@ -34,7 +35,7 @@ export const UNPICKED_REGRESSION = 'Pick a regression from the list, or clear th
 
 interface Props {
   label: string
-  suite: string
+  suite: SuiteRef
   /** The regression picked, or null for none. */
   value: PickedRegression | null
   onChange(value: PickedRegression | null): void

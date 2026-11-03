@@ -230,15 +230,17 @@ CLIENT_UUID_FORMAT = (
 )
 
 
-def location_of(path: str, testsuite: str, key: str) -> str:
-    """Where a `POST` says the entity it created can be read back (I1).
+def location_of(path: str, project: str, suite: str, key: str) -> str:
+    """Where a `POST` says the entity it created in the suite `suite` of project `project` can be
+    read back (I1).
 
     The counterpart to `addressable` above: that rule is what guarantees a natural key can be one
-    segment of a URL, and this is what puts it there. `safe=''` on both segments is the part a
+    segment of a URL, and this is what puts it there. `safe=''` on every segment is the part a
     hand-written copy gets wrong -- `quote` leaves `/` alone by default, which would turn a key
     into two path segments.
     """
-    return f"{path.format(testsuite=quote(testsuite, safe=''))}/{quote(key, safe='')}"
+    prefix = path.format(project=quote(project, safe=""), suite=quote(suite, safe=""))
+    return f"{prefix}/{quote(key, safe='')}"
 
 
 # The descriptions and docstrings from here to the end of the entity objects are published, in I8's

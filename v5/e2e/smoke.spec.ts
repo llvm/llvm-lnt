@@ -6,9 +6,11 @@ import { expect, REAL_RUN, test } from './fixtures.ts'
 
 test.describe('routing', () => {
   for (const [url, heading] of [
-    ['/suites/libcxx', 'Test Suites'],
-    [`/suites/libcxx/runs/${REAL_RUN}`, `Run: ${REAL_RUN}`],
-    ['/graph?suite=libcxx', 'Graph'],
+    ['/projects', 'Test Suites'],
+    ['/projects/libcxx', 'Test Suites'],
+    ['/projects/libcxx/suites/benchmarks', 'Test Suites'],
+    [`/projects/libcxx/suites/benchmarks/runs/${REAL_RUN}`, `Run: ${REAL_RUN}`],
+    ['/graph?project=libcxx&suite=benchmarks', 'Graph'],
   ]) {
     test(`a deep link to ${url} survives a hard refresh`, async ({ page }) => {
       await page.goto(url)
@@ -26,14 +28,12 @@ test.describe('routing', () => {
     await page.evaluate(() => (document.documentElement.dataset.loadedOnce = 'yes'))
 
     const navbar = page.getByRole('navigation')
-    // Test Suites comes after the suite-agnostic pages, since it lands on the first suite (TS1),
-    // which the navbar would pass on to them (AR4).
     for (const [link, url, heading] of [
+      ['Test Suites', '/projects', 'Test Suites'],
       ['Graph', '/graph', 'Graph'],
       ['Compare', '/compare', 'Compare'],
       ['Profiles', '/profiles', 'Profiles'],
       ['Admin', '/admin', 'Admin'],
-      ['Test Suites', /\/suites\/[^/?]+$/, 'Test Suites'],
       ['LNT', '/', 'Dashboard'],
     ]) {
       await navbar.getByRole('link', { name: link, exact: true }).click()
@@ -44,9 +44,9 @@ test.describe('routing', () => {
   })
 
   test('the navbar passes the suite of a suite-scoped page on (AR4)', async ({ page }) => {
-    await page.goto('/suites/libcxx')
+    await page.goto('/projects/libcxx/suites/benchmarks')
     await page.getByRole('navigation').getByRole('link', { name: 'Graph', exact: true }).click()
-    await expect(page).toHaveURL('/graph?suite=libcxx')
+    await expect(page).toHaveURL('/graph?project=libcxx&suite=benchmarks')
     await expect(page.getByRole('heading', { level: 1 })).toHaveText('Graph')
   })
 
@@ -63,7 +63,7 @@ test.describe('routing', () => {
 })
 
 test('an unknown API path is a JSON 404 rather than the client', async ({ request }) => {
-  for (const url of ['/api/nope', '/api/suites/libcxx/nope']) {
+  for (const url of ['/api/nope', '/api/projects/libcxx/suites/benchmarks/nope']) {
     const response = await request.get(url)
     expect(response.status()).toBe(404)
     expect(response.headers()['content-type']).toContain('application/json')

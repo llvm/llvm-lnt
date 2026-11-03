@@ -97,3 +97,15 @@
 .title {
   min-width: 10rem;
 }
+
+/* The heading of a project's suites in the suite picker (TS1). */
+.projectHeading {
+  margin: var(--lnt-space-3) 0 var(--lnt-space-2);
+  font-size: 1.2rem;
+}
+
+/* The link back to every project's suites, above the picker (TS1). */
+.allProjects {
+  display: inline-block;
+  margin-bottom: var(--lnt-space-2);
+}
