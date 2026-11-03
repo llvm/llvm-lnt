@@ -310,7 +310,13 @@ test.describe('the Commits tab', () => {
 })
 
 test('Back leaves the page rather than stepping through its settings', async ({ page }) => {
-  await page.goto('/projects/libcxx/suites/header-sizes')
+  // From a page that asks the API nothing.
+  await page.goto('/nope')
+  await page.goto('/projects/llvm/suites/nts')
+  // The project, the suite and the tab are all settings of the page (TS1).
+  const projects = page.getByRole('navigation', { name: 'Projects' })
+  await projects.getByRole('link', { name: 'libc++', exact: true }).click()
+  await expect(page).toHaveURL('/projects/libcxx/suites/header-sizes')
   await page.getByRole('link', { name: 'Microbenchmarks', exact: true }).click()
   await expect(page).toHaveURL('/projects/libcxx/suites/benchmarks')
 
@@ -321,7 +327,7 @@ test('Back leaves the page rather than stepping through its settings', async ({ 
   await expect(page).toHaveURL('/projects/libcxx/suites/benchmarks?tab=commits')
 
   await page.goBack()
-  await expect(page).toHaveURL('/projects/libcxx/suites/header-sizes')
+  await expect(page).toHaveURL('/nope')
 })
 
 test.describe('the Schema tab', () => {
@@ -619,10 +625,11 @@ test.describe('the Schema tab', () => {
     const CONFIRM = { type: 'confirm', message: 'You have unsaved changes. Leave anyway?' }
 
     await signIn(page, 'manage')
-    // From another suite, for Back to have an entry of the SPA to go back to.
-    await page.goto('/projects/libcxx/suites/header-sizes')
-    const picker = page.getByRole('navigation', { name: 'Test suites' })
-    await picker.getByRole('link', { name: 'Microbenchmarks' }).click()
+    // From a machine's page, through its breadcrumb, for Back to have an entry of the SPA to go
+    // back to.
+    await page.goto(`/projects/libcxx/suites/benchmarks/machines/${MACOS}`)
+    const trail = page.getByRole('navigation', { name: 'Breadcrumb' })
+    await trail.getByRole('link', { name: 'Microbenchmarks', exact: true }).click()
     await page.getByRole('tab', { name: 'Schema' }).click()
     await page.getByRole('button', { name: 'Edit schema' }).click()
     const editor = page.getByRole('region', { name: 'Editing libc++ › Microbenchmarks' })

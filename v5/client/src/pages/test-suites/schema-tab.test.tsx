@@ -24,6 +24,7 @@ import {
   mockRuns,
   mockSuites,
   renderPage,
+  renderPageFrom,
   rowsOf,
   settle,
   table,
@@ -103,34 +104,33 @@ function confirmDeletion(name: string) {
 
 /**
  * Show the Schema tab of the suite `name`, among `suites`, without a token, or to a holder of a
- * `manage` token, ready to delete it. The Runs tab, which the page goes to once the suite is
- * deleted, lists no runs.
+ * `manage` token, ready to delete it; reached through a link from the page at `from`, if given.
+ * The Runs tab, which the page goes to once the suite is deleted, lists no runs.
  */
 async function renderSuite(
   name = 'libcxx',
-  { manage = false, suites = SUITES }: { manage?: boolean; suites?: (Suite | SuiteSchema)[] } = {},
+  {
+    manage = false,
+    suites = SUITES,
+    from,
+  }: { manage?: boolean; suites?: (Suite | SuiteSchema)[]; from?: string } = {},
 ) {
   if (manage) signIn('manage')
   const store = mockSuites(suites)
   mockRuns(() => cursorPage([]))
-  const rendered = renderPage(`/projects/llvm/suites/${name}?tab=schema`)
+  const url = `/projects/llvm/suites/${name}?tab=schema`
+  const rendered = from === undefined ? renderPage(url) : await renderPageFrom(from, url)
   await table('Metrics')
   if (manage) await waitFor(() => expect(deleteButton()).toBeEnabled())
   return { ...rendered, store }
 }
 
 /**
- * Show libcxx's Schema tab to a holder of a `manage` token, reached from nts's page through its
- * chip, so that Back leaves the page.
+ * Show libcxx's Schema tab to a holder of a `manage` token, reached through a link from nts's page,
+ * so that Back leaves the page: a chip would replace nts's page in the history (TS1).
  */
 async function renderFromElsewhere() {
-  signIn('manage')
-  const store = mockSuites(SUITES)
-  mockRuns(() => cursorPage([]))
-  renderPage('/projects/llvm/suites/nts')
-  fireEvent.click(await screen.findByRole('link', { name: 'libcxx' }))
-  fireEvent.click(await screen.findByRole('tab', { name: 'Schema' }))
-  await waitFor(() => expect(deleteButton()).toBeEnabled())
+  const { store } = await renderSuite('libcxx', { manage: true, from: '/projects/llvm/suites/nts' })
   return store
 }
 

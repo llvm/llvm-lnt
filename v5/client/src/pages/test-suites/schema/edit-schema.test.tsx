@@ -27,6 +27,7 @@ import {
   mockSuites,
   navbarLink,
   renderPage,
+  renderPageFrom,
   rowsOf,
   settle,
   table,
@@ -128,13 +129,15 @@ function prompt() {
 
 /**
  * Show libcxx's Schema tab to a holder of a `manage` token, whose list of suites holds
- * SUITE but whose server holds FRESH, and open the editor on it.
+ * SUITE but whose server holds FRESH, and open the editor on it; reached through a link from the
+ * page at `from`, if given, so that Back leads there.
  */
-async function openEditor() {
+async function openEditor(from?: string) {
   signIn('manage')
   const store = mockSuites([SUITE, BARE_SUITE])
   const fresh = mockFresh({ ...store, suites: [FRESH, BARE_SUITE] })
-  const { queryClient } = renderPage('/projects/llvm/suites/libcxx?tab=schema')
+  const url = '/projects/llvm/suites/libcxx?tab=schema'
+  const { queryClient } = from === undefined ? renderPage(url) : await renderPageFrom(from, url)
   await waitFor(() => expect(editButton()).toBeEnabled())
   fireEvent.click(editButton())
   await screen.findByRole('textbox', { name: 'Display name of metric code_size' })
@@ -220,10 +223,10 @@ describe('leaving the tab', () => {
     return screen.getByRole('textbox', CODE_SIZE)
   }
 
-  /** Open the editor on libcxx, and change it, the Runs tab listing no runs. */
-  async function openChanged() {
+  /** Open the editor on libcxx (see `openEditor`), and change it, the Runs tab listing no runs. */
+  async function openChanged(from?: string) {
     mockRuns(() => cursorPage([]))
-    const store = await openEditor()
+    const store = await openEditor(from)
     typeInto(codeSize(), 'Changed')
     return store
   }
@@ -282,49 +285,49 @@ describe('leaving the tab', () => {
     expectEditor()
   })
 
-  it('to another suite, or by Back or Forward, asks first', async () => {
-    /** Change the editor, opened anew on the Schema tab shown. */
-    async function changeAgain() {
-      await waitFor(() => expect(editButton()).toBeEnabled())
-      fireEvent.click(editButton())
-      typeInto(await screen.findByRole('textbox', CODE_SIZE), 'Changed')
-    }
+  it('to another suite by its chip asks first, keeping the tab (TS1)', async () => {
+    await openChanged()
+    const confirm = answerLeaving(false)
+
+    fireEvent.click(chipLink('Test suites', 'nts'))
+    expect(confirm).toHaveBeenCalledOnce()
+    // Staying leaves the URL as it was, with the editor (AR19).
+    expect(currentUrl()).toBe('/projects/llvm/suites/libcxx?tab=schema')
+    expectEditor()
+
+    confirm.mockReturnValue(true)
+    fireEvent.click(chipLink('Test suites', 'nts'))
+    await waitFor(() => expect(currentUrl()).toBe('/projects/llvm/suites/nts?tab=schema'))
+    expect(confirm).toHaveBeenCalledTimes(2)
+  })
+
+  it('by Back or Forward asks first', async () => {
     function browser(button: 'back' | 'forward') {
       fireEvent.click(screen.getByRole('button', { name: `Browser ${button}` }))
     }
 
-    await openChanged()
-    const confirm = answerLeaving(true)
-    // The other suite's chip keeps the Schema tab (TS1).
-    fireEvent.click(chipLink('Test suites', 'nts'))
-    await waitFor(() => expect(currentUrl()).toBe('/projects/llvm/suites/nts?tab=schema'))
+    await openChanged('/projects/llvm/suites/nts?tab=schema')
+    const confirm = answerLeaving(false)
+    browser('back')
     expect(confirm).toHaveBeenCalledOnce()
+    expectEditor()
+    confirm.mockReturnValue(true)
     browser('back')
-    await waitFor(() => expect(currentUrl()).toBe('/projects/llvm/suites/libcxx?tab=schema'))
-    await changeAgain()
-
-    confirm.mockReturnValue(false)
-    browser('forward')
+    await waitFor(() => expect(currentUrl()).toBe('/projects/llvm/suites/nts?tab=schema'))
     expect(confirm).toHaveBeenCalledTimes(2)
-    expectEditor()
-    confirm.mockReturnValue(true)
-    browser('forward')
-    await waitFor(() => expect(currentUrl()).toBe('/projects/llvm/suites/nts?tab=schema'))
-    expect(confirm).toHaveBeenCalledTimes(3)
 
-    fireEvent.click(chipLink('Test suites', 'libcxx'))
-    await waitFor(() => expect(currentUrl()).toBe('/projects/llvm/suites/libcxx?tab=schema'))
-    await changeAgain()
+    // The editor opened on nts, and changed, asks before Forward.
+    await waitFor(() => expect(editButton()).toBeEnabled())
+    fireEvent.click(editButton())
+    typeInto(await screen.findByRole('textbox', { name: 'Display name' }), 'Changed')
     confirm.mockReturnValue(false)
-    browser('back')
-    expect(confirm).toHaveBeenCalledTimes(4)
-    expectEditor()
+    browser('forward')
+    expect(confirm).toHaveBeenCalledTimes(3)
+    expect(currentUrl()).toBe('/projects/llvm/suites/nts?tab=schema')
     confirm.mockReturnValue(true)
-    browser('back')
-    await waitFor(() => expect(currentUrl()).toBe('/projects/llvm/suites/nts?tab=schema'))
-    expect(confirm).toHaveBeenCalledTimes(5)
     browser('forward')
     await waitFor(() => expect(currentUrl()).toBe('/projects/llvm/suites/libcxx?tab=schema'))
+    expect(confirm).toHaveBeenCalledTimes(4)
 
     await expectViewer()
   })
@@ -940,24 +943,18 @@ describe('renaming or moving the suite', () => {
 
   /**
    * Open the editor on libcxx, with SWIFT beside llvm, to a holder of `restrictedTo`'s `manage`;
-   * from nts's page through libcxx's chip, if `fromElsewhere`, so that Back leaves the page.
+   * reached through a link from the page at `from`, if given, so that Back leads there.
    */
   async function openMovable(
     restrictedTo: Parameters<typeof signIn>[1] = null,
-    { fromElsewhere = false } = {},
+    { from }: { from?: string } = {},
   ) {
     signIn('manage', restrictedTo)
     const store = mockSuites([SUITE, BARE_SUITE, SWIFT_SUITE], { projects: [PROJECT, SWIFT] })
     mockFresh(store)
     mockRuns(() => cursorPage([]))
-    let rendered
-    if (fromElsewhere) {
-      rendered = renderPage('/projects/llvm/suites/nts')
-      fireEvent.click(await screen.findByRole('link', { name: 'libcxx' }))
-      fireEvent.click(await screen.findByRole('tab', { name: 'Schema' }))
-    } else {
-      rendered = renderPage('/projects/llvm/suites/libcxx?tab=schema')
-    }
+    const url = '/projects/llvm/suites/libcxx?tab=schema'
+    const rendered = from === undefined ? renderPage(url) : await renderPageFrom(from, url)
     await waitFor(() => expect(editButton()).toBeEnabled())
     fireEvent.click(editButton())
     await within(await screen.findByRole('group', { name: 'Suite' })).findByRole('textbox', {
@@ -1054,7 +1051,7 @@ describe('renaming or moving the suite', () => {
   })
 
   it('renames it once confirmed, and goes to its new Schema tab in place of the old', async () => {
-    const { store } = await openMovable(null, { fromElsewhere: true })
+    const { store } = await openMovable(null, { from: '/projects/llvm/suites/nts' })
     const sent = mockMove(store)
     const confirm = answerLeaving(false)
     await change(null, 'benchmarks')
@@ -1344,7 +1341,7 @@ describe('renaming or moving the suite', () => {
   })
 
   it('takes the focus to the new page once only, not when the history leads back to it', async () => {
-    const { store } = await openMovable(null, { fromElsewhere: true })
+    const { store } = await openMovable(null, { from: '/projects/llvm/suites/nts' })
     mockMove(store)
     await change(null, 'benchmarks')
     saveConfirmed()

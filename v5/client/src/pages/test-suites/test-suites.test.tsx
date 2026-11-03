@@ -1,6 +1,5 @@
 import { act, fireEvent, screen, waitFor, within } from '@testing-library/react'
 import { HttpResponse } from 'msw'
-import { Link } from 'react-router'
 import { describe, expect, it } from 'vitest'
 import { SEARCH_DELAY_MS } from '../../components/suggestions'
 import type { ProjectName } from '../../api/suites'
@@ -23,6 +22,7 @@ import {
   navbarLink,
   projectList,
   renderPage,
+  renderPageFrom,
   rowsOf,
   search,
   table,
@@ -85,8 +85,7 @@ describe('the Projects page', () => {
     })
     mockRuns(() => cursorPage([]))
     // As the breadcrumb of a detail page, say, leads to it.
-    renderPage('/nope', <Link to="/projects/swift?tab=machines">Swift</Link>)
-    fireEvent.click(await screen.findByRole('link', { name: 'Swift' }))
+    await renderPageFrom('/nope', '/projects/swift?tab=machines')
 
     // Without the query, which it has no use for.
     await waitFor(() => expect(currentUrl()).toBe('/projects/swift/suites/stdlib'))
@@ -205,6 +204,21 @@ describe('the Projects page', () => {
     expect(chipLink('Test suites', 'stdlib')).toHaveAttribute('aria-current', 'page')
     expect(screen.getByRole('tab', { name: 'Machines' })).toHaveAttribute('aria-selected', 'true')
     expect(screen.getByRole('searchbox', { name: 'Search machines' })).toHaveValue('')
+  })
+
+  it('picks a chip in place of the page in the history, so that Back leaves the page', async () => {
+    mockSuites([SUITE, BARE_SUITE, { ...BARE_SUITE, project: SWIFT, name: 'stdlib' }])
+    mockRuns(() => cursorPage([]))
+    await renderPageFrom('/nope', '/projects/llvm/suites/libcxx')
+    await table('Runs')
+
+    fireEvent.click(chipLink('Test suites', 'nts'))
+    await waitFor(() => expect(currentUrl()).toBe('/projects/llvm/suites/nts'))
+    fireEvent.click(chipLink('Projects', 'Swift'))
+    await waitFor(() => expect(currentUrl()).toBe('/projects/swift/suites/stdlib'))
+
+    fireEvent.click(screen.getByRole('button', { name: 'Browser back' }))
+    await waitFor(() => expect(currentUrl()).toBe('/nope'))
   })
 
   it('ignores a click on a selected chip', async () => {

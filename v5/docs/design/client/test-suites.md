@@ -23,7 +23,8 @@ label, in AR22's order. What is selected depends on the path:
   shows the tabbed content for that suite below the chips.
 
 The page a path goes to takes its place in the history rather than adding an
-entry (an exception to AR2 "State").
+entry, and so does the one a chip leads to, the project and the suite being
+settings of the page (exceptions to AR2 "State").
 
 When `{p}` names no project, on either path, the page shows the row of projects,
 none selected, and says that the project was not found. When `{s}` names no
