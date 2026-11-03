@@ -280,7 +280,7 @@ def patch_suite(
             raise project_not_found(destination)
         if (destination, new_name) == (project, name):
             return stored.schema
-        return move_suite(connection, stored, destination, projects[destination], new_name)
+        return move_suite(connection, stored, projects[destination], new_name)
 
 
 @router.patch(

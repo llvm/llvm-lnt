@@ -17,10 +17,10 @@ needs its own test.
 
 Like a global revision (see `migrations/versions/`), a step is frozen: it spells out its types and
 constraint names rather than taking them from `suites/tables.py`, which always describes the latest
-structure of a suite's tables. The one exception is how a suite's namespace is named and labelled,
-which a step may take from `suites/tables.py` (`new_namespace` and `label`): that depends only on
-the global tables, which are always at the latest revision when steps run (D6). So those two must
-stay callable inside a suite's migration transaction, and assume nothing about the suite's tables.
+structure of a suite's tables. The one exception is how a suite's namespace is named, which a step
+may take from `suites/tables.py` (`new_namespace`): that depends only on the global tables, which
+are always at the latest revision when steps run (D6). So it must stay callable inside a suite's
+migration transaction, and assume nothing about the suite's tables.
 
 For the same reason, what a step reads or writes in the global tables follows their latest
 structure, not the structure they had when the step was written: a step addresses the suite's
@@ -312,7 +312,7 @@ def _generated_namespace(op: Operations, suite: StoredSuite) -> None:
 
     Suites from before namespaces were recorded are in the one named after them, which a later
     rename of the suite would leave looking like its name. The namespace is renamed, which moves
-    the tables without touching them, and labelled as a new suite's is.
+    the tables without touching them.
 
     Unlike the other steps, this one takes its naming from `suites/tables.py` rather than spelling
     it out (see above): whatever names the namespaces of new suites should name these too.
@@ -327,7 +327,6 @@ def _generated_namespace(op: Operations, suite: StoredSuite) -> None:
     namespace = suite_tables.new_namespace(connection)
     quote = connection.dialect.identifier_preparer.quote
     op.execute(sa.text(f"ALTER SCHEMA {quote(suite.namespace)} RENAME TO {quote(namespace)}"))
-    suite_tables.label(connection, namespace, suite.full_name)
     schema = sa.table("schema", sa.column("id"), sa.column("namespace"))
     op.execute(schema.update().where(schema.c.id == suite.id).values(namespace=namespace))
     schema_version = sa.table("schema_version", sa.column("id"), sa.column("version"))
@@ -338,15 +337,15 @@ def _generated_namespace(op: Operations, suite: StoredSuite) -> None:
     )
 
 
-def _full_name_label(op: Operations, suite: StoredSuite) -> None:
-    """Version 8: the suite's namespace labelled with the suite's full name (D7), `project/suite`,
-    as a new suite's is.
+def _cleared_comment(op: Operations, suite: StoredSuite) -> None:
+    """Version 8: the suite's namespace without a comment, as a new suite's is.
 
-    The label is for whoever reads the database directly, and changes nothing a worker caches, so
-    unlike version 7 this does not bump `schema_version`. Like version 7, it takes the label from
-    `suites/tables.py`.
+    Earlier builds commented each namespace with the name of the suite it holds, which renaming a
+    suite or its project would leave out of date. Nothing reads the comment, and changing it changes
+    nothing a worker caches, so this does not bump `schema_version`.
     """
-    suite_tables.label(op.get_bind(), suite.namespace, suite.full_name)
+    quote = op.get_bind().dialect.identifier_preparer.quote
+    op.execute(sa.text(f"COMMENT ON SCHEMA {quote(suite.namespace)} IS NULL"))
 
 
 STEPS: Sequence[Step] = (
@@ -357,7 +356,7 @@ STEPS: Sequence[Step] = (
     _inactivity_columns,
     _sample_repetition,
     _generated_namespace,
-    _full_name_label,
+    _cleared_comment,
 )
 
 

@@ -1,8 +1,8 @@
 """Renaming a suite, moving it to another project, and renaming a project (D7, E10, E13).
 
-Only names change: the suite keeps its namespace and its data, the namespace is relabelled with the
-suite's new full name, and API keys follow what they list (I5). In the races, every lock is taken
-projects first, and a write through a name that a concurrent rename has just retired finds nothing.
+Only names change: the suite keeps its namespace and its data, and API keys follow what they list
+(I5). In the races, every lock is taken projects first, and a write through a name that a concurrent
+rename has just retired finds nothing.
 """
 
 from __future__ import annotations
@@ -18,7 +18,7 @@ from fastapi.testclient import TestClient
 from sqlalchemy import Connection, Engine, select, text, update
 
 from conftest import code_of, ensure_project, entry, run_payload, suite_path
-from introspection import label_of, namespace_of, schema_version_of
+from introspection import namespace_of, schema_version_of
 from lnt_v5 import keys
 from lnt_v5.errors import ApiError, ErrorCode
 from lnt_v5.migrate import _upgrade_suite
@@ -126,9 +126,8 @@ class TestSuiteRenameOrMove:
         assert api_client.get(moved).json() == response.json()
         assert code_of(api_client.get(self.SUITE)) == "not_found"
         assert suite_names(db_engine) == [where]
-        # D5, D7: the same namespace and data, relabelled with the new full name.
+        # D5, D7: the same namespace and data.
         assert namespace_of(db_engine, where[1], where[0]) == namespace
-        assert label_of(db_engine, namespace) == f"LNT test suite {where[0]}/{where[1]}"
         runs = api_client.get(f"{moved}/runs").json()["items"]
         assert [run["uuid"] for run in runs] == [submitted.json()["uuid"]]
         assert schema_version_of(db_engine) == before + 1
@@ -256,7 +255,7 @@ class TestSuiteRenameOrMove:
 
 
 class TestProjectRename:
-    def test_renames_the_project_and_relabels_its_suites(
+    def test_renames_the_project(
         self, api_client: TestClient, manage: dict[str, str], db_engine: Engine
     ) -> None:
         with db_engine.begin() as connection:
@@ -279,7 +278,6 @@ class TestProjectRename:
         assert api_client.get(suite_path("nts", "libcpp")).status_code == 200
         for name, namespace in namespaces.items():
             assert namespace_of(db_engine, name, "libcpp") == namespace
-            assert label_of(db_engine, namespace) == f"LNT test suite libcpp/{name}"
         assert schema_version_of(db_engine) == before + 1
 
     @pytest.mark.parametrize("name", [None, "Not A Name", "", 1])
@@ -330,11 +328,11 @@ class TestProjectRename:
         assert code_of(response) == "retry"
         assert "Project 'libcxx' is busy" in response.json()["error"]["message"]
 
-    def test_does_not_wait_for_a_suite_of_it_being_changed(
+    def test_does_not_wait_for_its_suites(
         self, api_client: TestClient, manage: dict[str, str], db_engine: Engine
     ) -> None:
-        # Its suites are locked without waiting, so that many busy suites cannot add up to more
-        # than D2's bound.
+        # Only the project's row changes, so a suite held by what locks it alone, such as a
+        # migration of its tables, does not hold the rename up.
         with db_engine.connect() as changing, changing.begin():
             changing.execute(select(schema.c.id).with_for_update())
 
@@ -342,9 +340,8 @@ class TestProjectRename:
                 f"{PROJECTS_PATH}/libcxx", json={"name": "libcpp"}, headers=manage
             )
 
-        assert code_of(response) == "retry"
-        assert "one of its test suites" in response.json()["error"]["message"]
-        assert api_client.get(f"{PROJECTS_PATH}/libcxx").status_code == 200
+        assert response.status_code == 200, response.text
+        assert suite_names(db_engine) == [("libcpp", "nts")]
 
 
 class TestKeysFollow:
@@ -498,7 +495,6 @@ class TestRaces:
             # What a project rename holds until it commits.
             lock_project(renaming, "libcxx", for_update=True)
             renaming.execute(text("UPDATE project SET name = 'libcpp' WHERE name = 'libcxx'"))
-            renaming.execute(select(schema.c.id).with_for_update(read=True, key_share=True))
             writing = background(write, db_engine)
             until_blocked(db_engine)
 
@@ -506,22 +502,6 @@ class TestRaces:
             writing.result(timeout=BLOCK_TIMEOUT)
         assert raised.value.code is ErrorCode.NOT_FOUND
         assert suite_names(db_engine) == [("libcpp", "nts")]
-
-    def test_a_project_renamed_during_a_suite_rename_labels_the_suite_s_new_name(
-        self, db_engine: Engine, background: Callable[..., Future[Any]]
-    ) -> None:
-        namespace = namespace_of(db_engine, "nts", "libcxx")
-        with db_engine.connect() as renaming, renaming.begin():
-            # What a suite rename holds until it commits.
-            lock_project(renaming, "libcxx")
-            renaming.execute(select(schema.c.id).with_for_update())
-            renaming.execute(text("UPDATE schema SET name = 'bench'"))
-            project_renaming = background(rename_project, db_engine, {"name": "libcpp"})
-            until_blocked(db_engine)
-
-        project_renaming.result(timeout=BLOCK_TIMEOUT)
-        assert suite_names(db_engine) == [("libcpp", "bench")]
-        assert label_of(db_engine, namespace) == "LNT test suite libcpp/bench"
 
     def test_a_suite_created_during_a_project_rename_is_a_404(
         self, db_engine: Engine, background: Callable[..., Future[Any]]
@@ -537,56 +517,9 @@ class TestRaces:
             creating.result(timeout=BLOCK_TIMEOUT)
         assert raised.value.code is ErrorCode.NOT_FOUND
 
-    def test_a_project_renamed_during_a_suite_creation_labels_the_new_suite(
-        self, db_engine: Engine, background: Callable[..., Future[Any]]
-    ) -> None:
-        with db_engine.connect() as creating, creating.begin():
-            add_suite(creating, "libcxx", SuiteSchema.model_validate({**NTS, "name": "other"}))
-            project_renaming = background(rename_project, db_engine, {"name": "libcpp"})
-            until_blocked(db_engine)
-
-        project_renaming.result(timeout=BLOCK_TIMEOUT)
-        assert label_of(db_engine, namespace_of(db_engine, "other", "libcpp")) == (
-            "LNT test suite libcpp/other"
-        )
-
-    def test_renaming_a_project_waits_for_a_suite_being_deleted_and_then_relabels_the_rest(
-        self, db_engine: Engine, background: Callable[..., Future[Any]]
-    ) -> None:
-        with db_engine.begin() as connection:
-            add_suite(connection, "libcxx", SuiteSchema.model_validate({**NTS, "name": "other"}))
-        deleting = db_engine.connect()
-        with deleting, deleting.begin():
-            # What deleting the suite holds until it commits: its project, then its row.
-            lock_project(deleting, "libcxx")
-            deleting.execute(select(schema.c.id).where(schema.c.name == "nts").with_for_update())
-            deleting.execute(text("DELETE FROM schema WHERE name = 'nts'"))
-            renaming = background(rename_project, db_engine, {"name": "libcpp"})
-            until_blocked(db_engine)
-
-        renaming.result(timeout=BLOCK_TIMEOUT)
-        assert suite_names(db_engine) == [("libcpp", "other")]
-        namespace = namespace_of(db_engine, "other", "libcpp")
-        assert label_of(db_engine, namespace) == "LNT test suite libcpp/other"
-
-    def test_renaming_a_project_while_a_suite_of_it_is_migrated_is_retryable_at_once(
-        self, db_engine: Engine
-    ) -> None:
-        # A migration locks the suite's row alone, and labels its namespace itself, so a rename
-        # gives up rather than wait for it, which may take long.
-        with db_engine.connect() as migrating, migrating.begin():
-            migrating.execute(select(schema.c.id).with_for_update())
-
-            with pytest.raises(ApiError) as raised:
-                rename_project(db_engine, {"name": "libcpp"})
-
-        assert raised.value.code is ErrorCode.RETRY
-        assert "one of its test suites" in raised.value.message
-        assert suite_names(db_engine) == [("libcxx", "nts")]
-
     def migrate(self, db_engine: Engine, monkeypatch: pytest.MonkeyPatch) -> Callable[[], Any]:
         """A migration of `libcxx/nts` from version 0, by one step that records the suite's full
-        name, as a step that labels the namespace would read it; and what it records."""
+        name, as the steps are handed it; and what it records."""
         with db_engine.begin() as connection:
             connection.execute(update(schema).values(migration_version=0))
             suite_id = connection.execute(select(schema.c.id)).scalar_one()
@@ -599,52 +532,37 @@ class TestRaces:
 
         return run
 
-    @pytest.mark.parametrize(
-        ("write", "renaming", "full_name"),
-        [
-            (
-                "UPDATE schema SET project_id = (SELECT id FROM project WHERE name = 'llvm')",
-                False,
-                "llvm",
-            ),
-            ("UPDATE project SET name = 'libcpp' WHERE name = 'libcxx'", True, "libcpp"),
-        ],
-        ids=["move", "project rename"],
-    )
     def test_a_migration_waiting_for_a_suite_sees_where_it_was_moved(
         self,
         db_engine: Engine,
         background: Callable[..., Future[Any]],
         monkeypatch: pytest.MonkeyPatch,
-        write: str,
-        renaming: bool,
-        full_name: str,
     ) -> None:
         migrate = self.migrate(db_engine, monkeypatch)
         with db_engine.connect() as moving, moving.begin():
-            # What a move holds until it commits, the project then the suite's row, or a project
-            # rename, the project then its suites.
-            lock_project(moving, "libcxx", for_update=renaming)
-            moving.execute(select(schema.c.id).with_for_update(read=renaming, key_share=renaming))
-            moving.execute(text(write))
+            # What a move holds until it commits: the project, then the suite's row.
+            lock_project(moving, "libcxx")
+            moving.execute(select(schema.c.id).with_for_update())
+            moving.execute(
+                text("UPDATE schema SET project_id = (SELECT id FROM project WHERE name = 'llvm')")
+            )
             migrating = background(migrate)
             until_blocked(db_engine)
 
-        assert migrating.result(timeout=BLOCK_TIMEOUT) == (True, [f"{full_name}/nts"])
+        assert migrating.result(timeout=BLOCK_TIMEOUT) == (True, ["llvm/nts"])
         with db_engine.connect() as connection:
             assert connection.execute(select(schema.c.migration_version)).scalar_one() == 1
 
     def test_a_move_waits_for_a_migration_of_the_suite(
         self, db_engine: Engine, background: Callable[..., Future[Any]]
     ) -> None:
-        namespace = namespace_of(db_engine, "nts", "libcxx")
         with db_engine.connect() as migrating, migrating.begin():
             migrating.execute(select(schema.c.id).with_for_update())
             moving = background(move, db_engine, {"project": "llvm"})
             until_blocked(db_engine)
 
         moving.result(timeout=BLOCK_TIMEOUT)
-        assert label_of(db_engine, namespace) == "LNT test suite llvm/nts"
+        assert suite_names(db_engine) == [("llvm", "nts")]
 
     @pytest.mark.parametrize(
         "entry", [keys.Entry("libcxx", None), keys.Entry("libcxx", "nts")], ids=["project", "suite"]

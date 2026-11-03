@@ -84,7 +84,7 @@ def suite(db_engine: Engine) -> Suite:
     """
     schema = SuiteSchema.model_validate(NTS)
     with db_engine.begin() as connection:
-        tables = suite_tables.create(connection, schema, "nts", "nts/nts")
+        tables = suite_tables.create(connection, schema, "nts")
     return Suite(
         id=0, project="nts", schema=schema, tables=tables, schema_json=schema.model_dump_json()
     )

@@ -122,15 +122,14 @@ def namespace_of(engine: Engine, suite: str, project_name: str | None = None) ->
         return str(connection.execute(query).scalar_one())
 
 
-def label_of(engine: Engine, namespace: str) -> str:
-    """What a namespace is labelled with (see `suites/tables.py`)."""
+def comment_of(engine: Engine, namespace: str) -> str | None:
+    """The comment on a namespace, if it has one."""
     with engine.connect() as connection:
-        return str(
-            connection.execute(
-                text("SELECT obj_description(CAST(:namespace AS regnamespace), 'pg_namespace')"),
-                {"namespace": namespace},
-            ).scalar_one()
-        )
+        label: str | None = connection.execute(
+            text("SELECT obj_description(CAST(:namespace AS regnamespace), 'pg_namespace')"),
+            {"namespace": namespace},
+        ).scalar_one()
+        return label
 
 
 def columns_of(inspector: Inspector, namespace: str, table: str) -> dict[str, ReflectedColumn]:

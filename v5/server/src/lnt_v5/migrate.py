@@ -202,12 +202,8 @@ def _upgrade_suite(connection: Connection, id_: int, head: int) -> bool:
     connection. The steps use the row as read under the lock.
 
     The row is locked on its own, and its project's name read next, in a statement of its own: a
-    suite can be moved or its project renamed while this waits for the lock, and a join locking the
-    suite's row alone would check the suite again once the wait is over, but not its project, and
-    find the suite gone, or name it after its old project. The project is not locked: taking it
-    after the suite, against the order writers take them in (see `store.locked_suite`), could
-    deadlock with the deletion of a project. Nothing can rename it meanwhile either way, since a
-    project rename locks the suites of the project without waiting, and gives up on this one.
+    suite can be moved while this waits for the lock, and a join locking the suite's row alone would
+    check the suite again once the wait is over, but not its project, and find the suite gone.
     """
     with connection.begin():
         row = connection.execute(

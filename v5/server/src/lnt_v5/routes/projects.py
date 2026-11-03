@@ -31,7 +31,6 @@ from lnt_v5.suites.store import (
     bump,
     project_not_found,
     project_write,
-    relabel_project_suites,
 )
 from lnt_v5.tables import project as project_table
 
@@ -220,8 +219,6 @@ def patch_project(
             connection.execute(
                 update(project_table).where(project_table.c.id == stored.id).values(**changes)
             )
-            if renaming:
-                relabel_project_suites(connection, stored.id, name)
             bump(connection)
     with engine.connect() as connection:
         return Project.of(registry.resolve_project(connection, name))

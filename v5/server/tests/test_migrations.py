@@ -128,7 +128,7 @@ class TestUpgrade:
             }
         )
         with empty_engine.begin() as connection:
-            suite_tables.create(connection, suite, "nts", "nts")
+            suite_tables.create(connection, suite, "nts")
 
         assert_no_pending_revision(empty_engine)
 
@@ -325,7 +325,7 @@ class TestSchemaLabels:
         upgrade_by_hand(empty_engine, "0002")
         with empty_engine.begin() as connection:
             # As a build at 0002 created suites, in a namespace named after the suite.
-            suite_tables.create(connection, _CLEAN, "clean", "clean")
+            suite_tables.create(connection, _CLEAN, "clean")
         stale = _CLEAN.model_dump(mode="json")
         stale["metrics"][0]["display_name"] = ""
         store_schema_json(empty_engine, {"clean": json.dumps(stale)}, version=0)
