@@ -29,7 +29,7 @@ const PARAMS = {
   filter: trimmedStringParam(),
 }
 
-const STATES = { state: enumListParam(['detected', 'active', 'fixed']) }
+const STATES = { state: enumListParam(['detected', 'confirmed', 'fixed']) }
 const FLAGS = { on: booleanParam(true), off: booleanParam(false) }
 
 /** The settings, the URL they come from, and `navigate`, starting at `url`. */
@@ -140,12 +140,12 @@ describe('useUrlState', () => {
         return { state, setState, url: pathname + search }
       },
       providers({
-        url: '/projects/llvm/suites/nts?state=fixed&state=bogus&state=active&state=fixed',
+        url: '/projects/llvm/suites/nts?state=fixed&state=bogus&state=confirmed&state=fixed',
       }),
     )
 
-    expect(result.current.state.state).toEqual(['active', 'fixed'])
-    expect(result.current.url).toBe('/projects/llvm/suites/nts?state=active&state=fixed')
+    expect(result.current.state.state).toEqual(['confirmed', 'fixed'])
+    expect(result.current.url).toBe('/projects/llvm/suites/nts?state=confirmed&state=fixed')
 
     act(() => result.current.setState({ state: ['fixed', 'detected'] }))
     expect(result.current.url).toBe('/projects/llvm/suites/nts?state=detected&state=fixed')

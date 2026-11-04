@@ -229,7 +229,7 @@ export interface RegressionMark extends PlacedRegression {
 /** The colour of a regression's line and marker, by its state (GR15). */
 export function stateColor(state: RegressionState): string {
   switch (state) {
-    case 'active':
+    case 'confirmed':
       return '#dc2626'
     case 'detected':
       return '#ca8a04'

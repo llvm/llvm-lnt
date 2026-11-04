@@ -158,7 +158,7 @@ descending order (`sort=-submitted_at`). The endpoints spec lists the orderings
 each endpoint offers.
 
 **Multiple values.** A query parameter that takes several values is repeated,
-once per value (`?state=active&state=detected`).
+once per value (`?state=confirmed&state=detected`).
 
 **Unknown and repeated parameters.** A query parameter that the endpoint does
 not accept is rejected with 400 `invalid_request`, and the error names it.

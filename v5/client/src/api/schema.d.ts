@@ -2661,12 +2661,12 @@ export interface components {
         };
         /**
          * RegressionStateName
-         * @description The state of a regression. `detected` and `active` mean it is still being worked on;
+         * @description The state of a regression. `detected` and `confirmed` mean it is still being worked on;
          *     `not_to_be_fixed`, `fixed` and `false_positive` mean it is resolved. A regression can move from
          *     any state to any other.
          * @enum {string}
          */
-        RegressionStateName: "detected" | "active" | "not_to_be_fixed" | "fixed" | "false_positive";
+        RegressionStateName: "detected" | "confirmed" | "not_to_be_fixed" | "fixed" | "false_positive";
         /**
          * RegressionUpdate
          * @description Changes to a regression. Only include what you want to change. Set a key to null to clear
@@ -5998,7 +5998,7 @@ export interface operations {
                 cursor?: string | null;
                 /** @description Only return regressions whose title contains this text, or whose UUID starts with it. Not case-sensitive. */
                 search?: string | null;
-                /** @description Only return regressions in one of these states. Repeat the parameter for several states: `state=active&state=detected`. Leave out to return all states. */
+                /** @description Only return regressions in one of these states. Repeat the parameter for several states: `state=confirmed&state=detected`. Leave out to return all states. */
                 state?: components["schemas"]["RegressionStateName"][] | null;
                 /** @description Only return regressions with an indicator for this machine. Returns 404 if the machine doesn't exist. */
                 machine?: string | null;

@@ -209,7 +209,7 @@ class TestCreate:
             title="find_if slowdown",
             bug="https://github.com/llvm/llvm-project/issues/1",
             notes="bisected to abc123",
-            state="active",
+            state="confirmed",
             commit="abc123",
             indicators=[LINUX_ONE],
         )
@@ -227,7 +227,7 @@ class TestCreate:
         assert created["title"] == "find_if slowdown"
         assert created["bug"] == "https://github.com/llvm/llvm-project/issues/1"
         assert created["notes"] == "bisected to abc123"
-        assert created["state"] == "active"
+        assert created["state"] == "confirmed"
         assert created["commit"] == "abc123"
 
     def test_answers_201_with_a_location_header(
@@ -522,7 +522,7 @@ class TestCreatedAt:
         created = create()
 
         response = api_client.patch(
-            f"{REGRESSIONS}/{created['uuid']}", json={"state": "active"}, headers=triage
+            f"{REGRESSIONS}/{created['uuid']}", json={"state": "confirmed"}, headers=triage
         )
 
         assert response.json()["created_at"] == created["created_at"]
@@ -585,11 +585,11 @@ class TestSort:
     def test_applies_to_the_filtered_list(
         self, api_client: TestClient, regression_at: Callable[..., str]
     ) -> None:
-        new = regression_at(datetime(2026, 1, 1, tzinfo=UTC), state="active")
+        new = regression_at(datetime(2026, 1, 1, tzinfo=UTC), state="confirmed")
         regression_at(datetime(2025, 1, 1, tzinfo=UTC), state="fixed")
-        old = regression_at(datetime(2020, 1, 1, tzinfo=UTC), state="active")
+        old = regression_at(datetime(2020, 1, 1, tzinfo=UTC), state="confirmed")
 
-        assert uuids_in(listed(api_client, "state=active&sort=-created_at")) == [new, old]
+        assert uuids_in(listed(api_client, "state=confirmed&sort=-created_at")) == [new, old]
 
     def test_refuses_a_cursor_issued_for_another_ordering(
         self, api_client: TestClient, create: Callable[..., Any]
@@ -791,10 +791,10 @@ class TestStateFilter:
     def test_takes_several_states_by_repeating_the_parameter(
         self, api_client: TestClient, regressions: dict[str, str]
     ) -> None:
-        response = listed(api_client, "state=active&state=detected")
+        response = listed(api_client, "state=confirmed&state=detected")
 
         assert sorted(uuids_in(response)) == sorted(
-            [regressions["active"], regressions["detected"]]
+            [regressions["confirmed"], regressions["detected"]]
         )
 
     def test_omitting_it_returns_every_state(self, api_client: TestClient) -> None:
@@ -815,7 +815,7 @@ class TestStateFilter:
         assert code_of(response) == "invalid_request"
 
     def test_is_400_when_one_of_several_is_not_a_state(self, api_client: TestClient) -> None:
-        assert listed(api_client, "state=active&state=wontfix").status_code == 400
+        assert listed(api_client, "state=confirmed&state=wontfix").status_code == 400
 
     def test_the_rejection_names_the_five_that_exist(self, api_client: TestClient) -> None:
         message = listed(api_client, "state=wontfix").json()["error"]["message"]
@@ -1037,7 +1037,7 @@ class TestUpdate:
 
     @pytest.mark.parametrize(
         ("before", "after"),
-        [("detected", "fixed"), ("fixed", "detected"), ("false_positive", "active")],
+        [("detected", "fixed"), ("fixed", "detected"), ("false_positive", "confirmed")],
     )
     def test_any_state_may_be_set_to_any_other(
         self,
@@ -1531,7 +1531,7 @@ class TestIndicatorLookup:
     @pytest.fixture(autouse=True)
     def regressions(self, create: Callable[..., Any], data: None) -> dict[str, str]:
         return {
-            "linux": create(state="active", indicators=[LINUX_ONE, LINUX_TWO])["uuid"],
+            "linux": create(state="confirmed", indicators=[LINUX_ONE, LINUX_TWO])["uuid"],
             "darwin": create(state="detected", indicators=[DARWIN_ONE])["uuid"],
             "compile": create(state="fixed", indicators=[{**LINUX_ONE, "metric": "compile_time"}])[
                 "uuid"
@@ -1589,7 +1589,7 @@ class TestIndicatorLookup:
     def test_the_states_keep_only_indicators_of_regressions_in_one_of_them(
         self, api_client: TestClient, regressions: dict[str, str]
     ) -> None:
-        assert {uuid for uuid, *_ in found(api_client, state=["active", "detected"])} == {
+        assert {uuid for uuid, *_ in found(api_client, state=["confirmed", "detected"])} == {
             regressions["linux"],
             regressions["darwin"],
         }
@@ -1646,7 +1646,7 @@ class TestIndicatorLookup:
         assert response.status_code == 404
         assert code_of(response) == "not_found"
 
-    @pytest.mark.parametrize("body", [{"metric": "nope"}, {"state": ["active", "wontfix"]}])
+    @pytest.mark.parametrize("body", [{"metric": "nope"}, {"state": ["confirmed", "wontfix"]}])
     def test_a_metric_or_state_that_does_not_exist_is_400(
         self, api_client: TestClient, body: dict[str, Any]
     ) -> None:
@@ -1741,9 +1741,10 @@ class TestIndicatorLookupPagination:
     ) -> None:
         # The states are a set: naming them in another order asks for the same results, so the
         # cursor, which is scoped to the statement, must not tell the two requests apart.
-        cursor = lookup(api_client, state=["detected", "active"], limit=2).json()["cursor"]["next"]
+        first = lookup(api_client, state=["detected", "confirmed"], limit=2)
+        cursor = first.json()["cursor"]["next"]
 
-        response = lookup(api_client, state=["active", "detected"], limit=2, cursor=cursor)
+        response = lookup(api_client, state=["confirmed", "detected"], limit=2, cursor=cursor)
 
         assert response.status_code == 200, response.text
 
@@ -1879,7 +1880,7 @@ class TestCascades:
             title="kept",
             bug="b",
             notes="n",
-            state="active",
+            state="confirmed",
             commit="abc123",
             indicators=[LINUX_ONE],
         )["uuid"]
@@ -1889,7 +1890,7 @@ class TestCascades:
         detail = api_client.get(f"{REGRESSIONS}/{uuid}").json()
         assert detail["commit"] is None
         assert (detail["title"], detail["bug"], detail["notes"]) == ("kept", "b", "n")
-        assert detail["state"] == "active"
+        assert detail["state"] == "confirmed"
         assert len(detail["indicators"]) == 1
         assert uuids_in(listed(api_client, "has_commit=false")) == [uuid]
 
@@ -1962,9 +1963,10 @@ class TestPagination:
         self, api_client: TestClient
     ) -> None:
         # The states are a set: naming them in another order asks for the same regressions.
-        cursor = listed(api_client, "state=detected&state=active&limit=2").json()["cursor"]["next"]
+        first = listed(api_client, "state=detected&state=confirmed&limit=2")
+        cursor = first.json()["cursor"]["next"]
 
-        response = listed(api_client, f"state=active&state=detected&limit=2&cursor={cursor}")
+        response = listed(api_client, f"state=confirmed&state=detected&limit=2&cursor={cursor}")
 
         assert response.status_code == 200, response.text
 

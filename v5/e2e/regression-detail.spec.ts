@@ -48,7 +48,7 @@ test('shows the regression, with links to its bug and its commit', async ({ page
     'Regression: std::format slowdown',
   )
   await expect(info(page)).toContainText('About 15% slower on every machine, std::format only.')
-  await expect(page.getByRole('button', { name: /active State$/ })).toBeVisible()
+  await expect(page.getByRole('button', { name: /confirmed State$/ })).toBeVisible()
   const bug = info(page).getByRole('link', { name: 'https://example.com/bugs/1001' })
   await expect(bug).toHaveAttribute('target', '_blank')
   // The commit's link shows its display value, and leads to its page.

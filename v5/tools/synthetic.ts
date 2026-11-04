@@ -464,7 +464,7 @@ function regressions(
     {
       uuid: uuidFor('libcxx/regression/format'),
       title: 'std::format slowdown',
-      state: 'active',
+      state: 'confirmed',
       commit: commitOf(12),
       bug: 'https://example.com/bugs/1001',
       notes: 'About 15% slower on every machine, std::format only.',
@@ -473,7 +473,7 @@ function regressions(
     {
       uuid: uuidFor('libcxx/regression/hardened'),
       title: 'Everything slower in hardened mode',
-      state: 'active',
+      state: 'confirmed',
       commit: commitOf(22),
       notes: 'About 6% slower on every test, on the hardened machine only.',
       indicators: indicators([HARDENED], matching(ALL_TESTS, HARDENED)),

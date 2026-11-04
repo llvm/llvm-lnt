@@ -143,7 +143,7 @@ The Regressions tab embeds the full regression triage UI directly in the Project
 page.
 
 **Filters** (control panel above table):
-- State: multi-select chips (detected, active, not_to_be_fixed, fixed,
+- State: multi-select chips (detected, confirmed, not_to_be_fixed, fixed,
   false_positive) -- toggleable, none selected by default; with none
   selected, every state is shown
 - Machine: a combobox over the suite's machines (see AR18)
@@ -173,7 +173,7 @@ recorded regressions are on the first page. It looks like this:
 UUID          Title                 State       Commit        Machines      Tests         Created                   Bug
 -----------------------------------------------------------------------------------------------------------------------------------------------------------
 3f0ac112...   find_if slowdown      detected    abc123        2             12            2026-08-31, 3:03:36 PM    https://github.com/llvm/llvm-…
-9b27d4e0...   (untitled)            active      --            1             3             2026-08-30, 9:12:44 AM    --
+9b27d4e0...   (untitled)            confirmed   --            1             3             2026-08-30, 9:12:44 AM    --
 etc...
 ```
 

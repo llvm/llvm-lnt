@@ -60,7 +60,7 @@ the body too.
 ## Filtering and sorting
 
 - Filters are query parameters, except on the operations that take a JSON body.
-- To give several values for a parameter, repeat it: `?state=active&state=detected`.
+- To give several values for a parameter, repeat it: `?state=confirmed&state=detected`.
 - Unknown query parameters are rejected with a 400 rather than ignored, so a typo can't silently
   return the wrong results. So is a parameter given twice when it only takes one value.
 - `sort=<name>` sorts in ascending order and `sort=-<name>` in descending order. Each operation

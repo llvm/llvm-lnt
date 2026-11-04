@@ -848,7 +848,7 @@ class TestRegressionState:
     def test_the_stored_values_are_the_specified_ones(self) -> None:
         assert [(state.value, state.name.lower()) for state in RegressionState] == [
             (0, "detected"),
-            (1, "active"),
+            (1, "confirmed"),
             (2, "not_to_be_fixed"),
             (3, "fixed"),
             (4, "false_positive"),

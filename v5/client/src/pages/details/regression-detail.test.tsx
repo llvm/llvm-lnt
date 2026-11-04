@@ -60,7 +60,7 @@ const PLAIN = commit('def456')
 const DETAIL = regressionDetail('a', {
   title: 'find_if slowdown',
   bug: 'https://bugs.example/1',
-  state: 'active',
+  state: 'confirmed',
   commit: TAGGED.value,
   notes: 'Bisected.\nOnly x86.',
   indicators: [
@@ -149,7 +149,7 @@ describe('the Regression Detail page', () => {
       Created: formatTimestamp(DETAIL.created_at),
       Notes: 'Bisected.\nOnly x86.Edit',
     })
-    expect(stateButton()).toHaveTextContent('active')
+    expect(stateButton()).toHaveTextContent('confirmed')
     expect(heading()).toHaveTextContent('Regression: find_if slowdown')
     expect(main().getByRole('link', { name: 'https://bugs.example/1' })).toHaveAttribute(
       'target',
@@ -489,7 +489,7 @@ describe('the Regression Detail page', () => {
 
       expect(sent).toEqual([{ body: { state: 'fixed' }, auth: `Bearer ${TOKEN}` }])
       // Not optimistic, and not opened meanwhile, though it keeps the focus.
-      expect(stateButton()).toHaveTextContent('active')
+      expect(stateButton()).toHaveTextContent('confirmed')
       expect(stateButton()).toHaveAttribute('aria-disabled', 'true')
       expect(stateButton()).not.toBeDisabled()
       await user.click(stateButton())
@@ -509,7 +509,7 @@ describe('the Regression Detail page', () => {
       stateButton().focus()
       await user.keyboard('{ArrowRight}{ArrowLeft}f')
 
-      expect(stateButton()).toHaveTextContent('active')
+      expect(stateButton()).toHaveTextContent('confirmed')
       expect(sent).toEqual([])
     })
 
@@ -524,7 +524,7 @@ describe('the Regression Detail page', () => {
       await user.click(await screen.findByRole('option', { name: 'fixed' }))
 
       expect(await screen.findByRole('alert')).toHaveTextContent('Permission denied')
-      expect(stateButton()).toHaveTextContent('active')
+      expect(stateButton()).toHaveTextContent('confirmed')
     })
   })
 

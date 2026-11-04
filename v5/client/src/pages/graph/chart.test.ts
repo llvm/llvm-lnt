@@ -299,7 +299,7 @@ describe('the regression annotations (GR15)', () => {
     panel: 0,
     uuid: 'u1',
     title: 'Slower',
-    state: 'active',
+    state: 'confirmed',
     commit: 'c1',
     tests: ['a'],
     stack: 0,
