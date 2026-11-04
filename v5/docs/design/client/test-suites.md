@@ -53,7 +53,7 @@ path and params to restore state. On changes, updates the URL.
 | Tab | Content | API | Search/Filter |
 |-----|---------|-----|---------------|
 | Runs | Run list with cursor pagination, most recently submitted first | `GET runs?search=...&sort=-submitted_at&limit=25` | Machine, commit or UUID prefix (see O4) |
-| Machines | Every machine, by name | `GET machines?search=...` | Substring match on machine name, display name and searchable machine fields |
+| Machines | Every machine, by label (see AR23) | `GET machines?search=...` | Substring match on machine name, display name and searchable machine fields |
 | Commits | Commit list with cursor pagination, most recently seen first | `GET commits?search=...&sort=-first_seen&limit=25` | Substring match on commit, tag and searchable commit fields |
 | Regressions | Full regression triage interface (see below) | `GET regressions?state=...&machine=...&metric=...&has_commit=...&search=...&sort=-created_at&limit=25` | State chips, machine combobox, metric selector, "No commit set" checkbox, title or UUID prefix search |
 | Schema | The suite's schema, its export, editing, renaming, moving and deletion (see TS6 and TS7) | `GET /api/projects` (E13); writes in TS6 and TS7 | -- |
@@ -83,17 +83,19 @@ or a prefix of their UUID (see O4).
 
 ## TS3: Machines tab
 
-This tab shows every machine defined in the test suite, by name, in a single table like this:
+This tab shows every machine defined in the test suite, by label (see AR23), in a single table
+like this:
 
 ```
-Name                        hardware    os                    compiler
-------------------------------------------------------------------------------------------------------------
-linux-x86_64                --          --                    clang version 22.1.0 (https://github.com/llvm/llv…
-macos-26.5-arm64            Apple M4    macOS 26.5 (25F71)    Apple clang version 21.0.0 (clang-2100.1.1.101)
-macos-arm64-O3 [untracked]  Apple M4    macOS 26.5 (25F71)    Apple clang version 21.0.0 (clang-2100.1.1.101)
+Machine                                hardware    os                    compiler
+-----------------------------------------------------------------------------------------------------------------------
+linux-x86_64                           --          --                    clang version 22.1.0 (https://github.com/llvm…
+macOS / M4  macos-26.5-arm64           Apple M4    macOS 26.5 (25F71)    Apple clang version 21.0.0 (clang-2100.1.1.101)
+macos-arm64-O3 [untracked]             Apple M4    macOS 26.5 (25F71)    Apple clang version 21.0.0 (clang-2100.1.1.101)
 ```
 
-The `Name` is a clickable link to the machine detail page. It is followed by a
+The `Machine` column shows the machine's label, a clickable link to the machine detail page,
+followed by its name in muted text when it has a display name (see AR23). It is followed by a
 column for each machine field the schema marks `listed: true` (see D4), in
 schema order, headed by the field's label (see AR6). A cell shows the machine's
 value for that field as DT1 shows it. A value longer than 50 characters is cut
@@ -101,7 +103,7 @@ short, and shown whole on hover and to assistive technology.
 Every field, listed or not, is shown on the machine's detail page (see DT1).
 
 Machines with `tracked: false` carry a small grey `untracked` badge next to the name. All machines
-are listed regardless of `tracked`, by name; the badge is informational, marking configurations
+are listed regardless of `tracked`, by label; the badge is informational, marking configurations
 that are excluded from the Dashboard's trend overview and listed last in machine pickers (see
 AR18). Hovering the badge explains that.
 

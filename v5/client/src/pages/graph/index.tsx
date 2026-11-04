@@ -6,7 +6,7 @@ import {
   DEFAULT_AGGREGATION,
   type Aggregation,
 } from '../../aggregation'
-import { hasMachine, useMachineList } from '../../api/machines'
+import { hasMachine, useMachineLabels, useMachineList } from '../../api/machines'
 import { useMarkedRegressions } from '../../api/regressions'
 import { useScaffold } from '../../api/scaffold'
 import { forgetGraphData, useSeries } from '../../api/series'
@@ -145,6 +145,7 @@ function GraphPage() {
   // are dropped.
   const machineList = useMachineList(suite, schema !== undefined)
   const listed = machineList.data
+  const labelOfMachine = useMachineLabels(suite, schema !== undefined)
   const machines = useMemo(
     () =>
       listed ? settings.machine.filter((name) => hasMachine(listed, name)) : NO_NAMES,
@@ -322,6 +323,7 @@ function GraphPage() {
             // Once the machines are known, only those that exist, as the chart marks them.
             machines={listed ? machines : settings.machine}
             all={listed}
+            labelOfMachine={labelOfMachine}
             pending={!disabled && machineList.isPending}
             error={machineList.error}
             isDisabled={disabled}
@@ -410,7 +412,7 @@ function GraphPage() {
       {scaffold.failures.map(({ machine, error, retry }) => (
         <ErrorMessage
           key={machine}
-          context={`The commits of ${machine} could not be listed`}
+          context={`The commits of ${labelOfMachine(machine)} could not be listed`}
           error={error}
           onRetry={retry}
         />
@@ -440,6 +442,7 @@ function GraphPage() {
         schema={schema}
         metric={metric}
         machines={machines}
+        labelOfMachine={labelOfMachine}
         selected={sorted}
         scaffold={scaffold}
         series={series}

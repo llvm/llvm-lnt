@@ -8,6 +8,7 @@ import { useMemo } from 'react'
 import { skipToken, useQueries } from '@tanstack/react-query'
 import { combineResults, type Failures } from '../api/failures'
 import { machinesQuery } from '../api/machines'
+import { machineLabel } from '../labels'
 import { findSuite, fullName, suiteRef, type Suite, type SuiteRef } from '../api/suites'
 import { commitLookupKey, commitLookupQuery } from './commit-lookup'
 
@@ -40,6 +41,8 @@ export interface CheckedCommit {
   schema: Suite | undefined
   /** Whether its machine is among its suite's, once they are listed. */
   machineKnown: boolean | undefined
+  /** The label of its machine (AR23), or its name until its suite's machines are listed. */
+  machineLabel: string
   /** Whether the machine has runs at the commit, once that is known. */
   found: boolean | undefined
   /** The display value of the commit (AR6), or the commit string until it is known. */
@@ -80,14 +83,19 @@ export function useCheckedCommits(
     queries: named.map((suite) => ({ ...machinesQuery(suite), staleTime: Infinity })),
     combine: combineResults,
   })
-  const machineKnown = useMemo(
+  // Each one's machine, as its suite lists it: null if it does not, undefined until that is known.
+  const machines = useMemo(
     () =>
       distinct.map((entry, i) => {
         if (schemas[i] === undefined) return undefined
         const list = machineLists.data[named.indexOf(entry.suite)]
-        return list?.some((machine) => machine.name === entry.machine)
+        return list && (list.find((machine) => machine.name === entry.machine) ?? null)
       }),
     [distinct, schemas, named, machineLists.data],
+  )
+  const machineKnown = useMemo(
+    () => machines.map((machine) => (machine === undefined ? undefined : machine !== null)),
+    [machines],
   )
 
   const lookups = useQueries({
@@ -112,6 +120,7 @@ export function useCheckedCommits(
         return {
           schema: schemas[i],
           machineKnown: machineKnown[i],
+          machineLabel: machines[i] ? machineLabel(machines[i]) : entry.machine,
           found: lookup === undefined ? undefined : lookup !== null,
           display: lookup?.text ?? entry.commit,
           unusable:
@@ -120,7 +129,7 @@ export function useCheckedCommits(
             lookup === null,
         }
       }),
-    [commits, at, suites, schemas, machineKnown, lookups.data],
+    [commits, at, suites, schemas, machines, machineKnown, lookups.data],
   )
   return {
     states,

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { SUITE, metric, trendPoint } from '../../test/fixtures'
+import { SUITE, machine, metric, trendPoint } from '../../test/fixtures'
 import {
   formatTrendValue,
   machineColor,
@@ -9,6 +9,9 @@ import {
 } from './sparkline'
 
 const METRIC = SUITE.metrics[0]
+
+/** The machines named `names`, without display names. */
+const named = (...names: string[]) => names.map((name) => machine(name))
 
 describe('sparklineTraces', () => {
   it('places points by their position among the commits any machine has data at', () => {
@@ -20,7 +23,7 @@ describe('sparklineTraces', () => {
         trendPoint('m2', 200, 2),
         trendPoint('m1', 7000, 1.7),
       ],
-      ['m1', 'm2'],
+      named('m1', 'm2'),
     )
 
     const placed = traces.map(({ machine, x, points }) => [machine, x, points.map((p) => p.value)])
@@ -33,11 +36,24 @@ describe('sparklineTraces', () => {
 
   it('colours a machine by its place among the machines, even after one with no data', () => {
     const points = [trendPoint('m3', 1, 1), trendPoint('m1', 1, 1)]
-    const traces = sparklineTraces(points, ['m1', 'm2', 'm3'])
+    const traces = sparklineTraces(points, named('m1', 'm2', 'm3'))
 
     expect(traces.map((trace) => [trace.machine, trace.color])).toEqual([
       ['m1', machineColor(0)],
       ['m3', machineColor(2)],
+    ])
+  })
+
+  it('names a line by its machine\'s label, keeping machines with the same label apart', () => {
+    const points = [trendPoint('m1', 1, 1), trendPoint('m2', 1, 2)]
+    const traces = sparklineTraces(points, [
+      machine('m1', { display_name: 'Linux / x86' }),
+      machine('m2', { display_name: 'Linux / x86' }),
+    ])
+
+    expect(traces.map(({ machine, label, points }) => [machine, label, points.length])).toEqual([
+      ['m1', 'Linux / x86', 1],
+      ['m2', 'Linux / x86', 1],
     ])
   })
 
@@ -57,8 +73,11 @@ describe('formatTrendValue', () => {
 describe('plotlyTraces', () => {
   const display = (point: { commit: string }) => `<${point.commit}>`
 
-  it('labels each point with its machine, commit and value, escaped', () => {
-    const traces = sparklineTraces([trendPoint('a<b', 1, 1.5), trendPoint('a<b', 2, 2.5)], ['a<b'])
+  it("labels each point with its machine's label, commit and value, escaped", () => {
+    const traces = sparklineTraces(
+      [trendPoint('m', 1, 1.5), trendPoint('m', 2, 2.5)],
+      [machine('m', { display_name: 'a<b' })],
+    )
 
     const [data] = plotlyTraces(traces, display, METRIC)
     expect(data).toMatchObject({
@@ -75,7 +94,7 @@ describe('plotlyTraces', () => {
   })
 
   it('draws a machine with a single point as a marker', () => {
-    const traces = sparklineTraces([trendPoint('m1', 1, 1)], ['m1'])
+    const traces = sparklineTraces([trendPoint('m1', 1, 1)], named('m1'))
 
     expect(plotlyTraces(traces, display, METRIC)[0]).toMatchObject({ mode: 'markers' })
   })
@@ -85,7 +104,7 @@ describe('sparklineDescription', () => {
   it("gives each machine's latest value and commit", () => {
     const traces = sparklineTraces(
       [trendPoint('m1', 1, 1), trendPoint('m1', 2, 1.25), trendPoint('m2', 1, 3)],
-      ['m1', 'm2'],
+      named('m1', 'm2'),
     )
 
     expect(sparklineDescription(traces, (point) => point.commit, METRIC)).toBe(

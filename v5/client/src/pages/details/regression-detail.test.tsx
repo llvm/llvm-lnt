@@ -687,6 +687,22 @@ describe('the Add indicators panel', () => {
     await waitFor(() => expect(namesIn('Machines')).toEqual(['a-retired, untracked']))
   })
 
+  it('lists the machines by label, with their names, filtered by either (AR23)', async () => {
+    mockMachineTests()
+    renderRegression({
+      machines: [machine('linux', { display_name: 'Zeta / Linux' }), 'macos'],
+    })
+    await waitFor(() => expect(namesIn('Machines')).toEqual(['macos', 'Zeta / Linux, linux']))
+    const label = checkbox('Zeta / Linux, linux').closest('label')
+    expect(label).toHaveTextContent('Zeta / Linux linux')
+
+    const filter = within(list('Machines')).getByRole('searchbox')
+    fireEvent.change(filter, { target: { value: 'zeta' } })
+    await waitFor(() => expect(namesIn('Machines')).toEqual(['Zeta / Linux, linux']))
+    fireEvent.change(filter, { target: { value: 'linux' } })
+    await waitFor(() => expect(namesIn('Machines')).toEqual(['Zeta / Linux, linux']))
+  })
+
   it('previews and adds an indicator for each machine and test, then says what was added', async () => {
     signIn('triage')
     mockMachineTests()
@@ -1029,6 +1045,29 @@ describe('the Indicators table', () => {
     expect(graphs[3]).not.toHaveAttribute('href')
     expect(graphs[3]).toHaveAttribute('aria-disabled', 'true')
     expect(graphs[3]).toHaveAttribute('title', 'The Graph page only plots numeric metrics.')
+  })
+
+  it('names their machines by label, which the filter covers too (AR23)', async () => {
+    renderRegression({
+      detail: WITH_INDICATORS,
+      suites: [WITH_TEXT],
+      machines: [machine('linux', { display_name: 'Zeta / Linux' }), 'macos'],
+    })
+    const indicators = await table('Indicators')
+
+    await waitFor(() =>
+      expect(rowsOf(indicators)[0]).toBe(
+        ' | Zeta / Linux | BM_find | Execution Time | View on graph | ×',
+      ),
+    )
+    expect(within(indicators).getAllByRole('link', { name: 'Zeta / Linux' })[0]).toHaveAttribute(
+      'href',
+      '/projects/llvm/suites/libcxx/machines/linux',
+    )
+    // Its name too, since another machine may have the same label.
+    expect(removeButton('Zeta / Linux, linux, BM_sort, Execution Time')).toBeInTheDocument()
+    search('Filter indicators', 'zeta')
+    await waitFor(() => expect(rowsOf(indicators)).toHaveLength(2))
   })
 
   it('says when there are none, with no filter', async () => {

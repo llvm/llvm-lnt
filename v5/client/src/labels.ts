@@ -1,9 +1,10 @@
 /**
- * How the UI names and orders projects and test suites (AR22): by their label, which is the
- * display name a project or a suite has (D4, D7), or its name otherwise. A suite's full label is its
- * project's label and its own, separated by ` › `: it names the suite wherever its project is not
- * named beside it. Every label shown for a project or a suite comes from here, whereas links, URLs,
- * API requests and the text typed to confirm a deletion use the names.
+ * How the UI names and orders projects, test suites (AR22) and machines (AR23): by their label,
+ * which is the display name a project, a suite or a machine has (D4, D5, D7), or else its name. A
+ * suite's full label is its project's label and its own, separated by ` › `: it names the suite
+ * wherever its project is not named beside it. Every label shown for a project, a suite or a
+ * machine comes from here, whereas links, URLs, API requests and the text typed to confirm a
+ * deletion use the names.
  */
 
 import type { Schemas } from './api/client'
@@ -62,12 +63,47 @@ export function fullLabelOf(suites: readonly Labelled[] | undefined, ref: SuiteR
 // Case-insensitive, in the order of the browser's language (AR22).
 const collator = new Intl.Collator(undefined, { sensitivity: 'accent' })
 
-/** AR22's order of two labels, with their names to break ties. */
+/** AR22's and AR23's order of two labels, with their names to break ties. */
+export function compareLabels(
+  aLabel: string,
+  aName: string,
+  bLabel: string,
+  bName: string,
+): number {
+  return collator.compare(aLabel, bLabel) || compareStrings(aName, bName)
+}
+
+/** AR22's order of two entities, by label, with their names to break ties. */
 function compareLabelled(
   a: { name: string; display_name: string | null },
   b: { name: string; display_name: string | null },
 ): number {
-  return collator.compare(labelOf(a), labelOf(b)) || compareStrings(a.name, b.name)
+  return compareLabels(labelOf(a), a.name, labelOf(b), b.name)
+}
+
+/** What a machine's label is made of: its name and its display name (AR23). */
+export type MachineNames = Pick<Schemas['Machine'], 'name' | 'display_name'>
+
+/** The label of a machine: its display name, or its name if it has none (AR23). */
+export const machineLabel: (machine: MachineNames) => string = labelOf
+
+/** AR23's order of machines: by label, then by name. */
+export const compareMachines: (a: MachineNames, b: MachineNames) => number = compareLabelled
+
+/**
+ * What a client-side filter over machines matches (AR23): a machine's label and its name, with a
+ * NUL between them, which neither holds, so that a match never spans both.
+ */
+export function machineFilterText(name: string, label: string): string {
+  return `${label}\u0000${name}`
+}
+
+/**
+ * How a machine is named to assistive technology where its label alone may not tell it apart, as
+ * its label is not unique (AR23): its label, followed by its name when the two differ.
+ */
+export function labelAndName(name: string, label: string): string {
+  return label === name ? name : `${label}, ${name}`
 }
 
 /** AR22's order of projects: by label, then by name. */

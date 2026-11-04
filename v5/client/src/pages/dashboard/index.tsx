@@ -4,7 +4,7 @@ import { fullName, refOf, useProjects, type Project, type Suite } from '../../ap
 import { useRecentlyActiveMachines } from '../../api/machines'
 import { Loaded } from '../../components/feedback'
 import { Select } from '../../components/select'
-import { projectLabel, projectNamed, suiteLabel } from '../../labels'
+import { projectLabel, projectNamed, suiteLabel, type MachineNames } from '../../labels'
 import { projectPath } from '../../paths'
 import { isNumeric, type Metric } from '../../schema'
 import { enumParam, stringParam, useDropUnusable, useUrlState } from '../../url-state'
@@ -171,7 +171,7 @@ interface SuiteCardsProps {
   schema: Suite
   /** The metrics the suite shows on the Dashboard. */
   metrics: Metric[]
-  machines: string[]
+  machines: MachineNames[]
   range: number
 }
 

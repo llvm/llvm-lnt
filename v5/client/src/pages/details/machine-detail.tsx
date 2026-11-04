@@ -4,10 +4,15 @@ import { useLocation, useNavigate, useParams } from 'react-router'
 import { VisuallyHidden } from 'react-aria-components'
 import { authedApi, PAGE_SIZE, unwrap, type Schemas } from '../../api/client'
 import { forgetSuite, forgetUnobserved, queryKeys } from '../../api/keys'
-import { MACHINE_NAME_LENGTH, machineKey, useMachine } from '../../api/machines'
+import {
+  DISPLAY_NAME_LENGTH,
+  MACHINE_NAME_LENGTH,
+  machineKey,
+  useMachine,
+} from '../../api/machines'
 import { fetchRegressions } from '../../api/regressions'
 import { fetchRunPage } from '../../api/runs'
-import { refOf, type Suite, type SuiteRef } from '../../api/suites'
+import { findSuite, refOf, useSuites, type Suite, type SuiteRef } from '../../api/suites'
 import { useCursorPager } from '../../api/use-cursor-pager'
 import { useScopeGate } from '../../auth/scope'
 import { ButtonLink } from '../../components/button-link'
@@ -22,6 +27,7 @@ import { CursorPager } from '../../components/pagination'
 import { runColumns } from '../../components/run-columns'
 import { useMounted } from '../../components/use-mounted'
 import { WithSchema } from '../../components/with-schema'
+import { machineLabel } from '../../labels'
 import { invalidMachineName, UNTRACKED_HELP } from '../../machines'
 import { comparePath, graphPath, machinePath } from '../../paths'
 import { ACTIVE_STATES } from '../../regression-states'
@@ -64,12 +70,22 @@ export default function MachineDetail() {
   return (
     <section>
       <SuiteTrail suite={suite} tab="machines" />
-      <h1>Machine: {name}</h1>
+      <Heading suite={suite} name={name} />
       <WithSchema suite={suite}>
         {(schema) => <MachineContent key={shown.key} schema={schema} name={name} />}
       </WithSchema>
     </section>
   )
+}
+
+/**
+ * The page's heading, naming the machine by its label, or by its name until it is known (AR23). The
+ * machine is fetched, as the rest of the page fetches it, once the suite is known to exist.
+ */
+function Heading({ suite, name }: { suite: SuiteRef; name: string }) {
+  const known = findSuite(useSuites().data, suite) !== undefined
+  const machine = useMachine(suite, name, known)
+  return <h1>Machine: {machine.data ? machineLabel(machine.data) : name}</h1>
 }
 
 function MachineContent({ schema, name }: { schema: Suite; name: string }) {
@@ -92,6 +108,7 @@ function MachineSections({ schema, machine }: { schema: Suite; machine: Machine 
     <>
       <InfoBox label="Machine">
         <NameRow suite={suite} machine={machine} />
+        <DisplayNameRow suite={suite} machine={machine} />
         <TrackedRow suite={suite} machine={machine} />
         <InactivityDays suite={suite} machine={machine} />
         {schema.machine_fields.map((field) => (
@@ -104,7 +121,7 @@ function MachineSections({ schema, machine }: { schema: Suite; machine: Machine 
           />
         ))}
       </InfoBox>
-      <Actions suite={suite} name={name} />
+      <Actions suite={suite} machine={machine} />
       <ActiveRegressions suite={suite} name={name} />
       <RunHistory schema={schema} name={name} />
     </>
@@ -187,6 +204,26 @@ function NameRow({ suite, machine }: { suite: SuiteRef; machine: Machine }) {
   )
 }
 
+/**
+ * The machine's display name, which a holder of `manage` scope can set, change or clear (DT1):
+ * emptying the input clears it.
+ */
+function DisplayNameRow({ suite, machine }: { suite: SuiteRef; machine: Machine }) {
+  const manage = useScopeGate('manage', suite)
+  const update = useUpdateMachine(suite, machine.name)
+  return (
+    <InfoRow label="Display name">
+      <InlineEdit
+        label="Display name"
+        value={machine.display_name}
+        gate={manage}
+        maxLength={DISPLAY_NAME_LENGTH}
+        onSave={(text) => update.mutateAsync({ display_name: text })}
+      />
+    </InfoRow>
+  )
+}
+
 /** The machine's `tracked` flag, which a holder of `manage` scope can flip (DT1). */
 function TrackedRow({ suite, machine }: { suite: SuiteRef; machine: Machine }) {
   const labelId = useId()
@@ -234,7 +271,8 @@ function InactivityDays({ suite, machine }: { suite: SuiteRef; machine: Machine 
 }
 
 /** View Graph, Compare, and Delete Machine, with its confirmation below them (DT1). */
-function Actions({ suite, name }: { suite: SuiteRef; name: string }) {
+function Actions({ suite, machine }: { suite: SuiteRef; machine: Machine }) {
+  const { name } = machine
   return (
     <DetailActionRow
       deletion={{
@@ -244,9 +282,9 @@ function Actions({ suite, name }: { suite: SuiteRef; name: string }) {
         expected: name,
         message: (
           <p>
-            Delete the machine <strong>{name}</strong>, all of its runs with their samples and
-            profiles, and every regression indicator naming it? Regressions left with no indicators
-            are kept. This cannot be undone.
+            Delete the machine <strong>{machineLabel(machine)}</strong>, all of its runs with their
+            samples and profiles, and every regression indicator naming it? Regressions left with no
+            indicators are kept. This cannot be undone.
           </p>
         ),
         busyMessage: 'Deleting a machine with many runs may take a while.',

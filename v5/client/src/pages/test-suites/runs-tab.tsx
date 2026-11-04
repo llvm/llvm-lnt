@@ -1,11 +1,12 @@
 import { queryKeys } from '../../api/keys'
+import { useMachineLabels, type MachineLabels } from '../../api/machines'
 import { fetchRunPage, type RunPage } from '../../api/runs'
 import { refOf, type Suite } from '../../api/suites'
 import { useCursorPager } from '../../api/use-cursor-pager'
 import { PAGE_SIZE, type Schemas } from '../../api/client'
 import { DataTable, type Column } from '../../components/data-table'
 import { CursorPager } from '../../components/pagination'
-import { runColumns } from '../../components/run-columns'
+import { machineColumn, runColumns } from '../../components/run-columns'
 import { useServerSearch } from '../../components/use-server-search'
 import { TabContent } from './tab-content'
 
@@ -21,6 +22,7 @@ interface Props {
 export function RunsTab({ schema, search, onSearch }: Props) {
   const suite = refOf(schema)
   const input = useServerSearch(search, onSearch)
+  const labelOfMachine = useMachineLabels(suite)
   const query = { search: search || undefined, sort: '-submitted_at', limit: PAGE_SIZE } as const
   const pager = useCursorPager({
     queryKey: [...queryKeys.runs(suite), query],
@@ -40,7 +42,7 @@ export function RunsTab({ schema, search, onSearch }: Props) {
         <>
           <DataTable
             label="Runs"
-            columns={columns(schema, page)}
+            columns={columns(schema, page, labelOfMachine)}
             rows={page.items}
             rowKey={(run) => run.uuid}
             empty={
@@ -60,7 +62,7 @@ export function RunsTab({ schema, search, onSearch }: Props) {
   )
 }
 
-function columns(schema: Suite, page: RunPage): Column<Run>[] {
-  const { run, machine, commit, submitted } = runColumns(schema, page.commits)
-  return [run, machine, commit, submitted]
+function columns(schema: Suite, page: RunPage, labelOfMachine: MachineLabels): Column<Run>[] {
+  const { run, commit, submitted } = runColumns(schema, page.commits)
+  return [run, machineColumn(refOf(schema), labelOfMachine), commit, submitted]
 }

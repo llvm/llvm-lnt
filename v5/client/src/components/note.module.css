@@ -1,0 +1,5 @@
+/* What is said of an option, or of a machine, after its label: muted, and plain after bold text. */
+.note {
+  color: var(--lnt-muted);
+  font-weight: normal;
+}

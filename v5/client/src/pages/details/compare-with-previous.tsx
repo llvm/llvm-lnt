@@ -10,6 +10,8 @@ interface Props {
   schema: Suite
   /** The run to compare, alone on side B, with its machine and its commit. */
   run: { uuid: string; machine: string; commit: string }
+  /** The label of the run's machine (AR23). */
+  machineLabel: string
   /** The metric to compare. */
   metric: string | undefined
   children: ReactNode
@@ -22,7 +24,7 @@ export const NO_ORDINAL = 'This commit has no ordinal.'
  * A link to the Compare page comparing `run` with every run of its machine at the commit before
  * (DT2 "Compare with previous commit"), disabled, saying why, while there is no such commit.
  */
-export function CompareWithPrevious({ schema, run, metric, children }: Props) {
+export function CompareWithPrevious({ schema, run, machineLabel, metric, children }: Props) {
   const suite = refOf(schema)
   const previous = usePreviousCommit(suite, run.commit, run.machine)
   const to =
@@ -34,14 +36,14 @@ export function CompareWithPrevious({ schema, run, metric, children }: Props) {
         )
       : null
   return (
-    <ButtonLink to={to} title={title(previous, run.machine, schema)}>
+    <ButtonLink to={to} title={title(previous, machineLabel, schema)}>
       {children}
     </ButtonLink>
   )
 }
 
 /** Which commit the link compares with, or why it compares with none. */
-function title(previous: PreviousCommit, machine: string, schema: Suite): string {
+function title(previous: PreviousCommit, machineLabel: string, schema: Suite): string {
   switch (previous.state) {
     case 'pending':
       return 'Looking up the previous commit...'
@@ -50,7 +52,7 @@ function title(previous: PreviousCommit, machine: string, schema: Suite): string
     case 'unordered':
       return NO_ORDINAL
     case 'none':
-      return `${machine} has no runs at an earlier commit.`
+      return `${machineLabel} has no runs at an earlier commit.`
     case 'found':
       return `Compare with ${commitDisplayValue(previous.commit, schema)}`
   }

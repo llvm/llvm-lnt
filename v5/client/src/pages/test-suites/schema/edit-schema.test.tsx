@@ -1,7 +1,7 @@
 import { act, fireEvent, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { HttpResponse } from 'msw'
-import { describe, expect, it, onTestFinished } from 'vitest'
+import { beforeEach, describe, expect, it, onTestFinished } from 'vitest'
 import { queryKeys } from '../../../api/keys'
 import { suiteRef, type ProjectName, type Suite, type SuiteSchema } from '../../../api/suites'
 import { TOKEN_STORAGE_KEY } from '../../../auth/storage-key'
@@ -23,6 +23,7 @@ import {
   currentUrl,
   gate,
   main,
+  mockMachines,
   mockRuns,
   mockSuites,
   navbarLink,
@@ -36,6 +37,11 @@ import {
 } from '../../../test/page'
 import { pickOption, selectButton } from '../../../test/select'
 import { server } from '../../../test/server'
+
+// The machines of a suite whose Runs tab a test ends up on, which name runs' machines (AR23).
+beforeEach(() => {
+  mockMachines(() => ({ items: [] }))
+})
 
 type Failure = ReturnType<typeof errorResponse>
 

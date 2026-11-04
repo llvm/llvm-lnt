@@ -10,6 +10,7 @@ import { suitePath } from '../client/src/paths.ts'
 import { MACOS } from '../tools/synthetic.ts'
 import { expect, json, test } from './fixtures.ts'
 import { ownSuite } from './own-suite.ts'
+import { clickSuggestion, typeInto } from './select.ts'
 import { column, rows, table } from './tables.ts'
 
 type Schemas = components['schemas']
@@ -112,6 +113,51 @@ test('its name is changed by a holder of manage scope, and listed as changed', a
     const machines = table(page, 'Machines')
     await expect(machines.getByRole('link', { name: 'renamed', exact: true })).toBeVisible()
     await expect(rows(machines)).toHaveCount(1)
+  })
+})
+
+test('its display name is set by a holder of manage scope, and names it everywhere', async ({
+  page,
+  request,
+  tokenFor,
+  signIn,
+}, testInfo) => {
+  await ownSuite(request, tokenFor, testInfo, RUNS, async (suite) => {
+    await signIn(page, 'manage')
+    await page.goto(`${suitePath(suite)}/machines/m1`)
+    const displayName = page.getByRole('textbox', { name: 'Display name' })
+
+    await page.getByRole('button', { name: 'Edit Display name' }).click()
+    await displayName.fill('Linux / x86-64')
+    await displayName.press('Enter')
+
+    // Not confirmed, and the URL keeps the name (AR23).
+    await expect(page.getByRole('heading', { level: 1 })).toHaveText('Machine: Linux / x86-64')
+    await expect(page).toHaveURL(`${suitePath(suite)}/machines/m1`)
+    const stored = await json<Schemas['Machine']>(request, `/api${suitePath(suite)}/machines/m1`)
+    expect(stored.display_name).toBe('Linux / x86-64')
+
+    // The Machines tab shows its label, followed by its name, and finds it by either.
+    await page.goto(`${suitePath(suite)}?tab=machines&search=x86-64`)
+    const machines = table(page, 'Machines')
+    await expect(rows(machines)).toHaveText([/^Linux \/ x86-64 m1/])
+    // A run names it by its label, and a picker shows its label, followed by its name.
+    await page.goto(`${suitePath(suite)}`)
+    await expect(table(page, 'Runs').getByRole('link', { name: 'Linux / x86-64' })).toBeVisible()
+    await page.goto(`/graph?project=${suite.project}&suite=${suite.suite}`)
+    await typeInto(page.getByRole('combobox', { name: 'Machines' }), 'm1')
+    await clickSuggestion(page.getByRole('option', { name: 'Linux / x86-64 m1' }))
+    await expect(page).toHaveURL(/machine=m1/)
+    await expect(page.getByRole('list', { name: 'Machines added' })).toContainText(
+      'Linux / x86-64',
+    )
+
+    // Emptied, it is cleared, and the machine is named by its name again.
+    await page.goto(`${suitePath(suite)}/machines/m1`)
+    await page.getByRole('button', { name: 'Edit Display name' }).click()
+    await displayName.fill(' ')
+    await displayName.press('Enter')
+    await expect(page.getByRole('heading', { level: 1 })).toHaveText('Machine: m1')
   })
 })
 

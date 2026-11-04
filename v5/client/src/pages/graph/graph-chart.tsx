@@ -3,6 +3,7 @@ import type { Data, PlotData, PlotMouseEvent } from 'plotly.js'
 import clsx from 'clsx'
 import type { Aggregation } from '../../aggregation'
 import type { MarkedRegression } from '../../api/regressions'
+import type { MachineLabels } from '../../api/machines'
 import type { Scaffold } from '../../api/scaffold'
 import type { Measurement, Series } from '../../api/series'
 import type { Suite } from '../../api/suites'
@@ -45,6 +46,8 @@ interface Props {
   metric: Metric | undefined
   /** The machines plotted, in the order of their chips. */
   machines: readonly string[]
+  /** The label of each machine of the suite (AR23). */
+  labelOfMachine: MachineLabels
   /** The tests selected, in order. */
   selected: readonly string[]
   scaffold: Scaffold
@@ -141,6 +144,7 @@ function pointsFor(
 interface BuiltTrace {
   points: Point[]
   machineIndex: number
+  machineLabel: string
   data: Partial<PlotData>
 }
 
@@ -164,11 +168,13 @@ class TraceStore {
       // By test, which gives the trace's colour too (GR1).
       const key = `${trace.machine}\0${trace.test}`
       const known = this.built.get(key)
-      const { points, machineIndex } = trace
+      const { points, machineIndex, machineLabel } = trace
       const entry =
-        known?.points === points && known.machineIndex === machineIndex
+        known?.points === points &&
+        known.machineIndex === machineIndex &&
+        known.machineLabel === machineLabel
           ? known
-          : { points, machineIndex, data: plotlyTrace(trace, displayValue, metric) }
+          : { points, machineIndex, machineLabel, data: plotlyTrace(trace, displayValue, metric) }
       kept.set(key, entry)
       return entry.data
     })
@@ -238,6 +244,7 @@ export function GraphChart({
   schema,
   metric,
   machines,
+  labelOfMachine,
   selected,
   scaffold,
   series: latest,
@@ -283,25 +290,31 @@ export function GraphChart({
         const measurements = series.measurementsOf(machine, test)
         const points = pointsFor(measurements, positions, sampleAgg, runAgg)
         if (points.length === 0) continue
-        drawn.push({ test, machine, machineIndex, color: colorOfName(test), points })
+        drawn.push({
+          test,
+          machine,
+          machineLabel: labelOfMachine(machine),
+          machineIndex,
+          color: colorOfName(test),
+          points,
+        })
       }
     })
     return drawn
-  }, [metric, machines, listed, series, selected, positions, sampleAgg, runAgg])
+  }, [metric, machines, labelOfMachine, listed, series, selected, positions, sampleAgg, runAgg])
 
   // A line per baseline and selected test it has a value for, once all its data has arrived.
   const lines = useMemo(
     () =>
-      baselines.flatMap(({ baseline, suiteLabel, display, label, samples }): BaselineLine[] =>
+      baselines.flatMap(({ suiteLabel, machineLabel, display, label, samples }): BaselineLine[] =>
         samples === undefined
           ? []
           : selected.flatMap((test) => {
               const measured = samples.get(test)
               if (measured === undefined) return []
               const value = combineRuns(runValues(measured, sampleAgg), runAgg)
-              const { machine } = baseline
               const color = colorOfName(test)
-              return [{ label, suiteLabel, machine, commit: display, test, value, color }]
+              return [{ label, suiteLabel, machineLabel, commit: display, test, value, color }]
             }),
       ),
     [baselines, selected, sampleAgg, runAgg],
@@ -513,6 +526,7 @@ export function GraphChart({
             schema={schema}
             metric={metric}
             machine={trace.machine}
+            machineLabel={trace.machineLabel}
             test={trace.test}
             point={point}
             commit={commits[point.position]}

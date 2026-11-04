@@ -9,6 +9,7 @@ import { signIn, TOKEN } from '../../test/auth'
 import {
   commit,
   cursorPage,
+  machine,
   NO_REPOSITORY,
   regression,
   run,
@@ -25,6 +26,7 @@ import {
   infoRows,
   main,
   mockCommits,
+  mockMachines,
   mockResolve,
   mockSent,
   mockSuites,
@@ -75,6 +77,8 @@ interface Options {
   regressions?: Respond<Response>
   /** The answer to the lookup of the commit before this one on a machine. */
   previous?: Respond<Response>
+  /** The suite's machines, which name the runs' machines by their labels; none by default. */
+  machines?: Schemas['Machine'][]
 }
 
 /**
@@ -89,12 +93,14 @@ function renderCommit({
   runPages = () => HttpResponse.json(cursorPage(runs)),
   regressions = () => HttpResponse.json(cursorPage([])),
   previous = () => HttpResponse.json(cursorPage([BEFORE])),
+  machines = [],
 }: Options = {}) {
   const detailCalls = { count: 0 }
   const runList = recording(runPages)
   const regressionList = recording(regressions)
   const lookups = recording(previous)
   mockSuites(suites)
+  mockMachines(() => ({ items: machines }))
   const resolved = mockResolve([withoutNeighbours(DETAIL)])
   server.use(
     mockApi('get', COMMIT_ROUTE, () => {
@@ -905,6 +911,33 @@ describe('the Commit Detail page', () => {
 
       search('Filter machines', 'windows')
       expect(await within(runs).findByText('No machines match the filter.')).toBeInTheDocument()
+    })
+
+    it('name their machines by label, sorted and filtered by label or name (AR23)', async () => {
+      renderCommit({
+        runs: RUNS,
+        machines: [
+          machine('linux', { display_name: 'Zeta / Linux' }),
+          machine('macos', { display_name: 'Apple / M4' }),
+        ],
+      })
+      const runs = await table('Runs')
+
+      await waitFor(() =>
+        expect(rowsOf(runs)).toEqual([
+          'Apple / M4 | aaaaaaaa… | 2026-08-25, 2:22:41 PM | Compare with previous',
+          'Apple / M4 | cccccccc… | 2026-08-24, 9:00:00 AM | Compare with previous',
+          'Zeta / Linux | bbbbbbbb… | 2026-08-25, 1:00:00 PM | Compare with previous',
+        ]),
+      )
+      expect(within(runs).getByRole('link', { name: 'Zeta / Linux' })).toHaveAttribute(
+        'href',
+        '/projects/llvm/suites/libcxx/machines/linux',
+      )
+      search('Filter machines', 'zeta')
+      await waitFor(() => expect(rowsOf(runs)).toHaveLength(1))
+      search('Filter machines', 'macos')
+      await waitFor(() => expect(rowsOf(runs)).toHaveLength(2))
     })
 
     it('are filtered as the URL says on load', async () => {

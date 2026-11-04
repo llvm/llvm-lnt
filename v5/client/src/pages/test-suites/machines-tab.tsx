@@ -5,8 +5,10 @@ import { machinesQuery } from '../../api/machines'
 import { shownData } from '../../api/shown-data'
 import { refOf, type Suite } from '../../api/suites'
 import { Badge } from '../../components/badge'
+import { SecondaryName } from '../../components/machine-name'
 import { DataTable, type Column } from '../../components/data-table'
 import { useServerSearch } from '../../components/use-server-search'
+import { compareMachines, machineLabel } from '../../labels'
 import { UNTRACKED_HELP } from '../../machines'
 import { machinePath } from '../../paths'
 import { listedColumns } from './listed-columns'
@@ -20,12 +22,13 @@ interface Props {
   onSearch(text: string): void
 }
 
-/** Every machine of the suite, by name, with the fields the schema lists (TS3). */
+/** Every machine of the suite, by label (AR23), with the fields the schema lists (TS3). */
 export function MachinesTab({ schema, search, onSearch }: Props) {
   const suite = refOf(schema)
   const input = useServerSearch(search, onSearch)
   const machines = useQuery({
     ...machinesQuery(suite, { search: search || undefined }),
+    select: byLabel,
     // Keep the machines shown until those of the next search arrive.
     placeholderData: keepPreviousData,
   })
@@ -53,15 +56,18 @@ export function MachinesTab({ schema, search, onSearch }: Props) {
   )
 }
 
+const byLabel = (machines: Machine[]) => machines.toSorted(compareMachines)
+
 function columns(schema: Suite): Column<Machine>[] {
   return [
     {
-      id: 'name',
-      header: 'Name',
+      id: 'machine',
+      header: 'Machine',
       looks: ['nowrap'],
       cell: (machine) => (
         <>
-          <Link to={machinePath(refOf(schema), machine.name)}>{machine.name}</Link>
+          <Link to={machinePath(refOf(schema), machine.name)}>{machineLabel(machine)}</Link>
+          <SecondaryName machine={machine} />
           {!machine.tracked && (
             <>
               {' '}

@@ -90,6 +90,8 @@ interface World {
   adHoc?: string[]
   /** The `svn_revision` of commits that have one, libcxx's display field, by commit string. */
   revisions?: Record<string, string>
+  /** The display names of the machines that have one, by name (AR23). */
+  displayNames?: Record<string, string>
 }
 
 /** The hex a run's UUID is made of (see `uuidOf`). */
@@ -109,10 +111,13 @@ export function mockWorld({
   profilesAnswer,
   adHoc = [],
   revisions = {},
+  displayNames = {},
 }: World = {}) {
   const sampled: string[] = []
   mockSuites(suites)
-  mockMachines(() => ({ items: MACHINES.map((name) => machine(name)) }))
+  mockMachines(() => ({
+    items: MACHINES.map((name) => machine(name, { display_name: displayNames[name] ?? null })),
+  }))
   const commitOf = (value: string) =>
     commit(value, {
       ordinal: adHoc.includes(value) ? null : Number(value.slice(1)),

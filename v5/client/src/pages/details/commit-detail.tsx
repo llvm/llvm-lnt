@@ -1,4 +1,4 @@
-import { useMemo } from 'react'
+import { useCallback, useMemo } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useParams } from 'react-router'
 import { VisuallyHidden } from 'react-aria-components'
@@ -11,6 +11,7 @@ import {
   useCommit,
 } from '../../api/commits'
 import { queryKeys } from '../../api/keys'
+import { useMachineLabels, type MachineLabels } from '../../api/machines'
 import { fetchRegressions } from '../../api/regressions'
 import { fetchRuns } from '../../api/runs'
 import { fullName, refOf, type Suite, type SuiteRef } from '../../api/suites'
@@ -28,11 +29,12 @@ import { InlineEdit } from '../../components/inline-edit'
 import { InactivityRow } from '../../components/inactivity-row'
 import { CursorPager } from '../../components/pagination'
 import { CommitRepositoryLink } from '../../components/repository-link'
-import { runColumns } from '../../components/run-columns'
+import { machineColumn, runColumns } from '../../components/run-columns'
 import { SearchInput } from '../../components/search-input'
 import { useTextFilter } from '../../components/use-text-filter'
 import { WithSchema } from '../../components/with-schema'
-import { compareStrings, isIntegerIn, plural } from '../../format'
+import { isIntegerIn, plural } from '../../format'
+import { compareLabels, machineFilterText } from '../../labels'
 import { commitPath } from '../../paths'
 import { commitDisplayValue, defaultMetric, labelOf, type Commit } from '../../schema'
 import { trimmedStringParam, useUrlState } from '../../url-state'
@@ -302,20 +304,29 @@ function machineCount(runs: Run[]): number {
 
 /**
  * Every run at the commit, by machine and most recently measured first on each, filtered by machine
- * name locally, each with a link comparing it with the commit before on its machine (DT3). They
- * are shown as they arrive, page after page.
+ * label or name locally (AR23), each with a link comparing it with the commit before on its machine
+ * (DT3). They are shown as they arrive, page after page.
  */
 function CommitRuns({ schema, runs }: { schema: Suite; runs: CursorPages<Run> }) {
   const [settings, update] = useUrlState(PARAMS)
+  const labelOfMachine = useMachineLabels(refOf(schema))
   // Stable, so that each machine's runs stay most recently measured first, as the API gave them.
   const rows = useMemo(
-    () => runs.items.toSorted((a, b) => compareStrings(a.machine, b.machine)),
-    [runs.items],
+    () =>
+      runs.items
+        .map((run) => ({ run, label: labelOfMachine(run.machine) }))
+        .sort((a, b) => compareLabels(a.label, a.run.machine, b.label, b.run.machine))
+        .map(({ run }) => run),
+    [runs.items, labelOfMachine],
   )
-  const filter = useTextFilter(rows, machineOf, settings.machine_filter, (text) =>
+  const textOf = useCallback(
+    (run: Run) => machineFilterText(run.machine, labelOfMachine(run.machine)),
+    [labelOfMachine],
+  )
+  const filter = useTextFilter(rows, textOf, settings.machine_filter, (text) =>
     update({ machine_filter: text }),
   )
-  const columns = useMemo(() => runsColumns(schema), [schema])
+  const columns = useMemo(() => runsColumns(schema, labelOfMachine), [schema, labelOfMachine])
   const machines = useMemo(() => machineCount(rows), [rows])
   const shownMachines = useMemo(() => machineCount(filter.rows), [filter.rows])
 
@@ -370,8 +381,9 @@ function CommitRuns({ schema, runs }: { schema: Suite; runs: CursorPages<Run> })
 /** Every run has the same commit, which the table does not show, so none is resolved. */
 const NO_COMMITS = new Map<string, Commit>()
 
-function runsColumns(schema: Suite): Column<Run>[] {
-  const { machine, run, measured } = runColumns(schema, NO_COMMITS)
+function runsColumns(schema: Suite, labelOfMachine: MachineLabels): Column<Run>[] {
+  const { run, measured } = runColumns(schema, NO_COMMITS)
+  const machine = machineColumn(refOf(schema), labelOfMachine)
   // This page has no metric selector, so the link compares Run Detail's default metric (DT3).
   const metric = defaultMetric(schema)?.name
   return [
@@ -383,7 +395,12 @@ function runsColumns(schema: Suite): Column<Run>[] {
       header: <VisuallyHidden>Compare</VisuallyHidden>,
       looks: ['nowrap'],
       cell: (row) => (
-        <CompareWithPrevious schema={schema} run={row} metric={metric}>
+        <CompareWithPrevious
+          schema={schema}
+          run={row}
+          machineLabel={labelOfMachine(row.machine)}
+          metric={metric}
+        >
           Compare with previous
         </CompareWithPrevious>
       ),

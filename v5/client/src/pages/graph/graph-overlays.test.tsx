@@ -11,6 +11,7 @@ import { signIn } from '../../test/auth'
 import { mockClipboard } from '../../test/clipboard'
 import {
   cursorPage,
+  machine,
   metric,
   NO_REPOSITORY,
   regression,
@@ -26,6 +27,7 @@ import {
   main,
   mockCommits,
   mockCreateRegression,
+  mockMachines,
   mockRegressions,
   query,
   renderPage,
@@ -1153,6 +1155,29 @@ describe('the baselines (GR9)', () => {
     expect(baseline?.query.toString()).toBe('metric=execution_time&machine=m1&commit=c10')
     const chips = within(baselineChips())
     expect(chips.getByRole('listitem')).toHaveTextContent('llvm › libcxx › m1 › r10')
+  })
+
+  it("names a baseline's machine by label, keeping two of one label apart (AR23)", async () => {
+    mockWorld({ samples: { 'm1/b': [['c20', 'r1', 6]], 'm2/b': [['c20', 'r2', 5]] } })
+    mockMachines(() => ({
+      items: [machine('m1', { display_name: 'Same' }), machine('m2', { display_name: 'Same' })],
+    }))
+    renderPage(`${ONE_MACHINE}&test=b&baseline=llvm/libcxx/m1/c20&baseline=llvm/libcxx/m2/c20`)
+
+    await waitFor(() =>
+      expect(baselineLines()).toEqual([
+        'b - baseline llvm › libcxx › Same › r20: 6',
+        'b - baseline llvm › libcxx › Same › r20: 5',
+      ]),
+    )
+    const chips = within(baselineChips()).getAllByRole('listitem')
+    expect(chips.map((chip) => chip.textContent)).toEqual([
+      'llvm › libcxx › Same › r20×',
+      'llvm › libcxx › Same › r20×',
+    ])
+    expect(hoverText(curve('b - baseline llvm › libcxx › Same › r20') as PlotData, 0)).toContain(
+      'Machine: Same<br>',
+    )
   })
 
   it("names a baseline's suite by its label (AR22)", async () => {

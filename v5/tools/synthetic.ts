@@ -37,6 +37,8 @@ interface FleetMachine {
   speed: number
   clockGhz: number
   fields: Record<string, string>
+  /** How the web UI names it, if not by its name (D5). */
+  displayName?: string
   /** False for a retired machine, kept for its history (D5). */
   tracked: boolean
   /** The synthetic commits it measured, each once. */
@@ -106,6 +108,8 @@ const FLEET: FleetMachine[] = [
   },
   {
     name: 'windows-x86_64-clang-cl-20260812',
+    // A display name holds what a name cannot, such as a '/' (I1).
+    displayName: 'Windows / clang-cl',
     like: LINUX,
     speed: 1.12,
     clockGhz: 3.0,
@@ -124,6 +128,7 @@ const FLEET: FleetMachine[] = [
   },
   {
     name: 'linux-x86_64-asan-20260812',
+    displayName: 'Linux x86-64 (ASan)',
     like: LINUX,
     speed: 2.4,
     clockGhz: 3.0,
@@ -389,7 +394,12 @@ export function libcxxSynthetic(realRuns: Submission[]): {
       addRun(fleet.name, commit, `libcxx/${fleet.name}/${i}`, factor, {
         measured: fleet.like,
         measuredAt: measuredAt(i, 0, -60),
-        submitted: { name: fleet.name, tracked: fleet.tracked, fields: fleet.fields },
+        submitted: {
+          name: fleet.name,
+          display_name: fleet.displayName,
+          tracked: fleet.tracked,
+          fields: fleet.fields,
+        },
       })
     }
     // Some commits are measured twice, so that runs need aggregating.

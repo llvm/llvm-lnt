@@ -128,7 +128,7 @@ export function useShadows(
   const shadows = useMemo(
     () =>
       specs.map((spec, i): ShadowState => {
-        const { schema, display } = checked.states[i]
+        const { schema, machineLabel, display } = checked.states[i]
         const { uuids, selected, chosen } = runs[i]
         const subset =
           spec.runs.length > 0 && uuids !== undefined && selected !== undefined
@@ -137,7 +137,7 @@ export function useShadows(
         return {
           key: keys[i],
           schema,
-          label: joinLabels(fullLabelOf(suites, spec.suite), spec.machine, display) + subset,
+          label: joinLabels(fullLabelOf(suites, spec.suite), machineLabel, display) + subset,
           runSamples: samplesOfRuns(chosen, states),
         }
       }),

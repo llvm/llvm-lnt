@@ -12,7 +12,8 @@ import {
   TEXT_LENGTH,
   withIndicators,
 } from '../../api/regressions'
-import { fullName, type Suite, type SuiteRef } from '../../api/suites'
+import { useMachineLabels } from '../../api/machines'
+import { fullName, refOf, type Suite, type SuiteRef } from '../../api/suites'
 import { useScopeGate } from '../../auth/scope'
 import { usePickedCommitText } from '../../components/commit-lookup'
 import { ErrorMessage } from '../../components/feedback'
@@ -247,11 +248,12 @@ interface SummaryProps {
  */
 function Summary({ schema, machine, commit, metric, tests, skipped }: SummaryProps) {
   const shown = usePickedCommitText(schema, { machine }, commit)
+  const labelOfMachine = useMachineLabels(refOf(schema))
   const rows: [string, string][] = [
     ['Covers', plural(tests, 'selected test')],
     ['Test Suite', fullLabel(schema)],
     ['Metric', metric],
-    ['Machine', machine],
+    ['Machine', labelOfMachine(machine)],
     ['Commit', shown],
   ]
   return (

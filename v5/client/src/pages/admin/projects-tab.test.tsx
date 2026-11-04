@@ -1,6 +1,6 @@
 import { act, fireEvent, screen, waitFor, within } from '@testing-library/react'
 import { HttpResponse } from 'msw'
-import { describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it } from 'vitest'
 import type { QueryClient } from '@tanstack/react-query'
 import type { Schemas } from '../../api/client'
 import { queryKeys } from '../../api/keys'
@@ -12,6 +12,7 @@ import {
   currentUrl,
   gate,
   headersOf,
+  mockMachines,
   mockRuns,
   mockSuites,
   projectList,
@@ -23,6 +24,11 @@ import {
   type SuiteStore,
 } from '../../test/page'
 import { server } from '../../test/server'
+
+// The machines of a suite whose Runs tab a test ends up on, which name runs' machines (AR23).
+beforeEach(() => {
+  mockMachines(() => ({ items: [] }))
+})
 
 /** A project with a display name, and no suites. */
 const SWIFT: ProjectName = { name: 'swift', display_name: 'Swift' }

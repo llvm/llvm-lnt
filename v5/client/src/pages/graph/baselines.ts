@@ -44,9 +44,14 @@ export interface BaselineState {
   baseline: Baseline
   /** The full label of its suite (AR22), or the suite's names until the suites are listed. */
   suiteLabel: string
+  /** The label of its machine (AR23), or its name until its suite's machines are listed. */
+  machineLabel: string
   /** The display value of its commit, or the commit string until it is known. */
   display: string
-  /** How it is named: its suite's full label, its machine and its commit's display value (GR9). */
+  /**
+   * How it is named: its suite's full label, its machine's label and its commit's display value
+   * (GR9).
+   */
   label: string
   /**
    * Whether it is known to be unusable: its suite, its machine or its commit does not exist, or
@@ -145,12 +150,13 @@ export function useBaselines(
     () =>
       baselines.map((baseline, i): BaselineState => {
         const suiteLabel = fullLabelOf(suites, baseline.suite)
-        const { display, unusable } = checked.states[i]
+        const { machineLabel, display, unusable } = checked.states[i]
         return {
           baseline,
           suiteLabel,
+          machineLabel,
           display,
-          label: joinLabels(suiteLabel, baseline.machine, display),
+          label: joinLabels(suiteLabel, machineLabel, display),
           unusable,
           samples: drawable[i] ? samples.data[i] : undefined,
         }
