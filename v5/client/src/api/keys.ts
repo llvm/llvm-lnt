@@ -46,8 +46,8 @@ export const queryKeys = {
    */
   series: (suite: SuiteRef) => [...queryKeys.suite(suite), 'series'] as const,
   /**
-   * The data of the Graph page's baselines in the suite (GR9), every test's at a commit of a
-   * machine, which the page keeps for longer than its measurements (see pages/graph/baselines.ts).
+   * The data of the Graph page's baselines in the suite (GR9), a test's at a commit of a machine
+   * at a time, which the page keeps for longer than its measurements (see pages/graph/baselines.ts).
    */
   baselines: (suite: SuiteRef) => [...queryKeys.suite(suite), 'baselines'] as const,
 }

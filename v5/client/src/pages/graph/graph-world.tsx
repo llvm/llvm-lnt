@@ -5,14 +5,15 @@
 
 import { screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { HttpResponse } from 'msw'
 import type { Layout, PlotData } from 'plotly.js'
 import { expect } from 'vitest'
 import type { Schemas } from '../../api/client'
 import type { SuiteSchema } from '../../api/suites'
 import { chartProps } from '../../test/chart-props'
 import { BARE_SUITE, SUITE, commit, cursorPage, machine, metric } from '../../test/fixtures'
-import { mockSeries, ndjsonResponse } from '../../test/mock-api'
-import { main, mockCommits, mockMachines, mockSuites, mockTests } from '../../test/page'
+import { mockApi, mockSeries, ndjsonResponse } from '../../test/mock-api'
+import { main, mockCommits, mockMachines, mockSuites } from '../../test/page'
 import { server } from '../../test/server'
 
 /** libcxx, with two numeric metrics and one that cannot be plotted. */
@@ -47,6 +48,8 @@ export interface World {
   suitesWait?: () => Promise<void>
   /** The suites besides GRAPH_SUITE and TEXT_SUITE, which hold the same machines and data. */
   suites?: SuiteSchema[]
+  /** The tests of each machine in the suites named, in place of `tests`. */
+  testsIn?: Record<string, Record<string, string[]>>
 }
 
 export const MACHINES = ['m1', 'm2']
@@ -84,16 +87,20 @@ export const pointOf = (
 
 /** What the page asked of the API. */
 export interface Recorded {
-  /** What `GET /series` was asked for, in order, and the signal of each request. */
-  series: { query: URLSearchParams; signal: AbortSignal }[]
+  /**
+   * What `GET /series` was asked for, in order: in which suite, as `{project}/{suite}`, the query,
+   * and the signal of each request.
+   */
+  series: { suite: string; query: URLSearchParams; signal: AbortSignal }[]
+  /** The tests listed with `GET tests`, in order, as `{project}/{suite}/{machine}`. */
+  tests: string[]
   /** The commits looked up with `GET commits?commit=`, in order, as `{machine}/{commit}`. */
   lookups: string[]
 }
 
 /**
  * Mock the API for the Graph page: GRAPH_SUITE and TEXT_SUITE, and the world described, in every
- * suite. `GET /series` answers a test's data, or, without `test`, every test's, as for a baseline,
- * at `commit` if given, in one chunk.
+ * suite. `GET /series` answers the data of the tests named, at `commit` if given, in one chunk.
  */
 export function mockWorld({
   machines = MACHINES,
@@ -102,11 +109,19 @@ export function mockWorld({
   samples = SAMPLES,
   suitesWait,
   suites = [],
+  testsIn = {},
 }: World = {}): Recorded {
-  const recorded: Recorded = { series: [], lookups: [] }
+  const recorded: Recorded = { series: [], tests: [], lookups: [] }
   mockSuites([GRAPH_SUITE, TEXT_SUITE, ...suites], { wait: suitesWait })
   mockMachines(() => ({ items: machines.map((name) => machine(name)) }))
-  mockTests((query) => testPage(tests[query.get('machine')!] ?? []))
+  server.use(
+    mockApi('get', '/api/projects/{project}/suites/{suite}/tests', ({ request, params }) => {
+      const machineName = new URL(request.url).searchParams.get('machine')!
+      recorded.tests.push(`${params.project}/${params.suite}/${machineName}`)
+      const listed = testsIn[params.suite as string] ?? tests
+      return HttpResponse.json(testPage(listed[machineName] ?? []))
+    }),
+  )
   mockCommits((query) => {
     const listed = (commits[query.get('machine')!] ?? []).map(commitAt)
     const only = query.get('commit')
@@ -116,8 +131,7 @@ export function mockWorld({
   answerSeries(recorded, (query) => {
     const machineName = query.get('machine')!
     const commit = query.get('commit')
-    const named = query.has('test') ? query.getAll('test') : (tests[machineName] ?? [])
-    const points = named.flatMap((test) =>
+    const points = query.getAll('test').flatMap((test) =>
       (samples[`${machineName}/${test}`] ?? [])
         .filter(([at]) => commit === null || at === commit)
         .map((s) => pointOf(machineName, test, s)),
@@ -130,9 +144,10 @@ export function mockWorld({
 /** Answer `GET /series` with `respond`, given the request's query, recording it in `recorded`. */
 export function answerSeries(recorded: Recorded, respond: (query: URLSearchParams) => Response) {
   server.use(
-    mockSeries(({ request }) => {
+    mockSeries(({ request, params }) => {
       const query = new URL(request.url).searchParams
-      recorded.series.push({ query, signal: request.signal })
+      const suite = `${params.project}/${params.suite}`
+      recorded.series.push({ suite, query, signal: request.signal })
       return respond(query)
     }),
   )

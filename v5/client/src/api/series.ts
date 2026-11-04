@@ -2,7 +2,8 @@
  * The measurements the Graph page plots (GR2), loaded from `GET /series` (E9) as they are needed:
  * one request per selected test and machine, whose measurements are drawn once they have all
  * arrived. Tests are not batched into one request, so that each is drawn as soon as its own data
- * has arrived, and the tests' requests run side by side.
+ * has arrived, and the tests' requests run side by side, a few at a time, taking turns with the
+ * baselines' (see `fetchMeasurements`).
  *
  * Once loaded, a test's measurements are kept as they are, fresh for good (GR8), and never fetched
  * again while the page shows them. A request cancelled because its test was deselected or its machine removed keeps
@@ -34,7 +35,7 @@ export interface Measurement {
 }
 
 /** A line of `GET /series` (E9), as the Graph page keeps it. */
-export function measurementOf(point: Schemas['DataPoint']): Measurement {
+function measurementOf(point: Schemas['DataPoint']): Measurement {
   // The Graph page plots numeric metrics only (GR1).
   const { commit, run_uuid: run, measured_at: measured, value } = point
   return { commit, run, measured, value: value as number }
@@ -70,11 +71,24 @@ export interface Series {
 }
 
 /**
- * At most how many tests' measurements are fetched at once, for every machine together, so that a
- * large selection queues its requests rather than sending them to the server all at once. A
- * request holds its slot until its whole response has arrived.
+ * At most how many tests' measurements are fetched at once, for every machine and baseline
+ * together, so that a large selection queues its requests rather than sending them to the server
+ * all at once (GR2). A request holds its slot until its whole response has arrived.
  */
 const slots = new RequestSlots(6)
+
+/**
+ * The measurements of every line of `GET /series` in `suite` for `query`, fetched once one of the
+ * Graph page's turns to send a request is free (see `slots`).
+ */
+export async function fetchMeasurements(
+  suite: SuiteRef,
+  query: SeriesQuery,
+  signal: AbortSignal,
+): Promise<Measurement[]> {
+  const points = await slots.run(signal, () => fetchSeries(suite, query, signal))
+  return points.map(measurementOf)
+}
 
 /** A selected test on a machine whose list holds it: a trace, whose measurements a query loads. */
 interface Trace {
@@ -86,15 +100,13 @@ interface Trace {
  * The measurements of a trace. Only those of commits with an ordinal, the only ones the x-axis
  * places (GR3).
  */
-async function fetchTrace(
+function fetchTrace(
   suite: SuiteRef,
   metric: string,
   { machine, test }: Trace,
   signal: AbortSignal,
 ): Promise<Measurement[]> {
-  const query = { metric, machine, test: [test], has_ordinal: true }
-  const points = await slots.run(signal, () => fetchSeries(suite, query, signal))
-  return points.map(measurementOf)
+  return fetchMeasurements(suite, { metric, machine, test: [test], has_ordinal: true }, signal)
 }
 
 const NO_MEASUREMENTS: Measurement[] = []

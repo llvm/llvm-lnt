@@ -47,6 +47,25 @@ interface MachineTests {
   names: string[]
 }
 
+/** The query listing the tests with a value for `metric` on `machine` (see `fetchTestNames`). */
+function testNamesQuery(suite: SuiteRef, machine: string, metric: string) {
+  return {
+    queryKey: [...queryKeys.tests(suite), { machine, metric }],
+    queryFn: async ({ signal }: { signal: AbortSignal }): Promise<MachineTests> => ({
+      machine,
+      names: await fetchTestNames(suite, machine, metric, signal),
+    }),
+  }
+}
+
+/**
+ * `testNamesQuery`, never fetched again, and cached until removed, as the Graph page does once it
+ * leaves the suite or the page (GR8).
+ */
+export function keptTestNamesQuery(suite: SuiteRef, machine: string, metric: string) {
+  return { ...testNamesQuery(suite, machine, metric), staleTime: Infinity, gcTime: Infinity }
+}
+
 /**
  * The names of the tests with a value for `metric` on any of `machines`, sorted by code point: the
  * union of one `GET tests?machine=...&metric=...` per machine, every page of it, each cached on its
@@ -61,15 +80,9 @@ export function useTestNames(
   { keep = false }: { keep?: boolean } = {},
 ): TestNames {
   return useQueries({
-    queries: machines.map((machine) => ({
-      // Kept as they are for as long as the page shows them, when it asks to.
-      ...(keep ? { staleTime: Infinity, gcTime: Infinity } : {}),
-      queryKey: [...queryKeys.tests(suite), { machine, metric }],
-      queryFn: async ({ signal }: { signal: AbortSignal }): Promise<MachineTests> => ({
-        machine,
-        names: await fetchTestNames(suite, machine, metric, signal),
-      }),
-    })),
+    queries: machines.map((machine) =>
+      (keep ? keptTestNamesQuery : testNamesQuery)(suite, machine, metric),
+    ),
     combine: combineNames,
   })
 }

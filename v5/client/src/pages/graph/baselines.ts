@@ -4,11 +4,12 @@
  */
 
 import { useMemo } from 'react'
-import { skipToken, useQueries, type QueryClient } from '@tanstack/react-query'
+import { useQueries, type QueryClient } from '@tanstack/react-query'
 import { combineResults, type Failures } from '../../api/failures'
 import { forgetEverySuiteLater, queryKeys } from '../../api/keys'
-import { fetchSeries, measurementOf, type Measurement } from '../../api/series'
-import type { Suite } from '../../api/suites'
+import { fetchMeasurements, type Measurement } from '../../api/series'
+import { fullName, type Suite } from '../../api/suites'
+import { keptTestNamesQuery } from '../../api/tests'
 import {
   formatCommitOfMachine,
   parseCommitOfMachine,
@@ -59,9 +60,9 @@ export interface BaselineState {
    */
   unusable: boolean
   /**
-   * Its samples, by test, once every one of them has arrived, or undefined until then, and when
-   * it draws nothing: when its suite does not declare the metric plotted as one with the same
-   * meaning (GR9).
+   * Its samples, by test, of the selected tests whose samples have all arrived, or undefined
+   * while it is not known to be drawable: it draws nothing when its suite does not declare the
+   * metric plotted as one with the same meaning (GR9).
    */
   samples: ReadonlyMap<string, Measurement[]> | undefined
 }
@@ -82,69 +83,120 @@ function declares(schema: Suite, metric: Metric): boolean {
 }
 
 /**
- * Every sample of the baseline's commit for `metric`, of every test, by test (GR9). Not queued
- * behind the traces' requests (see api/series.ts), so that a large selection does not hold back a
- * baseline.
+ * The samples of `test` at the baseline's commit for `metric` (GR9), fetched in turn with the
+ * traces' (see api/series.ts). Without `has_ordinal`, which leaves in a commit without an ordinal
+ * (E9), as a commit picker offers (AR15).
  */
-async function fetchSamples(
+function fetchSamples(
   { suite, machine, commit }: Baseline,
   metric: string,
+  test: string,
   signal: AbortSignal,
-): Promise<Map<string, Measurement[]>> {
-  // Without `has_ordinal`, which leaves in a commit without an ordinal (E9), as a commit picker
-  // offers (AR15).
-  const points = await fetchSeries(suite, { metric, machine, commit }, signal)
-  const samples = new Map<string, Measurement[]>()
-  for (const point of points) {
-    const known = samples.get(point.test)
-    if (known === undefined) samples.set(point.test, [measurementOf(point)])
-    else known.push(measurementOf(point))
-  }
-  return samples
+): Promise<Measurement[]> {
+  return fetchMeasurements(suite, { metric, machine, test: [test], commit }, signal)
+}
+
+/** A baseline's machine, as a key. */
+const machineKey = ({ suite, machine }: Baseline) => `${fullName(suite)}/${machine}`
+
+/** A selected test of a baseline whose machine lists it, whose samples a query loads. */
+interface Line {
+  /** The baseline's position among the baselines. */
+  at: number
+  test: string
 }
 
 /**
- * What is known of `baselines` (GR9), given the suites, once they are listed, and the metric
- * plotted: whether each is usable, its commit's display value, and its samples. The states are
- * the same array from one render to the next until one of them changes.
+ * What is known of `baselines` (GR9), given the suites, once they are listed, the metric plotted
+ * and the tests selected: whether each is usable, its commit's display value, and its samples.
+ * The states are the same array from one render to the next until one of them changes.
  *
  * A baseline is checked as a commit given to a commit picker is (AR15; see `useCheckedCommits`).
- * Its samples are fetched once it is known to be usable, and kept for as long as the page is open
- * (GR8; see `forgetBaselines`).
+ * Once its machine is known to exist, the tests that machine lists for the metric are listed, as
+ * for the traces (see api/tests.ts), and the samples of each selected test listed are fetched on
+ * their own, since the API refuses a test that does not exist (E9). Everything is kept for as long
+ * as the page is open (GR8; see `forgetBaselines`).
  */
 export function useBaselines(
   baselines: readonly Baseline[],
   suites: readonly Suite[] | undefined,
   metric: Metric | undefined,
+  selected: ReadonlySet<string>,
 ): Baselines {
   const checked = useCheckedCommits(baselines, suites)
+  const name = metric?.name ?? ''
 
+  // Without waiting for the commit to be looked up: a commit the machine has no run at gives no
+  // samples rather than an error (E9), and its baseline is then dropped (AR2 "State").
   const drawable = useMemo(
     () =>
       checked.states.map(
-        ({ schema, found }) =>
+        ({ schema, machineKnown, found }) =>
           metric !== undefined &&
           schema !== undefined &&
-          found === true &&
+          machineKnown === true &&
+          found !== false &&
           declares(schema, metric),
       ),
     [checked.states, metric],
   )
+
+  // The tests of each machine of a baseline drawn, listed once however many baselines it has.
+  const machines = useMemo(() => {
+    const drawn = new Map<string, Baseline>()
+    baselines.forEach((baseline, i) => {
+      if (drawable[i]) drawn.set(machineKey(baseline), baseline)
+    })
+    return [...drawn.values()]
+  }, [baselines, drawable])
+  const lists = useQueries({
+    queries: machines.map(({ suite, machine }) => keptTestNamesQuery(suite, machine, name)),
+    combine: combineResults,
+  })
+  const listed = useMemo(() => {
+    const held = new Map<string, ReadonlySet<string>>()
+    machines.forEach((baseline, i) => {
+      const list = lists.data[i]
+      if (list !== undefined) held.set(machineKey(baseline), new Set(list.names))
+    })
+    return held
+  }, [machines, lists.data])
+
+  const lines = useMemo(
+    () =>
+      baselines.flatMap((baseline, at): Line[] => {
+        const held = drawable[at] ? listed.get(machineKey(baseline)) : undefined
+        if (held === undefined) return []
+        return [...selected].filter((test) => held.has(test)).map((test) => ({ at, test }))
+      }),
+    [baselines, drawable, listed, selected],
+  )
   const samples = useQueries({
-    queries: baselines.map((baseline, i) => {
+    queries: lines.map(({ at, test }) => {
+      const baseline = baselines[at]
       const { suite, machine, commit } = baseline
-      const name = metric?.name ?? ''
       return {
-        queryKey: [...queryKeys.baselines(suite), machine, commit, name],
-        queryFn: drawable[i]
-          ? ({ signal }: { signal: AbortSignal }) => fetchSamples(baseline, name, signal)
-          : skipToken,
+        queryKey: [...queryKeys.baselines(suite), machine, commit, name, test],
+        queryFn: ({ signal }: { signal: AbortSignal }) =>
+          fetchSamples(baseline, name, test, signal),
         staleTime: Infinity,
         gcTime: Infinity,
+        // Samples are read whole, never compared with previous ones.
+        structuralSharing: false,
       }
     }),
     combine: combineResults,
   })
+  // The samples of each baseline, by test: those of the tests that have some, the only ones a
+  // baseline draws a line for (GR9).
+  const byBaseline = useMemo(() => {
+    const maps = baselines.map(() => new Map<string, Measurement[]>())
+    samples.data.forEach((data, i) => {
+      const { at, test } = lines[i]
+      if (data !== undefined && data.length > 0) maps[at].set(test, data)
+    })
+    return maps
+  }, [baselines, lines, samples.data])
 
   const states = useMemo(
     () =>
@@ -158,15 +210,15 @@ export function useBaselines(
           display,
           label: joinLabels(suiteLabel, machineLabel, display),
           unusable,
-          samples: drawable[i] ? samples.data[i] : undefined,
+          samples: drawable[i] ? byBaseline[i] : undefined,
         }
       }),
-    [baselines, suites, checked.states, drawable, samples.data],
+    [baselines, suites, checked.states, drawable, byBaseline],
   )
   return {
     states,
-    error: checked.error ?? samples.error,
-    retry: () => [checked, samples].forEach((group) => group.retry()),
+    error: checked.error ?? lists.error ?? samples.error,
+    retry: () => [checked, lists, samples].forEach((group) => group.retry()),
   }
 }
 
@@ -176,9 +228,10 @@ export function useParsedBaselines(values: readonly string[]): Baseline[] {
 }
 
 /**
- * Forget the baselines' data that nothing shows, which the Graph page keeps for as long as it is
- * open (GR8), once it has left.
+ * Forget the baselines' data that nothing shows, and the lists of their machines' tests, which the
+ * Graph page keeps for as long as it is open (GR8), once it has left.
  */
 export function forgetBaselines(client: QueryClient): void {
   forgetEverySuiteLater(client, queryKeys.baselines)
+  forgetEverySuiteLater(client, queryKeys.tests)
 }

@@ -103,7 +103,8 @@ Each selected test's data on each machine is fetched on its own via
 in part, so that the chart fills in as the traces arrive rather than waiting
 for the whole selection.
 So that a large selection does not flood the server, only a few requests are in
-flight at once; the others wait for their turn.
+flight at once, the traces' and the baselines' (GR9) together; the others wait
+for their turn.
 
 Deselecting a test stops loading its data, and removing a machine stops loading
 that machine's, without disturbing the rest. Leaving the page stops all
@@ -216,8 +217,8 @@ the table, without scrolling the page.
 
 While the page is open, it keeps what it has fetched: in the selected suite,
 test names per machine and metric (all of them, filtered client-side), data per
-machine, metric and test, and scaffolds per machine; and the data of each
-baseline. In particular:
+machine, metric and test, and scaffolds per machine; and, for each baseline,
+its machine's test names and its data per metric and test. In particular:
 
 - Changing the aggregation redraws the traces from the data already loaded,
   without fetching any again. Changing the test filter changes only the test
@@ -248,18 +249,21 @@ baseline is unusable, and is dropped (see AR2 "State"). A baseline can also be
 added from a point's details (GR11): the point's suite, machine and commit. Like
 a commit picked in the panel, it is not looked up (AR15): its point shows that
 the machine has runs at the commit. Baseline data is fetched from the baseline's
-suite via
-`GET /api/projects/{project}/suites/{suite}/series?machine={machine}&metric={metric}&commit={commit}`:
-every test's data at that commit, so that selecting tests needs no request, and
-a test that the baseline's suite does not have is simply absent. These requests
-do not wait for the traces' turns (GR2), so that a large selection does not hold
-back a baseline. Each baseline renders as a horizontal dashed line per selected
-test, spanning the full chart width, colored to match that test's traces. The
+suite, for each selected test that the baseline's machine lists for the plotted
+metric there (`GET tests?machine={machine}&metric={metric}`, which never misses
+a test with data), via
+`GET /api/projects/{project}/suites/{suite}/series?machine={machine}&metric={metric}&test={test}&commit={commit}`.
+A test that the list does not hold, such as one the baseline's suite does not
+have, is not asked for, and has no line. As for the traces (GR2), deselecting a
+test stops loading its data. Each baseline renders as a horizontal dashed line
+per selected test, spanning the full chart width, colored to match that test's
+traces. The
 baseline's Y value for each test is computed with the same sample and run
 aggregation as the traces (GR1), so that when the baseline's suite and machine
 are plotted and its commit is on the x-axis, the dashed line meets that
-machine's trace at the baseline commit. A baseline draws nothing until all its
-data has arrived. The y-axis range includes the baseline's lines. A baseline
+machine's trace at the baseline commit. A baseline's line for a test is drawn
+once all of that test's data has arrived, never in part. The y-axis range
+includes the baseline's lines. A baseline
 draws no line for a test it has no data for, and draws nothing at all when its
 suite does not declare the plotted metric as a numeric metric with the same
 `unit` (an unset unit matching only an unset one), as CP1 requires of a metric
@@ -270,8 +274,8 @@ the URL query string for shareability as `{project}/{suite}/{machine}/{commit}`,
 by name (e.g.
 `&baseline=llvm/nts/machine1/abc123&baseline=libcxx/benchmarks/machine2/def456`).
 None of the four can contain a `/` (see D4, D7 and I1). If the URL names a
-baseline twice, it is added once. Loading a baseline never delays drawing the
-traces.
+baseline twice, it is added once. A trace is drawn once its own data has
+arrived, whether or not the baselines' has.
 
 
 ### GR10: Hover Behavior
@@ -386,9 +390,11 @@ the highlighted commits (GR16) are not points.
 
 - `GET series?machine={name}&metric=...&test={test}&has_ordinal=true` (one per
   selected test and machine)
-- `GET series?machine={name}&metric=...&commit={value}` in a baseline's suite
-  (baseline data; see GR9)
-- `GET tests?machine=...&metric=...` (test name discovery)
+- `GET series?machine={name}&metric=...&test={test}&commit={value}` in a
+  baseline's suite (baseline data, one per baseline and selected test its
+  machine lists; see GR9)
+- `GET tests?machine=...&metric=...` (test name discovery, and in a baseline's
+  suite, the tests its machine lists)
 - `GET commits?machine={name}&has_ordinal=true&sort=ordinal` (x-axis scaffold,
   per machine)
 - `GET commits?machine={name}&sort=-ordinal&search=...` (baseline commit picker)

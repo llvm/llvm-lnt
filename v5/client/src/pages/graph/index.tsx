@@ -208,7 +208,12 @@ function GraphPage() {
   const scaffold = useScaffold(suite, machines)
 
   // The baselines (GR9), those of the URL that are unusable dropped (AR2 "State").
-  const baselines = useBaselines(useParsedBaselines(settings.baseline), suites.data, metric)
+  const baselines = useBaselines(
+    useParsedBaselines(settings.baseline),
+    suites.data,
+    metric,
+    selected,
+  )
   const { states } = baselines
   useEffect(() => {
     const unusable = states.filter((state) => state.unusable)
