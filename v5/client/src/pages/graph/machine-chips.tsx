@@ -4,7 +4,9 @@ import { Combobox } from '../../components/combobox'
 import { machineSuggestions } from '../../components/machine-suggestions'
 import { useLocalSuggestions } from '../../components/suggestions'
 import type { Schemas } from '../../api/client'
+import type { MachineLabels } from '../../api/machines'
 import { markerOf } from '../../chart-markers'
+import { labelAndName } from '../../labels'
 import styles from './graph.module.css'
 
 interface Props {
@@ -12,6 +14,8 @@ interface Props {
   machines: string[]
   /** Every machine of the suite, once they are listed. */
   all: Schemas['Machine'][] | undefined
+  /** The label of each machine of the suite (AR23). */
+  labelOfMachine: MachineLabels
   /** Whether the suite's machines are still being listed. */
   pending: boolean
   /** Why the suite's machines could not be listed, if they could not. */
@@ -24,7 +28,15 @@ interface Props {
  * The machines plotted (GR1): a combobox adding one, filtering the suite's machines as the user
  * types, and a chip per machine added, which shows its marker on the chart and removes it.
  */
-export function MachineChips({ machines, all, pending, error, isDisabled, onChange }: Props) {
+export function MachineChips({
+  machines,
+  all,
+  labelOfMachine,
+  pending,
+  error,
+  isDisabled,
+  onChange,
+}: Props) {
   // Those not added yet, as every machine picker offers them (AR18).
   const offered = useMemo(() => all && machineSuggestions(all, machines), [all, machines])
   const suggestions = useLocalSuggestions(offered, error)
@@ -37,7 +49,7 @@ export function MachineChips({ machines, all, pending, error, isDisabled, onChan
         {markerOf(i).char}
       </span>
     ),
-    text: machine,
+    text: labelOfMachine(machine),
   }))
 
   return (
@@ -52,7 +64,7 @@ export function MachineChips({ machines, all, pending, error, isDisabled, onChan
       <ChipList
         label="Machines added"
         chips={chips}
-        removeLabel={(chip) => `Remove ${chip.key}`}
+        removeLabel={(chip) => `Remove ${labelAndName(chip.key, chip.text)}`}
         onRemove={(machine) => onChange(machines.filter((entry) => entry !== machine))}
         focusWhenEmpty={() => root.current?.querySelector('input')}
       />

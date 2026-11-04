@@ -2,8 +2,8 @@
 
 This document covers the SPA architecture, how the server serves it,
 client-side routing, the page hierarchy, the navigation bar, and the conventions
-that every page follows. For individual page specifications, see the other
-documents in this directory.
+that every page follows, such as how projects, suites and machines are named.
+For individual page specifications, see the other documents in this directory.
 
 
 ## AR1: Context
@@ -318,10 +318,11 @@ whole stops scrolling at its ends rather than scrolling the page.
 
 So that a value can be pasted and entered, Enter with no suggestion highlighted
 picks the suggestion that the typed text exactly identifies: its shown text, or
-the identifier of what it stands for, such as a commit string or a regression's
-UUID. The comparison is case-sensitive and ignores surrounding whitespace. The
-suggestion must be the only one so identified among the suggestions loaded for
-that text -- the first page of them, unless the user has scrolled for more.
+the identifier of what it stands for, such as a commit string, a machine's name
+or a regression's UUID. The comparison is case-sensitive and ignores surrounding
+whitespace. The suggestion must be the only one so identified among the
+suggestions loaded for that text -- the first page of them, unless the user has
+scrolled for more.
 Otherwise, the text stays as it is. An Enter pressed before those suggestions
 have loaded takes effect once they have, unless the text has changed meanwhile,
 as it does when the user leaves the combobox.
@@ -425,8 +426,8 @@ allowed. A request the API nevertheless refuses with 401 or 403 is reported as
 ## AR18: Machine Pickers
 
 Every control that picks machines from a suite's machine list lists the tracked
-machines first, then the untracked ones (see D5), each in the order the API
-lists them (by name; see E2).
+machines first, then the untracked ones (see D5), each in AR23's order, and
+shows each as AR23 says a picker does.
 
 A combobox lists the untracked machines in a group headed `Untracked` (see
 AR14). A list of machines with checkboxes marks each untracked machine with the
@@ -435,7 +436,7 @@ reads as part of the machine's name. Filtering, by typing in a combobox or with
 a list's filter, covers both tracked and untracked machines.
 
 The Machines tab (TS3) is a listing rather than a picker: it lists every
-machine by name.
+machine, in AR23's order.
 
 
 ## AR19: Unsaved Changes
@@ -570,3 +571,32 @@ a heading for each project (see AR5), and leaves out the projects without
 suites. A control or a page that picks, lists or manages projects shows every
 project, including those without suites, which say that they have none where
 the page shows a project's suites.
+
+
+## AR23: Machines
+
+**Labels.** A machine is labelled with its `display_name` when it has one (see
+D5), and with its `name` otherwise, including until its display name is known,
+or when it cannot be: a response that refers to a machine gives its name alone
+(I4), and the label comes from the suite's machines (E2), whose failure to load
+is not reported for that purpose. The label names the machine wherever the UI
+shows it: in tables and links, headings, chips, charts and their tooltips, and
+prompts.
+
+**Names.** Links, URLs, API requests, the text typed to confirm a deletion
+(AR16), and the old and new names in the prompt confirming a rename (DT1) use
+names rather than labels. Unlike a suite's, a machine's name also stays in view
+where the user finds a machine among others: a machine picker (AR18) lists, and
+the Machines tab (TS3) shows, a machine that has a display name by its label
+followed by its name, in muted text, whereas a picker shows the machine picked
+by its label alone. Machine Detail shows both (DT1). The name is
+how the bots submitting runs, command lines and URLs know the machine, and
+display names are not unique: two machines may share one.
+
+**Order.** Wherever the UI lists machines in no other order, it orders them by
+label, as AR22 orders suites: case-insensitively, in the order of the browser's
+language, with ties broken by name.
+
+**Filtering.** A client-side filter over machines (AR9) matches a machine's
+label or its name.
+

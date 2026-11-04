@@ -78,6 +78,8 @@ function mockPage({
   const regressionList = recording(regressions)
   const runList = recording(runs)
   mockSuites(suites)
+  // The suite's machines, which the Runs tab names runs' machines from (AR23).
+  mockMachines(() => ({ items: [LINUX] }))
   mockResolve([
     commit('abc123', { tag: 'v1', fields: { svn_revision: 'r100', commit_info: null } }),
   ])
@@ -143,9 +145,10 @@ describe('the Machine Detail page', () => {
     const rows = await infoRows('Machine')
     expect(rows[0][0]).toBe('Name')
     expect(rows[0][1]).toMatch(new RegExp(`^${NAME}Edit`))
-    expect(rows[1][0]).toBe('Tracked')
-    expect(rows[2]).toEqual(['Delete after inactivity', inactivityCell('--')])
-    expect(rows.slice(3)).toEqual([
+    expect(rows[1]).toEqual(['Display name', '--Edit'])
+    expect(rows[2][0]).toBe('Tracked')
+    expect(rows[3]).toEqual(['Delete after inactivity', inactivityCell('--')])
+    expect(rows.slice(4)).toEqual([
       ['Hardware', 'AMD EPYCEdit'],
       ['os', '--Edit'],
       ['Cores', '64Edit'],
@@ -361,10 +364,10 @@ describe('the Machine Detail page', () => {
     const TYPED_MACHINE = machine(NAME, {
       fields: { ...LINUX.fields, clock: 3.5, built: '2026-08-25T14:22:41Z' },
     })
-    const fieldRows = async () => (await infoRows('Machine')).slice(3)
+    const fieldRows = async () => (await infoRows('Machine')).slice(4)
     /** Wait until the row of the field `index` shows `expected`: its label and value. */
     const expectField = (index: number, expected: [string, string]) =>
-      expectInfoRow('Machine', 3 + index, expected)
+      expectInfoRow('Machine', 4 + index, expected)
 
     /**
      * Answer each PATCH with the machine `stored` becomes once changed. Returns what was sent, and
@@ -561,7 +564,7 @@ describe('the Machine Detail page', () => {
   })
 
   describe('its deletion after inactivity', () => {
-    const row = async () => (await infoRows('Machine'))[2]
+    const row = async () => (await infoRows('Machine'))[3]
 
     it('cannot be changed without manage scope', async () => {
       signIn('triage')
@@ -611,6 +614,55 @@ describe('the Machine Detail page', () => {
         { body: { delete_after_inactive_days: 1 }, auth: `Bearer ${TOKEN}` },
         { body: { delete_after_inactive_days: null }, auth: `Bearer ${TOKEN}` },
       ])
+    })
+  })
+
+  describe('its display name', () => {
+    const row = async () => (await infoRows('Machine'))[1]
+
+    it('names the machine in the heading and the deletion prompt by label (AR23)', async () => {
+      signIn('manage')
+      mockPage({ machine: () => HttpResponse.json({ ...LINUX, display_name: 'Linux / x86' }) })
+      renderPage(PAGE)
+
+      await waitFor(() =>
+        expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('Machine: Linux / x86'),
+      )
+      expect(await row()).toEqual(['Display name', 'Linux / x86Edit'])
+      expect((await infoRows('Machine'))[0][1]).toMatch(new RegExp(`^${NAME}Edit`))
+      fireEvent.click(deleteButton())
+      const prompt = screen.getByRole('form', { name: 'Confirmation' })
+      expect(prompt).toHaveTextContent('Delete the machine Linux / x86,')
+      expect(prompt).toHaveTextContent(`Type ${NAME} to confirm`)
+    })
+
+    it('is set and changed with PATCH, and cleared when emptied, unconfirmed', async () => {
+      signIn('manage')
+      const sent = mockSent('patch', MACHINE_ROUTE, (body) =>
+        HttpResponse.json({ ...LINUX, ...body }),
+      )
+      renderMachine()
+      await ready('Machine', () => editButton('Display name'))
+
+      save('Display name', ' Linux / x86-64 ')
+      await waitFor(async () => expect(await row()).toEqual(['Display name', 'Linux / x86-64Edit']))
+      expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('Machine: Linux / x86-64')
+      save('Display name', '  ')
+      await waitFor(async () => expect(await row()).toEqual(['Display name', '--Edit']))
+      expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent(`Machine: ${NAME}`)
+
+      expect(sent).toEqual([
+        { body: { display_name: 'Linux / x86-64' }, auth: `Bearer ${TOKEN}` },
+        { body: { display_name: null }, auth: `Bearer ${TOKEN}` },
+      ])
+    })
+
+    it('cannot be changed without manage scope', async () => {
+      signIn('triage')
+      renderMachine()
+
+      await screen.findByRole('group', { name: 'Machine' })
+      await waitFor(() => expect(editButton('Display name')).toBeDisabled())
     })
   })
 

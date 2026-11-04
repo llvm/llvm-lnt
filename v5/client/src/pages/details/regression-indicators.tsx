@@ -2,6 +2,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef } from 'react'
 import { Link } from 'react-router'
 import { VisuallyHidden } from 'react-aria-components'
 import { authedApi, unwrap, type Schemas } from '../../api/client'
+import { useMachineLabels, type MachineLabels } from '../../api/machines'
 import { INDICATOR_BATCH, useRegressionMutation, withIndicators } from '../../api/regressions'
 import { refOf, type Suite, type SuiteRef } from '../../api/suites'
 import { useScopeGate, type ScopeGate } from '../../auth/scope'
@@ -14,6 +15,7 @@ import { SearchInput } from '../../components/search-input'
 import { SelectAllBox, SelectBox } from '../../components/select-box'
 import { useTextFilter } from '../../components/use-text-filter'
 import { plural } from '../../format'
+import { labelAndName, machineFilterText } from '../../labels'
 import { graphPath, machinePath } from '../../paths'
 import { isNumeric, labelOf, type Metric } from '../../schema'
 import { trimmedStringParam, useUrlState } from '../../url-state'
@@ -53,6 +55,7 @@ export function RegressionIndicators({
   const suite = refOf(schema)
   const all = regression.indicators
   const triage = useScopeGate('triage', suite)
+  const labelOfMachine = useMachineLabels(suite)
   const [settings, update] = useUrlState(PARAMS)
 
   const metrics = useMemo(
@@ -66,13 +69,17 @@ export function RegressionIndicators({
     },
     [metrics],
   )
-  // A NUL between the fields, which no name holds, so that a match never spans two of them.
+  // A NUL between the fields, which no name or label holds, so that a match never spans two of
+  // them (see `machineFilterText`).
   const textOf = useCallback(
     (indicator: Indicator) =>
-      [indicator.machine, indicator.test, indicator.metric, metricLabel(indicator.metric)].join(
-        '\u0000',
-      ),
-    [metricLabel],
+      [
+        machineFilterText(indicator.machine, labelOfMachine(indicator.machine)),
+        indicator.test,
+        indicator.metric,
+        metricLabel(indicator.metric),
+      ].join('\u0000'),
+    [labelOfMachine, metricLabel],
   )
   const filter = useTextFilter(all, textOf, settings.indicator_filter, (text) =>
     update({ indicator_filter: text }),
@@ -152,11 +159,12 @@ export function RegressionIndicators({
         rows: selection.rows,
         keys,
         metrics,
+        labelOfMachine,
         metricLabel,
         removeGate,
         onRemove: removeOne,
       }),
-    [suite, selection.rows, keys, metrics, metricLabel, removeGate, removeOne],
+    [suite, selection.rows, keys, metrics, labelOfMachine, metricLabel, removeGate, removeOne],
   )
 
   const selected = selection.selected.size
@@ -237,6 +245,7 @@ interface ColumnOptions {
   /** The keys of the rows shown. */
   keys: readonly string[]
   metrics: Map<string, Metric>
+  labelOfMachine: MachineLabels
   metricLabel(name: string): string
   /** Whether a remove button is enabled, and why not. */
   removeGate: ScopeGate
@@ -248,12 +257,17 @@ function indicatorColumns({
   rows,
   keys,
   metrics,
+  labelOfMachine,
   metricLabel,
   removeGate,
   onRemove,
 }: ColumnOptions): Column<Indicator>[] {
   const describe = (indicator: Indicator) =>
-    `${indicator.machine}, ${indicator.test}, ${metricLabel(indicator.metric)}`
+    [
+      labelAndName(indicator.machine, labelOfMachine(indicator.machine)),
+      indicator.test,
+      metricLabel(indicator.metric),
+    ].join(', ')
   return [
     {
       id: 'select',
@@ -266,7 +280,7 @@ function indicatorColumns({
       id: 'machine',
       header: 'Machine',
       cell: (indicator) => (
-        <Link to={machinePath(suite, indicator.machine)}>{indicator.machine}</Link>
+        <Link to={machinePath(suite, indicator.machine)}>{labelOfMachine(indicator.machine)}</Link>
       ),
     },
     { id: 'test', header: 'Test', cell: (indicator) => indicator.test },

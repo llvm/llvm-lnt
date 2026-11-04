@@ -88,6 +88,20 @@ describe('the shadows (CP8)', () => {
     expect(selectButton('Suite', sideOf('B'))).toHaveTextContent('Microbenchmarks')
   })
 
+  it("names a shadow's machine, and a side's, by its label (AR23)", async () => {
+    mockWorld({ displayNames: { m1: 'Linux / One' } })
+    renderPage(SHADOWED)
+    await comparison()
+
+    await waitFor(() =>
+      expect(chips()).toEqual(['●Shadow: llvm › libcxx › Linux / One › c2 · 1 test']),
+    )
+    expect(query().shadow).toEqual(['llvm/libcxx/m1/c2'])
+    expect(within(sideOf('A')).getByRole('combobox', { name: 'Machine' })).toHaveValue(
+      'Linux / One',
+    )
+  })
+
   it('pins side B, drawn as a line sorted by its own ratios once side B changes', async () => {
     mockWorld(WORLD)
     renderPage(COMPARED)

@@ -50,7 +50,7 @@ the suite and its project are query parameters, not path segments.
   every machine's test list has loaded (see AR2 "State").
 
 - **Multi-machine trace naming and symbols**: Each trace is named `{test name} -
-  {machine name}` (test name first for natural sorting). Machines are visually
+  {machine label}` (test name first for natural sorting; see AR23). Machines are visually
   distinguished by marker symbols, assigned in the order of their chips: the
   first machine uses circles (default), the second triangles, then squares,
   diamonds, etc., so that removing a machine shifts the symbols of the machines
@@ -276,7 +276,7 @@ traces.
 
 ### GR10: Hover Behavior
 
-Hover a data point: tooltip showing test name, machine name, commit,
+Hover a data point: tooltip showing test name, machine label, commit,
 aggregated metric value, run count, and a last line saying that clicking the
 point shows its details (GR11). The tooltip only appears when the
 cursor is within a few pixels of a data point, so that tooltips are not sticky.

@@ -65,6 +65,8 @@ interface Options {
   samples?: Schemas['Sample'][]
   /** The answer to the list of the run's profiles; by default, none. */
   profiles?: () => Response
+  /** The suite's machines, which name the run's machine by its label; none by default. */
+  machines?: Schemas['Machine'][]
 }
 
 /** The run's profiles list, naming `tests`. */
@@ -86,10 +88,12 @@ function renderRun({
   samples = [],
   samplePages = () => HttpResponse.json(cursorPage(samples)),
   profiles = profilesOf(),
+  machines = [],
 }: Options = {}) {
   const lookups = recording(previous)
   const sampleQueries: URLSearchParams[] = []
   mockSuites([suite])
+  mockMachines(() => ({ items: machines }))
   mockResolve(commit ? [commit] : [])
   server.use(
     mockApi('get', '/api/projects/{project}/suites/{suite}/runs/{uuid}', () => run()),
@@ -147,6 +151,42 @@ describe('the Run Detail page', () => {
     const info = within(screen.getByRole('group', { name: 'Run' }))
     expect(info.getByText(UUID)).toHaveClass('mono')
     expect(info.getByText('r100 (v1)').closest('dd')).not.toHaveClass('mono')
+  })
+
+  it('names its machine by its label, linking to it by name (AR23)', async () => {
+    renderRun({ machines: [machine('linux-x86_64', { display_name: 'Linux / x86-64' })] })
+
+    expect(await main().findByRole('link', { name: 'Linux / x86-64' })).toHaveAttribute(
+      'href',
+      '/projects/llvm/suites/libcxx/machines/linux-x86_64',
+    )
+  })
+
+  it('names its machine by name until the machines are listed, or if they cannot be', async () => {
+    const answer = gate()
+    let asked = 0
+    renderRun()
+    server.use(
+      mockApi('get', '/api/projects/{project}/suites/{suite}/machines', async () => {
+        asked++
+        await answer.promise
+        return errorResponse(500, 'internal_error', 'The machines broke.')
+      }),
+    )
+
+    const link = await main().findByRole('link', { name: 'linux-x86_64' })
+    expect(link).toHaveAttribute('href', '/projects/llvm/suites/libcxx/machines/linux-x86_64')
+    await waitFor(() => expect(asked).toBe(1))
+    // Answered, and its answer handled.
+    await act(async () => {
+      answer.open()
+      await new Promise((resolve) => setTimeout(resolve, 100))
+    })
+
+    // The failure is not reported: the name still names the machine (AR23).
+    expect(screen.queryByText(/The machines broke/)).not.toBeInTheDocument()
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+    expect(main().getByRole('link', { name: 'linux-x86_64' })).toBeInTheDocument()
   })
 
   it("shows its commit's card, from the commit's resolution", async () => {

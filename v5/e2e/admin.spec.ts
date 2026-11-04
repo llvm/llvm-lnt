@@ -370,7 +370,7 @@ test.describe("the Projects tab's suite creation", () => {
       await page.goto(`${suitePath(suite)}?tab=machines`)
       await page.evaluate(() => Object.assign(window, { notReloaded: true }))
       const machines = table(page, 'Machines')
-      await expect(machines.getByRole('columnheader')).toHaveText(['Name'])
+      await expect(machines.getByRole('columnheader')).toHaveText(['Machine'])
       await machines.getByRole('link', { name: 'm1', exact: true }).click()
       await table(page, 'Run history').getByRole('link').first().click()
       await expect(page).toHaveURL(`${suitePath(suite)}/runs/${run}`)
@@ -430,7 +430,7 @@ test.describe("the Projects tab's suite creation", () => {
       // The Machines tab shows the field now listed in a column of its own.
       await suiteLink.click()
       await page.getByRole('tab', { name: 'Machines' }).click()
-      await expect(machines.getByRole('columnheader')).toHaveText(['Name', 'hardware'])
+      await expect(machines.getByRole('columnheader')).toHaveText(['Machine', 'hardware'])
       await expect(rows(machines).locator('td')).toHaveText(['m1', 'Apple M4'])
 
       expect(await page.evaluate(() => 'notReloaded' in window)).toBe(true)

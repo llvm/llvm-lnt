@@ -46,8 +46,3 @@
 .checkOption[data-disabled] input {
   visibility: hidden;
 }
-
-/* What is said of an option after its label. */
-.note {
-  color: var(--lnt-muted);
-}

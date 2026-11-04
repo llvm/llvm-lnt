@@ -56,10 +56,10 @@ performance trends across all test suites, grouped by project (see D7).
   line runs straight across the commits where it has no value.
 - Y-axis: the trend item's `value` at each commit for that machine+metric
   combination, a geometric mean across tests. See below for calculation.
-- Hover tooltip shows the machine name, the commit's display value (see AR6),
-  and the value, followed by the metric's unit abbreviation, or its unit when
-  it has none. Trend items do not carry the commit's fields, so a card resolves
-  the display values of its commits through
+- Hover tooltip shows the machine's label (see AR23), the commit's display
+  value (see AR6), and the value, followed by the metric's unit abbreviation,
+  or its unit when it has none. Trend items do not carry the commit's fields,
+  so a card resolves the display values of its commits through
   `POST /api/projects/{p}/suites/{s}/commits/resolve`.
 - Clicking a sparkline, or the card's title, navigates to the Graph page
   pre-populated with that suite, metric, and the machines with a trace on the

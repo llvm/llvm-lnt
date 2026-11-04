@@ -3,6 +3,7 @@ import { useQuery, type UseQueryResult } from '@tanstack/react-query'
 import { Link, useParams } from 'react-router'
 import { VisuallyHidden } from 'react-aria-components'
 import { authedApi, errorMessage, unwrap, type Schemas } from '../../api/client'
+import { useMachineLabels } from '../../api/machines'
 import { fetchSamplePage, runKey, runProfilesQuery, useRun } from '../../api/runs'
 import { fullName, refOf, type Suite, type SuiteRef } from '../../api/suites'
 import { useCursorPages, type CursorPages } from '../../api/use-cursor-pages'
@@ -77,6 +78,7 @@ function RunContent({ schema, uuid }: { schema: Suite; uuid: string }) {
   // page shows them once the run has loaded, so that one that does not exist shows only that.
   const samples = useSamples(suite, uuid)
   const profiles = useQuery(runProfilesQuery(suite, uuid))
+  const labelOfMachine = useMachineLabels(suite)
   const [settings, update] = useUrlState(PARAMS)
 
   const named = schema.metrics.find((entry) => entry.name === settings.metric)
@@ -93,8 +95,13 @@ function RunContent({ schema, uuid }: { schema: Suite; uuid: string }) {
     <Loaded data={run.data} error={run.error} onRetry={() => void run.refetch()}>
       {(data) => (
         <>
-          <RunInfo schema={schema} run={data} />
-          <Actions schema={schema} run={data} metric={metric} />
+          <RunInfo schema={schema} run={data} machineLabel={labelOfMachine(data.machine)} />
+          <Actions
+            schema={schema}
+            run={data}
+            machineLabel={labelOfMachine(data.machine)}
+            metric={metric}
+          />
           <Samples
             schema={schema}
             run={data}
@@ -112,7 +119,7 @@ function RunContent({ schema, uuid }: { schema: Suite; uuid: string }) {
 }
 
 /** The run, its machine, its commit, when it was measured and submitted, and its parameters (DT2). */
-function RunInfo({ schema, run }: { schema: Suite; run: Run }) {
+function RunInfo({ schema, run, machineLabel }: { schema: Suite; run: Run; machineLabel: string }) {
   const suite = refOf(schema)
   const parameters = Object.entries(run.run_parameters).sort(([a], [b]) => compareStrings(a, b))
   return (
@@ -121,7 +128,7 @@ function RunInfo({ schema, run }: { schema: Suite; run: Run }) {
         {run.uuid}
       </InfoRow>
       <InfoRow label="Machine">
-        <Link to={machinePath(suite, run.machine)}>{run.machine}</Link>
+        <Link to={machinePath(suite, run.machine)}>{machineLabel}</Link>
       </InfoRow>
       <InfoRow label="Commit">
         <CommitLink schema={schema} value={run.commit} />
@@ -140,12 +147,14 @@ function RunInfo({ schema, run }: { schema: Suite; run: Run }) {
 interface ActionsProps {
   schema: Suite
   run: Run
+  /** The label of the run's machine (AR23). */
+  machineLabel: string
   /** The metric selected on the page, which the comparisons compare. */
   metric: Metric | undefined
 }
 
 /** Compare with..., Compare with previous commit, and Delete run, with its confirmation (DT2). */
-function Actions({ schema, run, metric }: ActionsProps) {
+function Actions({ schema, run, machineLabel, metric }: ActionsProps) {
   const suite = refOf(schema)
   const alone = { suite, machine: run.machine, commit: run.commit, runs: [run.uuid] }
   return (
@@ -157,7 +166,7 @@ function Actions({ schema, run, metric }: ActionsProps) {
         expected: uuidPrefix(run.uuid),
         message: (
           <p>
-            Delete this run of <strong>{run.machine}</strong>, with its samples and profiles? This
+            Delete this run of <strong>{machineLabel}</strong>, with its samples and profiles? This
             cannot be undone.
           </p>
         ),
@@ -173,7 +182,12 @@ function Actions({ schema, run, metric }: ActionsProps) {
       <ButtonLink to={comparePath(alone, undefined, { metric: metric?.name })}>
         Compare with...
       </ButtonLink>
-      <CompareWithPrevious schema={schema} run={run} metric={metric?.name}>
+      <CompareWithPrevious
+        schema={schema}
+        run={run}
+        machineLabel={machineLabel}
+        metric={metric?.name}
+      >
         Compare with previous commit
       </CompareWithPrevious>
     </DetailActionRow>

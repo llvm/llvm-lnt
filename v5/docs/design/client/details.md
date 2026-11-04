@@ -18,15 +18,17 @@ header does.
 
 ## DT1: Machine Detail -- `/projects/{p}/suites/{s}/machines/{name}`
 
-Deep dive into a single machine. Machine names are guaranteed unique. Layout:
+Deep dive into a single machine, which its name identifies: unlike its display
+name, it is unique. Layout:
 
 ```
 libc++ › Benchmarks › Machines
 
-# Machine: linux-x86_64-20260812
+# Machine: Linux / x86-64
 
 +-----------------------------------------------------------------------+
 | Name:                     linux-x86_64-20260812    [Edit]             |
+| Display name:             Linux / x86-64    [Edit]                    |
 | Tracked:                  [x]                                         |
 | Delete after inactivity:  --    [Edit]                                |
 | compiler:                 clang version 22.1.0    [Edit]              |
@@ -62,6 +64,9 @@ Deletion requires `manage` scope. On success, navigates to the Machines tab of t
 Suites page. While the delete is in progress, a message reassures the user that deletion
 may take a while for machines with many runs.
 
+The header names the machine by its label (see AR23), and so does the prompt confirming its
+deletion, whose text to type is its name.
+
 ### Name
 
 The info box shows the machine's name in a `Name` row, edited in place (see
@@ -83,6 +88,14 @@ stays on the Edit button of its name (see AR12), even though its URL has
 changed. Once the rename has succeeded, no page shows the machine under its old
 name. The old name's URL is not redirected: it says that the machine does not
 exist, unless another machine has taken the name since.
+
+### Display name
+
+The info box shows the machine's display name in a `Display name` row, or `--` when it has none.
+It is edited in place (see AR12) through `PATCH /machines/{name}`, which requires `manage` scope,
+in a single-line input that takes at most 256 characters (see D5). Emptying the input, or leaving
+only whitespace in it, clears the display name. Saving is not confirmed. A change shows in the
+header once saved.
 
 ### Tracked toggle
 
@@ -335,10 +348,10 @@ active regressions table: UUID, Title, State and Tests. Displays
 
 ### Runs section
 
-Displays every run at this commit in a table, sorted by machine name, and on each machine
+Displays every run at this commit in a table, sorted by machine (see AR23), and on each machine
 most recently measured first. The runs are loaded progressively, as DT2's samples are, with
-a count of those loaded so far (see AR7). A text input for substring matching on machine
-names, kept in the URL as `?machine_filter={text}`, filters the runs table. Once every run has loaded, a
+a count of those loaded so far (see AR7). A text input for substring matching on machines (see
+AR23), kept in the URL as `?machine_filter={text}`, filters the runs table. Once every run has loaded, a
 summary counts them and their machines, and reflects the filter (e.g. "12 runs across 8
 machines", "5 of 12 runs across 2 of 8 machines"). The table says `No runs at this commit.`
 when there are none, and `No machines match the filter.` when the filter keeps none.

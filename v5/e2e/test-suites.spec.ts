@@ -224,7 +224,7 @@ test.describe('the Machines tab', () => {
 
     // Not `test_suite_commit` nor `sdk`, which the seeded schema does not list.
     await expect(machines.getByRole('columnheader')).toHaveText([
-      'Name',
+      'Machine',
       'hardware',
       'os',
       'compiler',

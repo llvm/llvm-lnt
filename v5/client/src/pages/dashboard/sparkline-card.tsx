@@ -10,6 +10,7 @@ import { DisabledLink } from '../../components/button-link'
 import { Chart } from '../../components/chart'
 import { ErrorMessage, Loading } from '../../components/feedback'
 import { failureShown } from '../../api/shown-data'
+import type { MachineNames } from '../../labels'
 import { graphPath } from '../../paths'
 import { displayValueOf, formatUnit, labelOf, type Metric } from '../../schema'
 import { plotlyTraces, sparklineDescription, sparklineTraces } from './sparkline'
@@ -19,7 +20,7 @@ interface Props {
   schema: Suite
   metric: Metric
   /** The machines the suite's cards show, chosen once for all of them (DA2). */
-  machines: string[]
+  machines: MachineNames[]
   /** How many of the most recent commits the card covers. */
   range: number
 }
@@ -27,7 +28,8 @@ interface Props {
 /** A card of the Dashboard (DA2): the trend of one metric on the suite's machines. */
 export function SparklineCard({ schema, metric, machines, range }: Props) {
   const suite = refOf(schema)
-  const trends = useTrends(suite, { metric: metric.name, machines, lastN: range })
+  const names = useMemo(() => machines.map((machine) => machine.name), [machines])
+  const trends = useTrends(suite, { metric: metric.name, machines: names, lastN: range })
   const shown = useMemo(() => {
     if (trends.data === undefined) return undefined
     const { items, commits } = trends.data

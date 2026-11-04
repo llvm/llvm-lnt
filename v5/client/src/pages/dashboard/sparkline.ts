@@ -7,6 +7,7 @@ import type { Data } from 'plotly.js'
 import type { TrendPoint } from '../../api/trends'
 import { traceColor } from '../../chart-colors'
 import { escapeHtml, formatNumber } from '../../format'
+import { machineLabel, type MachineNames } from '../../labels'
 import type { Metric } from '../../schema'
 
 /** How many machines a suite's cards show (DA2). */
@@ -19,7 +20,10 @@ export function machineColor(index: number): string {
 
 /** One machine's line on a card. */
 export interface SparklineTrace {
+  /** The machine's name, which its trend items name it by. */
   machine: string
+  /** The machine's label, which names the line (AR23). */
+  label: string
   color: string
   /** Each point's position among the commits the card has data at, in ordinal order. */
   x: number[]
@@ -33,16 +37,20 @@ export interface SparklineTrace {
  * x-axis is sequential (DA2): commits are evenly spaced, whatever the gaps between their ordinals,
  * and only the commits some trace has data at have a position.
  */
-export function sparklineTraces(items: TrendPoint[], machines: string[]): SparklineTrace[] {
+export function sparklineTraces(
+  items: TrendPoint[],
+  machines: readonly MachineNames[],
+): SparklineTrace[] {
   const sorted = items.toSorted((a, b) => a.ordinal - b.ordinal)
   const ordinals = [...new Set(sorted.map((item) => item.ordinal))]
   const position = new Map(ordinals.map((ordinal, index) => [ordinal, index]))
   return machines.flatMap((machine, index) => {
-    const points = sorted.filter((item) => item.machine === machine)
+    const points = sorted.filter((item) => item.machine === machine.name)
     if (points.length === 0) return []
     return [
       {
-        machine,
+        machine: machine.name,
+        label: machineLabel(machine),
         color: machineColor(index),
         x: points.map((point) => position.get(point.ordinal)!),
         points,
@@ -72,7 +80,7 @@ export function plotlyTraces(
   metric: Metric,
 ): Data[] {
   return traces.map((trace) => {
-    const machine = `<b>${escapeHtml(trace.machine)}</b>`
+    const machine = `<b>${escapeHtml(trace.label)}</b>`
     const label = (point: TrendPoint) =>
       [
         machine,
@@ -82,7 +90,7 @@ export function plotlyTraces(
     return {
       type: 'scatter',
       mode: trace.x.length === 1 ? 'markers' : 'lines',
-      name: escapeHtml(trace.machine),
+      name: escapeHtml(trace.label),
       x: trace.x,
       y: trace.points.map((point) => point.value),
       line: { color: trace.color, width: 1.5 },
@@ -101,7 +109,7 @@ export function sparklineDescription(
 ): string {
   const latest = traces.map((trace) => {
     const point = trace.points[trace.points.length - 1]
-    return `${trace.machine}, ${formatTrendValue(point.value, metric)} at ${displayValue(point)}`
+    return `${trace.label}, ${formatTrendValue(point.value, metric)} at ${displayValue(point)}`
   })
   return `Latest values: ${latest.join('; ')}.`
 }

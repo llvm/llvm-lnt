@@ -1,8 +1,9 @@
-import { useId, useMemo, useState, type ReactNode } from 'react'
+import { useCallback, useId, useMemo, useState, type ReactNode } from 'react'
 import clsx from 'clsx'
 import type { Schemas } from '../../api/client'
 import { useMachineList } from '../../api/machines'
 import { inPickerOrder } from '../../components/machine-suggestions'
+import { LabelWithName } from '../../components/machine-name'
 import {
   addIndicators,
   INDICATOR_BATCH,
@@ -22,11 +23,13 @@ import { SelectAllBox, SelectBox } from '../../components/select-box'
 import { Select } from '../../components/select'
 import { useTextFilter } from '../../components/use-text-filter'
 import { plural } from '../../format'
+import { labelAndName, machineFilterText, machineLabel } from '../../labels'
 import { UNTRACKED_HELP } from '../../machines'
 import { defaultMetric, metricOptions } from '../../schema'
 import styles from './details.module.css'
 
 type IndicatorObject = Schemas['IndicatorObject']
+type Machine = Schemas['Machine']
 
 const NO_NAMES: string[] = []
 const nameOf = (name: string) => name
@@ -44,15 +47,22 @@ export function AddIndicators({ schema, uuid }: { schema: Suite; uuid: string })
 
   const machineList = useMachineList(suite)
   // In the order every machine picker offers them, the untracked ones last (AR18).
-  const { listed, untracked } = useMemo(() => {
+  const { listed, byName } = useMemo(() => {
     const ordered = machineList.data && inPickerOrder(machineList.data)
     return {
       listed: ordered?.map((machine) => machine.name),
-      untracked: new Set(ordered?.filter((m) => !m.tracked).map((m) => m.name)),
+      byName: new Map(ordered?.map((machine) => [machine.name, machine])),
     }
   }, [machineList.data])
   const allMachines = listed ?? NO_NAMES
-  const machines = useCheckboxList(allMachines, listed)
+  const machineText = useCallback(
+    (name: string) => {
+      const machine = byName.get(name)
+      return machine ? machineFilterText(name, machineLabel(machine)) : name
+    },
+    [byName],
+  )
+  const machines = useCheckboxList(allMachines, listed, machineText)
   // In the order of the list, so that the same machines ask for their tests in the same order.
   const selectedMachines = useMemo(
     () => allMachines.filter((name) => machines.selection.selected.has(name)),
@@ -151,7 +161,7 @@ export function AddIndicators({ schema, uuid }: { schema: Suite; uuid: string })
           noun="machine"
           list={machines}
           status={machineStatus}
-          untracked={untracked}
+          machines={byName}
           compact
         />
         <CheckboxList label="Tests" noun="test" list={testList} status={testStatus} />
@@ -188,16 +198,18 @@ interface CheckboxListState {
   selection: RangeSelection
 }
 
-const NO_UNTRACKED: ReadonlySet<string> = new Set()
-
 /**
- * `names`, filtered, with a selection among them. The filter does not change the selection: names
- * can be selected under one filter, then others under another. A name that is no longer among
- * `offered`, once that is known, is deselected.
+ * `names`, filtered by what `textOf` gives for each, with a selection among them. The filter does
+ * not change the selection: names can be selected under one filter, then others under another. A
+ * name that is no longer among `offered`, once that is known, is deselected.
  */
-function useCheckboxList(names: string[], offered: string[] | undefined): CheckboxListState {
+function useCheckboxList(
+  names: string[],
+  offered: string[] | undefined,
+  textOf: (name: string) => string = nameOf,
+): CheckboxListState {
   const [text, setText] = useState('')
-  const filter = useTextFilter(names, nameOf, text, setText)
+  const filter = useTextFilter(names, textOf, text, setText)
   const selection = useRangeSelection(offered, filter.rows)
   return { names, filter, selection }
 }
@@ -212,8 +224,19 @@ interface CheckboxListProps {
   status?: ReactNode
   /** Show only a few names at once, as DT4 asks of the machines' list, rather than more. */
   compact?: boolean
-  /** The names of the untracked machines, which a machines' list marks as such (AR18). */
-  untracked?: ReadonlySet<string>
+  /**
+   * For a list of machines, the machines by name: each is shown by its label and its name (AR23),
+   * and marked when it is untracked (AR18).
+   */
+  machines?: ReadonlyMap<string, Machine>
+}
+
+const NO_MACHINES: ReadonlyMap<string, Machine> = new Map()
+
+/** How a machine of a list is named to assistive technology: as it is shown (AR18, AR23). */
+function accessibleName(machine: Machine): string {
+  const name = labelAndName(machine.name, machineLabel(machine))
+  return machine.tracked ? name : `${name}, untracked`
 }
 
 /**
@@ -227,7 +250,7 @@ function CheckboxList({
   list,
   status,
   compact = false,
-  untracked = NO_UNTRACKED,
+  machines = NO_MACHINES,
 }: CheckboxListProps) {
   const { names, filter, selection } = list
   const headingId = useId()
@@ -246,21 +269,24 @@ function CheckboxList({
             {header}
           </span>
         ),
-        cell: (name) => (
-          <label className={styles.checkboxLabel}>
-            {/* The badge says it only on hover, so the checkbox's name says it too. */}
-            <SelectBox
-              rows={rows}
-              rowKey={name}
-              label={untracked.has(name) ? `${name}, untracked` : name}
-            />
-            {name}
-            {untracked.has(name) && <Badge help={UNTRACKED_HELP}>untracked</Badge>}
-          </label>
-        ),
+        cell: (name) => {
+          const machine = machines.get(name)
+          return (
+            <label className={styles.checkboxLabel}>
+              {/* The badge says it only on hover, so the checkbox's name says it too. */}
+              <SelectBox
+                rows={rows}
+                rowKey={name}
+                label={machine ? accessibleName(machine) : name}
+              />
+              {machine ? <LabelWithName machine={machine} /> : name}
+              {machine && !machine.tracked && <Badge help={UNTRACKED_HELP}>untracked</Badge>}
+            </label>
+          )
+        },
       },
     ],
-    [rows, shown, noun, header, untracked],
+    [rows, shown, noun, header, machines],
   )
 
   // Among those selected, those the list holds, and those of them its filter hides. Counted over

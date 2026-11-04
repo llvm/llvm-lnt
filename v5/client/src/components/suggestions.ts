@@ -18,6 +18,8 @@ export interface Suggestion {
    * commit shown by its display value.
    */
   aliases?: readonly string[]
+  /** Muted text after `text` in the list, such as the name of a machine shown by its label. */
+  note?: string
   /**
    * The heading of the group the suggestion is listed under (AR14), if it is in one. The
    * suggestions in no group come first, then each group, in the order the suggestions give them.

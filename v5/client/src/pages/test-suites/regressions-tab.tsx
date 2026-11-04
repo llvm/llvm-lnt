@@ -60,7 +60,8 @@ export function RegressionsTab({ schema, search, onSearch, filters, onFilters: u
 
   // A machine or a metric the suite does not have is dropped (AR2 "State"): a metric as soon as it
   // is read, since the schema lists them, and a machine once the machine list shows it is unknown.
-  const { machines, suggestions: machineSuggestions } = useMachineSuggestions(suite)
+  const { machines, suggestions: machineSuggestions, labelOfMachine } =
+    useMachineSuggestions(suite)
   useDropUnusable(
     machines,
     (list) => filters.machine === '' || hasMachine(list, filters.machine),
@@ -123,7 +124,9 @@ export function RegressionsTab({ schema, search, onSearch, filters, onFilters: u
       <StateChips selected={filters.state} onChange={(state) => update({ state })} />
       <Combobox
         label="Machine"
-        value={filters.machine ? { key: filters.machine, text: filters.machine } : null}
+        value={
+          filters.machine ? { key: filters.machine, text: labelOfMachine(filters.machine) } : null
+        }
         onChange={(machine) => update({ machine: machine?.key ?? '' })}
         suggestions={machineSuggestions}
         placeholder={machines.isPending ? 'Loading machines...' : 'Any machine'}

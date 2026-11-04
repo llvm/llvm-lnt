@@ -240,6 +240,67 @@ describe('the Graph page (GR1)', () => {
     expect(data.map((trace) => trace.marker.symbol)).toEqual(['circle', 'triangle-up'])
   })
 
+  it('names machines by label, keeping apart two of the same label (AR23)', async () => {
+    mockWorld()
+    mockMachines(() => ({
+      items: [
+        machine('m1', { display_name: 'Same / label' }),
+        machine('m2', { display_name: 'Same / label' }),
+      ],
+    }))
+    renderPage(`${GRAPHED}&test=b`)
+
+    await waitFor(() =>
+      expect(traces()).toEqual(['b - Same / label: c10=3', 'b - Same / label: c40=4']),
+    )
+    const data = chart().data as PlotData[]
+    expect(data.map((trace) => trace.marker.symbol)).toEqual(['circle', 'triangle-up'])
+    const chips = within(screen.getByRole('list', { name: 'Machines added' })).getAllByRole(
+      'listitem',
+    )
+    expect(chips.map((chip) => chip.textContent)).toEqual(['●Same / label×', '▲Same / label×'])
+    // Their remove buttons say which is which.
+    expect(screen.getByRole('button', { name: 'Remove Same / label, m2' })).toBeInTheDocument()
+  })
+
+  it('picks the machine whose name is typed whole, with Enter (AR14)', async () => {
+    mockWorld()
+    mockMachines(() => ({
+      items: [machine('m1', { display_name: 'Linux / x86' }), machine('m12')],
+    }))
+    renderPage('/graph?project=llvm&suite=libcxx')
+    const user = userEvent.setup()
+    const combobox = await screen.findByRole('combobox', { name: 'Machines' })
+    await waitFor(() => expect(combobox).toBeEnabled())
+
+    // `m1` finds both, and no suggestion is highlighted: it names m1 exactly.
+    await user.type(combobox, 'm1')
+    await waitFor(() => expect(screen.getAllByRole('option')).toHaveLength(2))
+    await user.keyboard('{Enter}')
+
+    await waitFor(() => expect(currentUrl()).toBe('/graph?project=llvm&suite=libcxx&machine=m1'))
+  })
+
+  it('suggests a machine by its label, followed by its name, which finds it too', async () => {
+    mockWorld()
+    mockMachines(() => ({
+      items: [machine('m1', { display_name: 'Linux / x86' }), machine('m2')],
+    }))
+    renderPage('/graph?project=llvm&suite=libcxx')
+    const user = userEvent.setup()
+    const combobox = await screen.findByRole('combobox', { name: 'Machines' })
+    await waitFor(() => expect(combobox).toBeEnabled())
+
+    await user.type(combobox, 'm1')
+    await waitFor(() =>
+      expect(screen.getAllByRole('option').map((option) => option.textContent)).toEqual([
+        'Linux / x86 m1',
+      ]),
+    )
+    await user.keyboard('{ArrowDown}{Enter}')
+    expect(currentUrl()).toBe('/graph?project=llvm&suite=libcxx&machine=m1')
+  })
+
   it("puts every machine's commits on the x-axis, by display value and ordinal (GR3)", async () => {
     mockWorld()
     renderPage(GRAPHED)

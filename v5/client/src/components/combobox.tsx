@@ -30,6 +30,7 @@ import {
 import clsx from 'clsx'
 import { errorMessage } from '../api/client'
 import { FieldLabel } from './field-label'
+import { Note } from './note'
 import { Popover } from './popover'
 import { sectioned } from './sectioned'
 import type { Suggestion, Suggestions } from './suggestions'
@@ -324,7 +325,14 @@ function List({
         className={clsx(shared.option, virtualized && styles.virtualOption)}
       >
         {/* Rendered once shown, rather than for every suggestion, as React Aria lists them all. */}
-        {renderSuggestion ? () => renderSuggestion(item) : item.text}
+        {renderSuggestion
+          ? () => renderSuggestion(item)
+          : () => (
+              <>
+                {item.text}
+                {item.note !== undefined && <Note>{item.note}</Note>}
+              </>
+            )}
       </ListBoxItem>
     ),
     [renderSuggestion, virtualized],

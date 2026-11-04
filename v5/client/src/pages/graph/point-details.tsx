@@ -34,6 +34,8 @@ interface Props {
   schema: Suite
   metric: Metric
   machine: string
+  /** The machine's label (AR23). */
+  machineLabel: string
   test: string
   point: Point
   /** The point's commit, from the x-axis, which holds every commit a point can be at (GR3). */
@@ -104,6 +106,7 @@ export function PointDetails({
   schema,
   metric,
   machine,
+  machineLabel,
   test,
   point,
   commit,
@@ -147,7 +150,7 @@ export function PointDetails({
 
   return (
     <ChartDialog
-      label={`${test} on ${machine} at ${commitDisplayValue(commit, schema)}`}
+      label={`${test} on ${machineLabel} at ${commitDisplayValue(commit, schema)}`}
       title={test}
       at={at}
       companion={companion}
@@ -156,7 +159,7 @@ export function PointDetails({
       <dl className={dialog.info}>
         <dt>Machine</dt>
         <dd>
-          <Link to={machinePath(suite, machine)}>{machine}</Link>
+          <Link to={machinePath(suite, machine)}>{machineLabel}</Link>
         </dd>
         <dt>Commit</dt>
         <dd>

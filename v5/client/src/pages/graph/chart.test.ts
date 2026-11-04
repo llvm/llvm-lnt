@@ -64,7 +64,8 @@ describe('graphLayout', () => {
 describe('plotlyTrace', () => {
   const trace: Trace = {
     test: 'BM_vector<int>',
-    machine: 'm&1',
+    machine: 'm1',
+    machineLabel: 'm&1',
     machineIndex: 1,
     color: '#123456',
     points: [
@@ -73,7 +74,7 @@ describe('plotlyTrace', () => {
     ],
   }
 
-  it("draws a line, with its machine's markers, named after the test and the machine, escaped", () => {
+  it("draws a line, with its machine's markers, named after the test and machine, escaped", () => {
     const drawn = plotlyTrace(trace, display, metric('execution_time'))
 
     expect(drawn).toMatchObject({
@@ -96,7 +97,7 @@ describe('plotlyTrace', () => {
   })
 
   it('shows the test and the display value as they are, even with template fields in them', () => {
-    const named = { ...trace, test: 'fmt/%{x}', machine: '<&>' }
+    const named = { ...trace, test: 'fmt/%{x}', machineLabel: '<&>' }
     const drawn = plotlyTrace(named, (c) => `${c} %{y}`, metric('execution_time'))
 
     expect(hoverText(drawn, 0)).toContain(
@@ -142,7 +143,7 @@ describe('markers (GR1)', () => {
 
   it('leaves Plotly room to draw the marker of every point in view', () => {
     const { marker } = plotlyTrace(
-      { test: 't', machine: 'm', machineIndex: 0, color: '#123456', points: [] },
+      { test: 't', machine: 'm', machineLabel: 'm', machineIndex: 0, color: '#123456', points: [] },
       display,
       metric('execution_time'),
     )
@@ -170,7 +171,7 @@ describe('baselineTraces (GR9)', () => {
     const line = {
       label: 'nts › m › r10',
       suiteLabel: 'nts',
-      machine: 'm<1>',
+      machineLabel: 'm<1>',
       commit: 'r10',
       test: 't',
       value: 1.5,
@@ -193,7 +194,7 @@ describe('baselineTraces (GR9)', () => {
     const line = {
       label: 'nts › <&> › r10 %{x}',
       suiteLabel: 'nts',
-      machine: '<&>',
+      machineLabel: '<&>',
       // The commit's display value, which unlike a commit string may contain a `%` (I1).
       commit: 'r10 %{x}',
       test: 'fmt/%{y}',
@@ -280,6 +281,7 @@ describe('the highlighted commits (GR16)', () => {
   const traceOf = (test: string, commits: string[]): Trace => ({
     test,
     machine: 'm1',
+    machineLabel: 'm1',
     machineIndex: 0,
     color: `#${test.repeat(6)}`,
     points: commits.map((commit, position) => ({ commit, position, value: position, runs: 1 })),

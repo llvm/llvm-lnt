@@ -1,6 +1,6 @@
 import { act, fireEvent, screen, waitFor, within } from '@testing-library/react'
 import { HttpResponse } from 'msw'
-import { describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it } from 'vitest'
 import { SEARCH_DELAY_MS } from '../../components/suggestions'
 import type { ProjectName } from '../../api/suites'
 import { BARE_SUITE, PROJECT, SUITE, commit, cursorPage, machine, run } from '../../test/fixtures'
@@ -37,6 +37,11 @@ const EMPTY: ProjectName = { name: 'zzz', display_name: 'Empty' }
 
 /** The accessible name of the Runs tab's search. */
 const RUNS_SEARCH = 'Search runs by machine, commit or UUID'
+
+// The suite's machines, which name a run's machine by its label (AR23): none unless a test says.
+beforeEach(() => {
+  mockMachines(() => ({ items: [] }))
+})
 
 describe('the Projects page', () => {
   it('goes to the first project, without suites, once the projects have loaded', async () => {
@@ -400,6 +405,20 @@ describe('the Runs tab', () => {
   })
   const PLAIN = commit('def456')
 
+  it("names a run's machine by its label, linking to it by name (AR23)", async () => {
+    mockSuites()
+    mockRuns(() => cursorPage([run('a', { machine: 'linux-x86_64', commit: 'abc123' })]))
+    mockResolve([TAGGED])
+    mockMachines(() => ({ items: [machine('linux-x86_64', { display_name: 'Linux / x86-64' })] }))
+    renderPage('/projects/llvm/suites/libcxx')
+
+    const runs = await table('Runs')
+    expect(await within(runs).findByRole('link', { name: 'Linux / x86-64' })).toHaveAttribute(
+      'href',
+      '/projects/llvm/suites/libcxx/machines/linux-x86_64',
+    )
+  })
+
   it('lists the runs newest first, linking to their run, machine and commit', async () => {
     mockSuites()
     const queries = mockRuns(() =>
@@ -691,11 +710,12 @@ describe('the Machines tab', () => {
 
     const machines = await table('Machines')
     // `os` is not listed, so it is left out, whatever its values.
-    expect(headersOf(machines)).toEqual(['Name', 'Hardware', 'Cores'])
+    expect(headersOf(machines)).toEqual(['Machine', 'Hardware', 'Cores'])
+    // By label (AR23), whatever the order the API lists them in.
     expect(rowsOf(machines)).toEqual([
+      'bare | -- | --',
       'linux-x86_64 | -- | 64',
       'macos-O3 untracked | Apple M4 | --',
-      'bare | -- | --',
     ])
     expect(within(machines).getByRole('link', { name: 'linux-x86_64' })).toHaveAttribute(
       'href',
@@ -709,6 +729,30 @@ describe('the Machines tab', () => {
     // Every machine, in one request, with no page to ask for or move between (E2).
     expect([...queries[0].keys()]).toEqual([])
     expect(screen.queryByRole('navigation', { name: /pagination/ })).not.toBeInTheDocument()
+  })
+
+  it('names a machine by its label, followed by its name, and sorts by label (AR23)', async () => {
+    mockSuites()
+    mockMachines(() => ({
+      items: [
+        machine('a-linux', { display_name: 'Zeta / Linux' }),
+        machine('b-macos'),
+        machine('c-arm', { display_name: 'Arm / Graviton', tracked: false }),
+      ],
+    }))
+    renderPage('/projects/llvm/suites/libcxx?tab=machines')
+
+    const machines = await table('Machines')
+    expect(rowsOf(machines)).toEqual([
+      'Arm / Graviton c-arm untracked | -- | --',
+      'b-macos | -- | --',
+      'Zeta / Linux a-linux | -- | --',
+    ])
+    // The link is named by the label, and leads to the machine by its name.
+    expect(within(machines).getByRole('link', { name: 'Zeta / Linux' })).toHaveAttribute(
+      'href',
+      '/projects/llvm/suites/libcxx/machines/a-linux',
+    )
   })
 
   it('links a listed value that is a URL, cut short, to the whole URL', async () => {

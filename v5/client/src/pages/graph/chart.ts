@@ -20,7 +20,10 @@ function overlayAxis(axis: 'x' | 'y'): Partial<LayoutAxis> {
 /** One test on one machine, as the chart draws it. */
 export interface Trace {
   test: string
+  /** The machine's name, which tells the trace apart from another machine's of the same label. */
   machine: string
+  /** The machine's label, which names the trace (AR23). */
+  machineLabel: string
   /** The machine's position among the chips, which gives its marker. */
   machineIndex: number
   color: string
@@ -68,12 +71,12 @@ export function traceMode(points: number, markers: boolean): 'lines' | 'lines+ma
  * and passed as data rather than written into the template (see chart.tsx).
  */
 export function plotlyTrace(
-  { test, machine, machineIndex, color, points }: Trace,
+  { test, machineLabel, machineIndex, color, points }: Trace,
   displayValue: DisplayValue,
   metric: Metric,
 ): Partial<PlotData> {
   const escapedTest = escapeHtml(test)
-  const escapedMachine = escapeHtml(machine)
+  const escapedMachine = escapeHtml(machineLabel)
   return {
     type: 'scatter',
     name: `${escapedTest} - ${escapedMachine}`,
@@ -119,7 +122,8 @@ export interface BaselineLine {
   label: string
   /** The full label of the baseline's suite (AR22). */
   suiteLabel: string
-  machine: string
+  /** The label of the baseline's machine (AR23). */
+  machineLabel: string
   /** The display value of the baseline's commit. */
   commit: string
   test: string
@@ -139,8 +143,8 @@ const SPAN = Array.from({ length: ACROSS }, (_, i) => i / (ACROSS - 1))
  * however many commits the chart has, so that the line can be hovered from anywhere along it.
  */
 export function baselineTraces(lines: BaselineLine[], metric: Metric): Data[] {
-  return lines.map(({ label, suiteLabel, machine, commit, test, value, color }) => {
-    const tooltip = [suiteLabel, machine, commit, test, formatMetricValue(value, metric)].map(
+  return lines.map(({ label, suiteLabel, machineLabel, commit, test, value, color }) => {
+    const tooltip = [suiteLabel, machineLabel, commit, test, formatMetricValue(value, metric)].map(
       escapeHtml,
     )
     return {
@@ -297,7 +301,7 @@ export function highlightCircles(circles: Circled[]): Data[] {
   return circles.map(({ trace, points }) => ({
     type: 'scatter',
     mode: 'markers',
-    name: `${escapeHtml(trace.test)} - ${escapeHtml(trace.machine)} - highlighted`,
+    name: `${escapeHtml(trace.test)} - ${escapeHtml(trace.machineLabel)} - highlighted`,
     x: points.map((point) => point.commit),
     y: points.map((point) => point.value),
     hoverinfo: 'skip',

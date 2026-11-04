@@ -1,6 +1,6 @@
 import { act, fireEvent, screen, waitFor, within } from '@testing-library/react'
 import { HttpResponse } from 'msw'
-import { describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { queryKeys } from '../../api/keys'
 import { schemaOf, type Suite, type SuiteSchema } from '../../api/suites'
 import { apiKey, entry, mockAuth, signIn, TOKEN } from '../../test/auth'
@@ -21,6 +21,7 @@ import {
   gate,
   headersOf,
   main,
+  mockMachines,
   mockRuns,
   mockSuites,
   renderPage,
@@ -32,6 +33,11 @@ import {
 } from '../../test/page'
 import { server } from '../../test/server'
 import { downloadFile } from './schema/download'
+
+// The machines of a suite whose Runs tab a test ends up on, which name runs' machines (AR23).
+beforeEach(() => {
+  mockMachines(() => ({ items: [] }))
+})
 
 vi.mock('./schema/download', () => ({ downloadFile: vi.fn() }))
 

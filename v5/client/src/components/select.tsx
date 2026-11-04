@@ -24,6 +24,7 @@ import {
 import { FieldLabel } from './field-label'
 import { Popover } from './popover'
 import { sectioned } from './sectioned'
+import { Note } from './note'
 import shared from './dropdown.module.css'
 import styles from './select.module.css'
 
@@ -354,12 +355,7 @@ export function TreeSelect<Value extends string>({
                       aria-hidden="true"
                     />
                     {row.label}
-                    {note !== undefined && (
-                      <>
-                        {' '}
-                        <span className={styles.note}>{note}</span>
-                      </>
-                    )}
+                    {note !== undefined && <Note>{note}</Note>}
                   </span>
                 )}
               </ListBoxItem>

@@ -81,7 +81,7 @@ export function SideFields({
       />
       <Combobox
         label="Machine"
-        value={machine === '' ? null : { key: machine, text: machine }}
+        value={machine === '' ? null : { key: machine, text: machines.labelOfMachine(machine) }}
         onChange={(picked) => onMachine(picked?.key ?? null)}
         suggestions={machines.suggestions}
         placeholder={
