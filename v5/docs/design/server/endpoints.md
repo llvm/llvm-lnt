@@ -52,7 +52,7 @@ itself: `GET /api/projects` is the way to do that.
 GET    /api/projects/{project}/suites/{suite}/machines                     -- List (searchable)
 POST   /api/projects/{project}/suites/{suite}/machines                     -- Create machine independently
 GET    /api/projects/{project}/suites/{suite}/machines/{machine_name}      -- Detail
-PATCH  /api/projects/{project}/suites/{suite}/machines/{machine_name}      -- Update fields/tracked (including rename)
+PATCH  /api/projects/{project}/suites/{suite}/machines/{machine_name}      -- Update fields, display name, tracked (including rename)
 DELETE /api/projects/{project}/suites/{suite}/machines/{machine_name}      -- Delete machine, its runs, and its regression indicators
 ```
 
@@ -67,6 +67,9 @@ E4).
 submission nests under `machine` (see O1):
 
 - `name`: the machine's identity.
+- `display_name`: a built-in string, or `null`: how the UI names the machine
+  (see D5). `null` when omitted at creation. A run submission can also set it
+  when it creates the machine (see O1).
 - `tracked`: a built-in boolean (see D5), `true` when omitted at creation.
   Untracked machines are excluded only from *automatic* machine selection, and
   every endpoint otherwise returns them like any other machine. A run
@@ -90,15 +93,16 @@ null if it has no runs. It is derived rather than stored (see D5).
 `name` renames the machine. The old name is not kept as an alias: run
 submissions find their machine by name (see O2), so those that still use the old
 name create a new machine. `PATCH` can flip `tracked` at any time, and set
-`delete_after_inactive_days` or clear it with `null`. Each key of `fields` is
-likewise left unchanged when omitted and cleared by `null`.
+`display_name` or `delete_after_inactive_days`, or clear either with `null`.
+Each key of `fields` is likewise left unchanged when omitted and cleared by
+`null`.
 
 **Responses.**
 
 | Route | Success | Errors |
 |-------|---------|--------|
-| `POST /machines` | 201 with the created machine, and a `Location` header pointing at its detail route | 400 for an undeclared key in `fields`; 409 `duplicate` if a machine of that name already exists |
-| `PATCH /machines/{machine_name}` | 200 with the updated machine | 400 for an undeclared key in `fields`, or a new name that I1 rejects; 409 `duplicate` when renaming to the name of an existing machine |
+| `POST /machines` | 201 with the created machine, and a `Location` header pointing at its detail route | 400 for an undeclared key in `fields`, a name that I1 rejects, or a `display_name` that is empty or longer than 256 characters (see D5); 409 `duplicate` if a machine of that name already exists |
+| `PATCH /machines/{machine_name}` | 200 with the updated machine | 400 for an undeclared key in `fields`, a new name that I1 rejects, or a `display_name` that is empty or longer than 256 characters (see D5); 409 `duplicate` when renaming to the name of an existing machine |
 | `DELETE /machines/{machine_name}` | 204 | |
 
 `DELETE` removes the machine, its runs (with their samples and profiles), and
@@ -107,8 +111,8 @@ indicators are kept.
 
 **Filters:**
 
-- `search=`: case-insensitive substring match on `name` or any searchable
-  machine field (see O4).
+- `search=`: case-insensitive substring match on `name`, `display_name` or any
+  searchable machine field (see O4).
 - `tracked=`: boolean. Omitting it returns both tracked and untracked machines.
 
 **Sort:** `sort=name` (the default, ascending), `-name`, `last_run_at`, and

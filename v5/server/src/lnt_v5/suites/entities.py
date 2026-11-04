@@ -49,7 +49,7 @@ from lnt_v5 import examples
 from lnt_v5.errors import ApiError, ErrorCode, validation_problems
 from lnt_v5.strings import Storable
 from lnt_v5.suites import concurrency
-from lnt_v5.suites.schema import AttributeType, Entry, SuiteSchema
+from lnt_v5.suites.schema import AttributeType, DisplayName, Entry, SuiteSchema
 from lnt_v5.suites.tables import (
     INACTIVE_DAYS_MAX,
     INACTIVE_DAYS_MIN,
@@ -60,6 +60,7 @@ from lnt_v5.suites.tables import (
     NAME_LENGTH,
     UUID_LENGTH,
 )
+from lnt_v5.tables import DISPLAY_NAME_MAX_LENGTH
 
 # D3's JSON representation of each declared type, as the one type a declared value may have. Strict
 # on each member, so that the union cannot quietly reshape a value on its way in: `true` is not an
@@ -276,6 +277,20 @@ MachineName = Annotated[
     ),
 ]
 
+MachineDisplayName = Annotated[
+    DisplayName,
+    Field(
+        description=(
+            "How the web UI names the machine, instead of its `name`. Not empty, and at most "
+            f"{DISPLAY_NAME_MAX_LENGTH} characters; unlike the name, it can contain '/' and '%'. "
+            "Several machines can have the same display name. Only the name addresses the machine "
+            "in the API. Null if there is none. A run submission only sets this when it creates "
+            "the machine; use PATCH to change it afterwards."
+        ),
+        examples=[examples.MACHINE_DISPLAY_NAME],
+    ),
+]
+
 Tracked = Annotated[
     bool,
     Field(
@@ -350,9 +365,11 @@ DeleteAfterInactiveDays = Annotated[
 
 
 class MachineObject(EntityObject):
-    """A machine: its name, whether it is tracked, when it is deleted, and its fields."""
+    """A machine: its name, its display name, whether it is tracked, when it is deleted, and its
+    fields."""
 
     name: MachineName
+    display_name: MachineDisplayName | None = None
     tracked: Tracked = True
     delete_after_inactive_days: DeleteAfterInactiveDays | None = None
 

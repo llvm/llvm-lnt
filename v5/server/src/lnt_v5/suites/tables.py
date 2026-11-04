@@ -61,7 +61,12 @@ from sqlalchemy.types import TypeEngine
 from lnt_v5.suites.aggregation import SampleAggregation
 from lnt_v5.suites.schema import AttributeType, Entry, SuiteSchema
 from lnt_v5.suites.states import RegressionState
-from lnt_v5.tables import IDENTIFIER_MAX_LENGTH, NAMING_CONVENTION, namespace_sequence
+from lnt_v5.tables import (
+    DISPLAY_NAME_MAX_LENGTH,
+    IDENTIFIER_MAX_LENGTH,
+    NAMING_CONVENTION,
+    namespace_sequence,
+)
 from lnt_v5.tables import schema as schema_table
 
 # D5's widths for the built-in string columns. A UUID is the 36-character hyphenated form (O1).
@@ -258,6 +263,8 @@ def build(schema: SuiteSchema, namespace: str) -> SuiteTables:
         Column("name", String(NAME_LENGTH), nullable=False, unique=True),
         # D5: governs automatic machine selection only. Untracked machines stay fully addressable.
         Column("tracked", Boolean, nullable=False, server_default=true()),
+        # D5: how the web UI names the machine. The API addresses it by `name` alone.
+        Column("display_name", String(DISPLAY_NAME_MAX_LENGTH), nullable=True),
         *_inactivity_columns(),
         *_dynamic(schema.machine_fields),
         _inactive_days_range(),

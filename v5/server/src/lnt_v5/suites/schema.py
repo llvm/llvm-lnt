@@ -72,8 +72,9 @@ SuiteNameStr = Annotated[
 # null. Unlike names, nothing restricts its characters, so it needs D3's NUL check.
 Label = Annotated[str, StringConstraints(min_length=1), Storable]
 
-# D4: the suite's own display name, which is a `Label` of bounded length.
-SuiteLabel = Annotated[Label, StringConstraints(max_length=DISPLAY_NAME_MAX_LENGTH)]
+# D4: the suite's own display name, which is a `Label` of bounded length. D7 and D5 give a
+# project's and a machine's the same rules.
+DisplayName = Annotated[Label, StringConstraints(max_length=DISPLAY_NAME_MAX_LENGTH)]
 
 # D4's rule for a suite name, which a project name follows too (D7), as I8's document words it.
 NAME_RULE = (
@@ -343,7 +344,8 @@ class CommitField(_SearchableEntry):
 class MachineField(_SearchableEntry):
     """A piece of information a machine can have in its `fields`, such as its operating system.
 
-    The name can't be `id`, `name`, `tracked`, `first_seen_at` or `delete_after_inactive_days`.
+    The name can't be `id`, `name`, `tracked`, `display_name`, `first_seen_at` or
+    `delete_after_inactive_days`.
     """
 
     model_config = ConfigDict(json_schema_extra={"examples": [examples.MACHINE_FIELDS[0]]})
@@ -351,7 +353,7 @@ class MachineField(_SearchableEntry):
     LIST: ClassVar[str] = "machine_fields"
     RESERVED_COLUMNS: ClassVar[Mapping[str, frozenset[str]]] = {
         "machine": frozenset(
-            {"id", "name", "tracked", "first_seen_at", "delete_after_inactive_days"}
+            {"id", "name", "tracked", "display_name", "first_seen_at", "delete_after_inactive_days"}
         )
     }
 
@@ -440,7 +442,7 @@ class SuiteSchema(BaseModel):
     )
 
     name: SuiteNameStr = Field(description=f"The suite's name. {NAME_RULE}")
-    display_name: SuiteLabel | None = Field(
+    display_name: DisplayName | None = Field(
         default=None, description=f"{SUITE_DISPLAY_NAME} Null if there is none."
     )
     metrics: list[Metric] = Field(

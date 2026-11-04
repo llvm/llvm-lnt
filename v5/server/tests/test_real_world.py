@@ -260,6 +260,7 @@ class TestReadBack:
         assert served == [
             {
                 "name": name,
+                "display_name": None,
                 "tracked": True,
                 "delete_after_inactive_days": None,
                 "fields": dataset.declared("machine_fields", fields[name]),

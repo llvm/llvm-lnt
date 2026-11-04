@@ -140,8 +140,9 @@ class RunSubmission(BaseModel):
     must agree with what is stored: fields, ordinal and tag that have no value yet are filled in,
     but a value that differs from the stored one is rejected with a 409 `conflict`. Use `PATCH` to
     change stored values. Keys you leave out, or set to null, aren't checked. The exceptions are
-    the machine's `tracked` and the `delete_after_inactive_days` of the machine and the commit,
-    which are only used when the machine or the commit is created, and ignored otherwise.
+    the machine's `display_name` and `tracked`, and the `delete_after_inactive_days` of the machine
+    and the commit, which are only used when the machine or the commit is created, and ignored
+    otherwise.
     """
 
     model_config = ConfigDict(extra="forbid")
@@ -176,6 +177,7 @@ class SubmittedMachine:
     """The machine a submission names, with `fields` already resolved to column values (O2)."""
 
     name: str
+    display_name: str | None
     tracked: bool
     delete_after_inactive_days: int | None
     fields: Mapping[str, Any]
@@ -239,6 +241,7 @@ def validate_submission(schema: SuiteSchema, body: RunSubmission) -> ValidatedSu
     _reject_unstorable(body.run_parameters, "run_parameters")
     machine = SubmittedMachine(
         name=body.machine.name,
+        display_name=body.machine.display_name,
         tracked=body.machine.tracked,
         delete_after_inactive_days=body.machine.delete_after_inactive_days,
         fields=_submitted_fields(schema, MachineField, body.machine.fields),

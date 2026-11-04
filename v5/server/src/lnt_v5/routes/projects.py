@@ -23,7 +23,7 @@ from lnt_v5.routes.suites import PROJECTS_PATH, sorted_schemas
 from lnt_v5.scopes import Scope
 from lnt_v5.suites.registry import Project as CachedProject
 from lnt_v5.suites.registry import RegistryDep
-from lnt_v5.suites.schema import NAME_RULE, SuiteLabel, SuiteNameStr, SuiteSchema
+from lnt_v5.suites.schema import NAME_RULE, DisplayName, SuiteNameStr, SuiteSchema
 from lnt_v5.suites.scope import ProjectName
 from lnt_v5.suites.store import (
     PROJECT_NAME_CONSTRAINT,
@@ -77,7 +77,7 @@ class ProjectCreate(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     name: SuiteNameStr = Field(description=_PROJECT_NAME)
-    display_name: SuiteLabel | None = Field(
+    display_name: DisplayName | None = Field(
         default=None, description=f"{_DISPLAY_NAME} Null, or left out, if there is none."
     )
 
@@ -95,7 +95,7 @@ class ProjectUpdate(BaseModel):
             "old ones answer 404. Can't be null."
         ),
     )
-    display_name: SuiteLabel | None = Field(
+    display_name: DisplayName | None = Field(
         default=None, description=f"{_DISPLAY_NAME} Null removes it."
     )
 

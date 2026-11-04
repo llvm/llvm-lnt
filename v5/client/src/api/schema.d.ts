@@ -349,8 +349,8 @@ export interface paths {
         head?: never;
         /**
          * Update a machine
-         * @description Rename a machine, change whether it is tracked or when it is deleted, or set or clear its
-         *     fields.
+         * @description Rename a machine, set or clear its display name, change whether it is tracked or when it is
+         *     deleted, or set or clear its fields.
          *
          *     Only include what you want to change. If you change a field here, later run submissions that
          *     still send the old value are rejected with a 409 `conflict` until they are updated. If you
@@ -1735,6 +1735,12 @@ export interface components {
              */
             name: string;
             /**
+             * Display Name
+             * @description How the web UI names the machine, instead of its `name`. Not empty, and at most 256 characters; unlike the name, it can contain '/' and '%'. Several machines can have the same display name. Only the name addresses the machine in the API. Null if there is none. A run submission only sets this when it creates the machine; use PATCH to change it afterwards.
+             * @example Linux / x86-64
+             */
+            display_name: string | null;
+            /**
              * Tracked
              * @description Whether the machine is picked automatically, for example when a dashboard chooses which machines to show. Untracked machines are still listed and usable as usual.
              */
@@ -1755,7 +1761,8 @@ export interface components {
          * MachineField
          * @description A piece of information a machine can have in its `fields`, such as its operating system.
          *
-         *     The name can't be `id`, `name`, `tracked`, `first_seen_at` or `delete_after_inactive_days`.
+         *     The name can't be `id`, `name`, `tracked`, `display_name`, `first_seen_at` or
+         *     `delete_after_inactive_days`.
          * @example {
          *       "display_name": null,
          *       "listed": true,
@@ -1814,7 +1821,8 @@ export interface components {
          * MachineFieldInput
          * @description A piece of information a machine can have in its `fields`, such as its operating system.
          *
-         *     The name can't be `id`, `name`, `tracked`, `first_seen_at` or `delete_after_inactive_days`.
+         *     The name can't be `id`, `name`, `tracked`, `display_name`, `first_seen_at` or
+         *     `delete_after_inactive_days`.
          * @example {
          *       "display_name": null,
          *       "listed": true,
@@ -1888,7 +1896,8 @@ export interface components {
         };
         /**
          * MachineObject
-         * @description A machine: its name, whether it is tracked, when it is deleted, and its fields.
+         * @description A machine: its name, its display name, whether it is tracked, when it is deleted, and its
+         *     fields.
          */
         MachineObject: {
             /**
@@ -1905,6 +1914,12 @@ export interface components {
              */
             name: string;
             /**
+             * Display Name
+             * @description How the web UI names the machine, instead of its `name`. Not empty, and at most 256 characters; unlike the name, it can contain '/' and '%'. Several machines can have the same display name. Only the name addresses the machine in the API. Null if there is none. A run submission only sets this when it creates the machine; use PATCH to change it afterwards.
+             * @example Linux / x86-64
+             */
+            display_name?: string | null;
+            /**
              * Tracked
              * @description Whether the machine is picked automatically, for example when a dashboard chooses which machines to show. Untracked machines are still listed and usable as usual.
              * @default true
@@ -1920,8 +1935,8 @@ export interface components {
         /**
          * MachineUpdate
          * @description Changes to a machine. Only include what you want to change; this also applies to the keys
-         *     of `fields`. Set a field or `delete_after_inactive_days` to null to clear it. Set `name` to
-         *     rename the machine. `name` and `tracked` can't be null.
+         *     of `fields`. Set a field, `display_name` or `delete_after_inactive_days` to null to clear it.
+         *     Set `name` to rename the machine. `name` and `tracked` can't be null.
          */
         MachineUpdate: {
             /**
@@ -1937,6 +1952,12 @@ export interface components {
              * @example linux-x86_64
              */
             name?: string;
+            /**
+             * Display Name
+             * @description How the web UI names the machine, instead of its `name`. Not empty, and at most 256 characters; unlike the name, it can contain '/' and '%'. Several machines can have the same display name. Only the name addresses the machine in the API. Null if there is none. A run submission only sets this when it creates the machine; use PATCH to change it afterwards.
+             * @example Linux / x86-64
+             */
+            display_name?: string | null;
             /**
              * Tracked
              * @description Whether the machine is picked automatically, for example when a dashboard chooses which machines to show. Untracked machines are still listed and usable as usual.
@@ -2946,8 +2967,9 @@ export interface components {
          *     must agree with what is stored: fields, ordinal and tag that have no value yet are filled in,
          *     but a value that differs from the stored one is rejected with a 409 `conflict`. Use `PATCH` to
          *     change stored values. Keys you leave out, or set to null, aren't checked. The exceptions are
-         *     the machine's `tracked` and the `delete_after_inactive_days` of the machine and the commit,
-         *     which are only used when the machine or the commit is created, and ignored otherwise.
+         *     the machine's `display_name` and `tracked`, and the `delete_after_inactive_days` of the machine
+         *     and the commit, which are only used when the machine or the commit is created, and ignored
+         *     otherwise.
          */
         RunSubmission: {
             /**
@@ -4438,7 +4460,7 @@ export interface operations {
     list_machines: {
         parameters: {
             query?: {
-                /** @description Only return machines whose name, or any searchable field, contains this text. Not case-sensitive. */
+                /** @description Only return machines whose name, display name or any searchable field contains this text. Not case-sensitive. */
                 search?: string | null;
                 /** @description Only return tracked machines (`true`) or untracked ones (`false`). Leave out to return both. */
                 tracked?: boolean | null;
@@ -5221,7 +5243,7 @@ export interface operations {
             query?: {
                 /** @description To get the next page, set this to `cursor.next` from the previous response, and keep the other parameters the same (except `limit`). Omit it to get the first page. If it is rejected with `invalid_cursor`, start again from the first page. */
                 cursor?: string | null;
-                /** @description Only return runs whose machine (its name or any searchable field) or commit (its value, its tag or any searchable field) contains this text, or whose UUID starts with it. Not case-sensitive. */
+                /** @description Only return runs whose machine (its name, its display name or any searchable field) or commit (its value, its tag or any searchable field) contains this text, or whose UUID starts with it. Not case-sensitive. */
                 search?: string | null;
                 /** @description Only return runs on this machine. Returns 404 if the machine doesn't exist. */
                 machine?: string | null;

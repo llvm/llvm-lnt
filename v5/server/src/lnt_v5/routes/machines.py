@@ -2,9 +2,10 @@
 
 A machine is one of the two entities carrying schema-declared metadata (O2), so the object these
 endpoints accept and return is the same one a run submission nests under `machine`: the identity
-attribute `name`, the built-in `tracked`, and a `fields` dict of declared `machine_fields`. That
-object, and the validation of `fields`, live in `suites/entities.py`, shared with everything else
-that writes one; only the response models are here.
+attribute `name`, the built-ins `display_name`, `tracked` and `delete_after_inactive_days`, and a
+`fields` dict of declared `machine_fields`. That object, and the validation of `fields`, live in
+`suites/entities.py`, shared with everything else that writes one; only the response models are
+here.
 
 `last_run_at` is the one key here that is not stored. D5 derives it on read, and is explicit about
 how: one index probe per machine, not an aggregate over the suite's whole run table. `Machines`
@@ -49,6 +50,7 @@ from lnt_v5.suites.entities import (
     DeleteAfterInactiveDays,
     EntityObject,
     FieldValue,
+    MachineDisplayName,
     MachineName,
     MachineObject,
     Tracked,
@@ -93,6 +95,7 @@ _CREATE_EXAMPLES = {
         "summary": "A machine with its fields",
         "value": {
             "name": examples.OTHER_MACHINE,
+            "display_name": "macOS 26.5 / M4",
             "tracked": True,
             "fields": examples.OTHER_MACHINE_VALUES,
         },
@@ -108,6 +111,10 @@ _CREATE_EXAMPLES = {
 }
 
 _UPDATE_EXAMPLES = {
+    "display_name": {
+        "summary": "Name a machine in the web UI",
+        "value": {"display_name": examples.MACHINE_DISPLAY_NAME},
+    },
     "untrack": {
         "summary": "Stop tracking a machine",
         "value": {"tracked": False},
@@ -126,12 +133,13 @@ _UPDATE_EXAMPLES = {
 # gives them, so they are written for API users.
 
 
-# `tracked`, `delete_after_inactive_days` and `fields` are redeclared without their defaults. I4
-# requires every documented key to be present in a response, and inheriting the request model's
-# optionality would instead tell a generated client they may be absent.
+# `display_name`, `tracked`, `delete_after_inactive_days` and `fields` are redeclared without their
+# defaults. I4 requires every documented key to be present in a response, and inheriting the request
+# model's optionality would instead tell a generated client they may be absent.
 class Machine(MachineObject):
     """A machine that benchmarks run on."""
 
+    display_name: MachineDisplayName | None
     tracked: Tracked
     delete_after_inactive_days: DeleteAfterInactiveDays | None
     fields: dict[str, FieldValue] = Field(
@@ -154,12 +162,13 @@ class Machine(MachineObject):
 # so sending either as null is a 400 rather than an instruction to clear it.
 class MachineUpdate(EntityObject):
     """Changes to a machine. Only include what you want to change; this also applies to the keys
-    of `fields`. Set a field or `delete_after_inactive_days` to null to clear it. Set `name` to
-    rename the machine. `name` and `tracked` can't be null."""
+    of `fields`. Set a field, `display_name` or `delete_after_inactive_days` to null to clear it.
+    Set `name` to rename the machine. `name` and `tracked` can't be null."""
 
     model_config = ConfigDict(json_schema_extra=omit_defaults)
 
     name: MachineName = ""
+    display_name: MachineDisplayName | None = None
     tracked: Tracked = True
     delete_after_inactive_days: DeleteAfterInactiveDays | None = None
 
@@ -195,6 +204,7 @@ class Machines:
     def select(self) -> Select[Any]:
         return select(
             self.table.c.name,
+            self.table.c.display_name,
             self.table.c.tracked,
             self.table.c.delete_after_inactive_days,
             *(self.table.c[field.name] for field in self.schema.machine_fields),
@@ -221,6 +231,7 @@ class Machines:
         # row stored some other way that breaks one still has to be served.
         return Machine.model_construct(
             name=row._mapping[self.table.c.name],
+            display_name=row._mapping[self.table.c.display_name],
             tracked=row._mapping[self.table.c.tracked],
             delete_after_inactive_days=row._mapping[self.table.c.delete_after_inactive_days],
             fields=rendered_fields(self.schema.machine_fields, self.table, row),
@@ -247,19 +258,20 @@ class Machines:
         already exists, whereas a submission is expected to name the same machine on every run. The
         two share this reader for the table and the wording, and nothing else.
 
-        `tracked` and `delete_after_inactive_days` are written at creation and never compared
-        afterwards -- O1 and O2 make the first first-write-wins and the second creation-only, so
-        re-submitting either for an existing machine is ignored rather than being a mismatch. For
-        `delete_after_inactive_days` this is also what keeps a `submit` key from scheduling an
-        existing machine's deletion: not even a stored null is filled in. The declared fields are
-        reconciled instead: a stored NULL is filled in, a stored value that agrees is left alone,
-        and one that disagrees is refused.
+        `display_name`, `tracked` and `delete_after_inactive_days` are written at creation and never
+        compared afterwards -- O1 and O2 make `tracked` first-write-wins and the other two
+        creation-only, so re-submitting any of them for an existing machine is ignored rather than
+        being a mismatch. For `delete_after_inactive_days` this is also what keeps a `submit` key
+        from scheduling an existing machine's deletion: not even a stored null is filled in. The
+        declared fields are reconciled instead: a stored NULL is filled in, a stored value that
+        agrees is left alone, and one that disagrees is refused.
         """
         return create_or_reconcile(
             connection,
             self.table.c.name,
             submitted.name,
             values={
+                "display_name": submitted.display_name,
                 "tracked": submitted.tracked,
                 "delete_after_inactive_days": submitted.delete_after_inactive_days,
                 **submitted.fields,
@@ -294,14 +306,16 @@ def _missing(suite: str, name: str) -> ApiError:
 
 
 def machine_search(suite: Suite, term: str) -> ColumnElement[bool]:
-    """O4's machine predicate: the machine's name, or any searchable machine field.
+    """O4's machine predicate: its name, its display name, or any searchable machine field.
 
     Here rather than inlined in `Machines.search` because O4 has `GET /runs?search=` apply the same
     predicate through the run's machine. Takes the suite rather than the table and the field list,
     so that the two callers cannot pass a matching pair of the wrong ones -- sharing
     `search_condition` alone would still leave each list naming the columns it covers.
     """
-    return search_condition(term, suite.tables.machine, ["name"], suite.schema.machine_fields)
+    return search_condition(
+        term, suite.tables.machine, ["name", "display_name"], suite.schema.machine_fields
+    )
 
 
 def machine_id(connection: Connection, suite: Suite, name: str) -> int:
@@ -345,8 +359,8 @@ def list_machines(
         str | None,
         Query(
             description=(
-                "Only return machines whose name, or any searchable field, contains this text. "
-                "Not case-sensitive."
+                "Only return machines whose name, display name or any searchable field contains "
+                "this text. Not case-sensitive."
             )
         ),
     ] = None,
@@ -418,6 +432,7 @@ def create_machine(
             connection.execute(
                 insert(machines.table).values(
                     name=body.name,
+                    display_name=body.display_name,
                     tracked=body.tracked,
                     delete_after_inactive_days=body.delete_after_inactive_days,
                     **values,
@@ -464,8 +479,8 @@ def update_machine(
     engine: EngineDep,
     registry: RegistryDep,
 ) -> Machine:
-    """Rename a machine, change whether it is tracked or when it is deleted, or set or clear its
-    fields.
+    """Rename a machine, set or clear its display name, change whether it is tracked or when it is
+    deleted, or set or clear its fields.
 
     Only include what you want to change. If you change a field here, later run submissions that
     still send the old value are rejected with a 409 `conflict` until they are updated. If you
@@ -479,7 +494,7 @@ def update_machine(
         changes = body.model_dump(exclude_unset=True)
         values: dict[str, Any] = {
             key: changes[key]
-            for key in ("name", "tracked", "delete_after_inactive_days")
+            for key in ("name", "display_name", "tracked", "delete_after_inactive_days")
             if key in changes
         }
         if "fields" in changes:

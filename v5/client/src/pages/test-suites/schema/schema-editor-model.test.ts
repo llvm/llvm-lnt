@@ -68,7 +68,7 @@ describe('nameProblems', () => {
     for (const name of ['id', 'commit', 'ordinal', 'tag']) {
       expect(problemOf('commit_fields', name)).toBeDefined()
     }
-    for (const name of ['id', 'name', 'tracked']) {
+    for (const name of ['id', 'name', 'tracked', 'display_name']) {
       expect(problemOf('machine_fields', name)).toBeDefined()
     }
     // Compared exactly: D4 makes names case-sensitive.

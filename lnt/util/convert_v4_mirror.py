@@ -54,8 +54,8 @@ _V5_TYPES = {'real', 'integer', 'text', 'datetime'}
 # one of the machine table, and a commit field one of the commit table. Keep
 # in sync with v5/server/src/lnt_v5/suites/schema.py.
 _METRIC_BUILTINS = {'run_id', 'test_id', 'repetition', 'machine_id'}
-_MACHINE_FIELD_BUILTINS = {'id', 'name', 'tracked', 'first_seen_at',
-                           'delete_after_inactive_days'}
+_MACHINE_FIELD_BUILTINS = {'id', 'name', 'display_name', 'tracked',
+                           'first_seen_at', 'delete_after_inactive_days'}
 _COMMIT_FIELD_BUILTINS = {'id', 'commit', 'ordinal', 'tag', 'first_seen_at',
                           'delete_after_inactive_days'}
 
@@ -392,9 +392,8 @@ def _name_machines(mirrored: MirroredSuite,
         v5_name = v4_name.replace('/', '_').replace('%', '_')
         # The oldest machine of a name keeps it.
         for i, machine_id in enumerate(ids):
-            name = v5_name
-            if i > 0:
-                name += DUPLICATE_SUFFIX % machine_id
+            suffix = DUPLICATE_SUFFIX % machine_id if i > 0 else ''
+            name = v5_name + suffix
             fields = {}
             for key, value in mirrored.machines[machine_id].items():
                 if key in _MACHINE_KEYS_DROPPED or value is None:
@@ -404,8 +403,13 @@ def _name_machines(mirrored: MirroredSuite,
                                     'value for field %r'
                                     % (machine_id, v4_name, value, key))
                 fields[key] = value
-            machines[machine_id] = {'name': name, 'tracked': False,
-                                    'fields': fields}
+            machine: JSONObject = {'name': name, 'tracked': False,
+                                   'fields': fields}
+            # Shown as it was in v4, with the suffix that tells duplicates
+            # apart.
+            if v5_name != v4_name:
+                machine['display_name'] = v4_name + suffix
+            machines[machine_id] = machine
 
     owners: dict[str, list[str]] = collections.defaultdict(list)
     for machine_id, machine in machines.items():
@@ -683,9 +687,12 @@ def convert(mirror_dir: str, suite: str, out: TextIO,
             ', from --schema' if override is not None else ''))
     for machine_id in sorted(plan.machines, key=int):
         v4_name = mirrored.machines[machine_id]['name']
-        if plan.machines[machine_id]['name'] != v4_name:
-            echo('  machine %s (%s) is renamed %r'
-                 % (machine_id, v4_name, plan.machines[machine_id]['name']))
+        machine = plan.machines[machine_id]
+        if machine['name'] != v4_name:
+            shown = (', shown as %r' % machine['display_name']
+                     if 'display_name' in machine else '')
+            echo('  machine %s (%s) is renamed %r%s'
+                 % (machine_id, v4_name, machine['name'], shown))
     ordered = sum(1 for value in plan.ordinals.values() if value is not None)
     echo('Commits: %d, of which %d have an ordinal'
          % (len(plan.ordinals), ordered))

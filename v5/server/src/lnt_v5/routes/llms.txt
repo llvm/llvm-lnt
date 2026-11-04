@@ -33,7 +33,8 @@
   commits (`{commit}`) and of the changes between two commits (`{from}`,
   `{to}`), for clients to link to.
 - **Machine** -- where a benchmark ran, addressed by `name`. Carries the
-  declared `machine_fields` under `fields`, and a built-in `tracked` flag
+  declared `machine_fields` under `fields`, an optional built-in
+  `display_name` that the web UI names it by, and a built-in `tracked` flag
   marking whether it takes part in *automatic* machine selection, such as a
   dashboard picking which machines to show.
 - **Commit** -- what was benchmarked, addressed by an identity string `value`
@@ -250,8 +251,8 @@ to the time the server receives the run, which is recorded as `submitted_at`.
 The submission is atomic, and answers 201 with the run. A run cannot be changed afterwards.
 It never overwrites what is stored: a field, tag or ordinal that differs from
 the stored one is 409, and `PATCH` is the only way to change it. The machine's
-`tracked` flag is the exception: it is set only when the submission creates the
-machine, and ignored rather than compared afterwards.
+`display_name` and `tracked` flag are the exception: they are set only when the
+submission creates the machine, and ignored rather than compared afterwards.
 
 **Compress a large submission** whole, which typically shrinks it several
 times over. curl does not compress a request body itself; compress it first, and

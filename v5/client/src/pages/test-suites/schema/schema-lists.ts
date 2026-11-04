@@ -104,7 +104,14 @@ export const LIST_INFO: Record<ListName, ListInfo> = {
     noun: 'machine field',
     keys: ['display_name', 'searchable', 'listed'],
     type: 'text',
-    reserved: ['delete_after_inactive_days', 'first_seen_at', 'id', 'name', 'tracked'],
+    reserved: [
+      'delete_after_inactive_days',
+      'display_name',
+      'first_seen_at',
+      'id',
+      'name',
+      'tracked',
+    ],
   },
 }
 

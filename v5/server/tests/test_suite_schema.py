@@ -158,7 +158,7 @@ class TestEntryNames:
         with pytest.raises(ValidationError, match="built-in column on 'commit'"):
             SuiteSchema.model_validate(schema(commit_fields=[{"name": name, "type": "text"}]))
 
-    @pytest.mark.parametrize("name", ["id", "name", "tracked"])
+    @pytest.mark.parametrize("name", ["id", "name", "tracked", "display_name"])
     def test_a_machine_field_cannot_shadow_a_machine_column(self, name: str) -> None:
         with pytest.raises(ValidationError, match="built-in column on 'machine'"):
             SuiteSchema.model_validate(schema(machine_fields=[{"name": name, "type": "text"}]))

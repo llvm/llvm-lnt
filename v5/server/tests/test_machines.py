@@ -209,6 +209,14 @@ class TestListSearch:
     def test_matches_the_name(self, api_client: TestClient) -> None:
         assert names_in(api_client.get(f"{MACHINES}?search=x86")) == ["linux-x86"]
 
+    def test_matches_the_display_name(
+        self, api_client: TestClient, create: Callable[..., Any]
+    ) -> None:
+        # O4: always, like the name, with no schema setting to ask for it.
+        create("named", display_name="Build / Main")
+
+        assert names_in(api_client.get(MACHINES, params={"search": "d / m"})) == ["named"]
+
     def test_matches_a_searchable_field(self, api_client: TestClient) -> None:
         assert names_in(api_client.get(f"{MACHINES}?search=M3")) == ["darwin-arm"]
 
@@ -366,11 +374,43 @@ class TestCreate:
     ) -> None:
         assert create("linux").json() == {
             "name": "linux",
+            "display_name": None,
             "tracked": True,
             "delete_after_inactive_days": None,
             "fields": EVERY_FIELD,
             "last_run_at": None,
         }
+
+    def test_accepts_a_display_name_with_what_a_name_cannot_hold(
+        self, api_client: TestClient, create: Callable[..., Any]
+    ) -> None:
+        # D5: a display name is the UI's, never in a URL, so I1's rules on names don't apply to it.
+        display_name = "Linux / x86-64 (100%)"
+        assert create("linux", display_name=display_name).status_code == 201
+
+        assert api_client.get(f"{MACHINES}/linux").json()["display_name"] == display_name
+
+    def test_accepts_a_display_name_another_machine_has(self, create: Callable[..., Any]) -> None:
+        # D5: display names are not unique.
+        create("linux", display_name="Linux")
+
+        assert create("linux-2", display_name="Linux").status_code == 201
+
+    def test_accepts_a_display_name_at_the_longest(self, create: Callable[..., Any]) -> None:
+        assert create("linux", display_name="x" * 256).status_code == 201
+
+    def test_accepts_an_explicitly_null_display_name(self, create: Callable[..., Any]) -> None:
+        assert create("linux", display_name=None).json()["display_name"] is None
+
+    @pytest.mark.parametrize("display_name", ["", "x" * 257, "a\x00b", 5, True])
+    def test_refuses_a_display_name_that_is_empty_too_long_or_unstorable(
+        self, create: Callable[..., Any], display_name: Any
+    ) -> None:
+        # D5: null or a non-empty string of at most 256 characters, like a suite's (D4).
+        response = create("linux", display_name=display_name)
+
+        assert response.status_code == 400
+        assert code_of(response) == "invalid_request"
 
     def test_accepts_an_untracked_machine(self, create: Callable[..., Any]) -> None:
         assert create("retired", tracked=False).json()["tracked"] is False
@@ -740,6 +780,26 @@ class TestUpdate:
 
         assert patch("linux", {"name": "linux"}).status_code == 200
 
+    def test_sets_changes_and_clears_the_display_name(
+        self, create: Callable[..., Any], patch: Callable[..., Any]
+    ) -> None:
+        create("linux")
+
+        for display_name in ("Linux / x86", "Linux", None):
+            body = patch("linux", {"display_name": display_name}).json()
+            assert body["display_name"] == display_name
+
+    @pytest.mark.parametrize("display_name", ["", "x" * 257])
+    def test_refuses_a_display_name_that_is_empty_or_too_long(
+        self, create: Callable[..., Any], patch: Callable[..., Any], display_name: str
+    ) -> None:
+        create("linux", display_name="Linux")
+
+        response = patch("linux", {"display_name": display_name})
+
+        assert response.status_code == 400
+        assert code_of(response) == "invalid_request"
+
     def test_flips_tracked(self, create: Callable[..., Any], patch: Callable[..., Any]) -> None:
         create("linux")
 
@@ -750,6 +810,7 @@ class TestUpdate:
     ) -> None:
         create(
             "linux",
+            display_name="Linux",
             tracked=False,
             delete_after_inactive_days=30,
             fields={"hardware": "x86_64", "os": "linux"},
@@ -759,6 +820,7 @@ class TestUpdate:
 
         assert body == {
             "name": "linux",
+            "display_name": "Linux",
             "tracked": False,
             "delete_after_inactive_days": 30,
             "fields": {**EVERY_FIELD, "hardware": "x86_64", "os": "debian"},

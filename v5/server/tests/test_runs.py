@@ -456,12 +456,14 @@ class TestImplicitCreation:
         submitted(
             machine={
                 "name": "linux",
+                "display_name": "Linux / x86-64",
                 "tracked": False,
                 "fields": {"hardware": "x86_64", "core_count": 8},
             }
         )
 
         machine = api_client.get(f"{MACHINES}/linux").json()
+        assert machine["display_name"] == "Linux / x86-64"
         assert machine["tracked"] is False
         assert machine["fields"] == {"hardware": "x86_64", "core_count": 8}
 
@@ -601,6 +603,32 @@ class TestMetadataReconciliation:
         submitted(machine={"name": "linux", "tracked": True})
 
         assert api_client.get(f"{MACHINES}/linux").json()["tracked"] is False
+
+    @pytest.mark.parametrize("stored", [None, "Linux"])
+    @pytest.mark.parametrize("sent", ["Linux / x86", None])
+    def test_the_display_name_is_ignored_for_an_existing_machine(
+        self,
+        api_client: TestClient,
+        submitted: Callable[..., Any],
+        stored: str | None,
+        sent: str | None,
+    ) -> None:
+        # O1 and O2: neither matched nor filled in, even over a stored null: the UI names the
+        # machine as whoever edits its display name chose, which a submission never undoes.
+        submitted(machine={"name": "linux", "display_name": stored})
+
+        submitted(machine={"name": "linux", "display_name": sent})
+
+        assert api_client.get(f"{MACHINES}/linux").json()["display_name"] == stored
+
+    @pytest.mark.parametrize("display_name", ["", "x" * 257])
+    def test_refuses_a_display_name_that_is_empty_or_too_long(
+        self, submit: Callable[..., Any], display_name: str
+    ) -> None:
+        response = submit(machine={"name": "linux", "display_name": display_name})
+
+        assert response.status_code == 400
+        assert code_of(response) == "invalid_request"
 
     def test_creating_sets_the_days_after_which_to_delete_the_machine_and_the_commit(
         self, api_client: TestClient, submitted: Callable[..., Any]
@@ -1735,7 +1763,11 @@ class TestListSearch:
     def runs(self, submitted: Callable[..., Any]) -> None:
         release = {"value": "r555703", "tag": "llvmorg-22.1.0", "fields": {"author": "Jane"}}
         linux = {"name": "linux-x86_64", "fields": {"hardware": "Skylake"}}
-        darwin = {"name": "darwin-arm64", "fields": {"hardware": "M2 Max"}}
+        darwin = {
+            "name": "darwin-arm64",
+            "display_name": "Mac / Studio",
+            "fields": {"hardware": "M2 Max"},
+        }
         submitted(uuid=self.LINUX, machine=linux, commit=release)
         submitted(
             uuid=self.DARWIN,
@@ -1750,6 +1782,9 @@ class TestListSearch:
 
     def test_matches_the_machine_name(self, api_client: TestClient) -> None:
         assert self.found(api_client, "X86") == {self.LINUX}
+
+    def test_matches_the_machine_display_name(self, api_client: TestClient) -> None:
+        assert self.found(api_client, "c / s") == {self.DARWIN, self.DARWIN_AT_RELEASE}
 
     def test_matches_a_searchable_machine_field(self, api_client: TestClient) -> None:
         assert self.found(api_client, "skylake") == {self.LINUX}
