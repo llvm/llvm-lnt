@@ -286,7 +286,8 @@ test("shows a bar's details, linking to the test's history on the Graph page (CP
       const index = trace?.x.indexOf(commit) ?? -1
       return index < 0 ? null : trace!.customdata[index][1]
     }, newer.value)
-  await expect.poll(pointAtB).toBe(valueB)
+  // As the Graph's tooltip labels it, with the metric and its unit (GR10).
+  await expect.poll(pointAtB).toBe(`Execution Time: ${valueB} s`)
 })
 
 test('scrolls the table rather than the page when its columns do not fit', async ({

@@ -14,6 +14,7 @@ import { chartProps } from '../../test/chart-props'
 import { BARE_SUITE, SUITE, commit, cursorPage, machine, metric } from '../../test/fixtures'
 import { mockApi, mockSeries, ndjsonResponse } from '../../test/mock-api'
 import { main, mockCommits, mockMachines, mockSuites } from '../../test/page'
+import { pick } from '../../test/select'
 import { server } from '../../test/server'
 
 /** libcxx, with two numeric metrics and one that cannot be plotted. */
@@ -44,6 +45,8 @@ export interface World {
   commits?: Record<string, number[]>
   /** The samples of each test on each machine, under `machine/test`. */
   samples?: Record<string, Sample[]>
+  /** The samples of the metrics named, in place of `samples`, which are any other metric's. */
+  samplesOf?: Record<string, Record<string, Sample[]>>
   /** What the list of suites waits for before it is answered. */
   suitesWait?: () => Promise<void>
   /** The suites besides GRAPH_SUITE and TEXT_SUITE, which hold the same machines and data. */
@@ -107,6 +110,7 @@ export function mockWorld({
   tests = TESTS,
   commits = COMMITS,
   samples = SAMPLES,
+  samplesOf = {},
   suitesWait,
   suites = [],
   testsIn = {},
@@ -131,8 +135,9 @@ export function mockWorld({
   answerSeries(recorded, (query) => {
     const machineName = query.get('machine')!
     const commit = query.get('commit')
+    const measured = samplesOf[query.get('metric')!] ?? samples
     const points = query.getAll('test').flatMap((test) =>
-      (samples[`${machineName}/${test}`] ?? [])
+      (measured[`${machineName}/${test}`] ?? [])
         .filter(([at]) => commit === null || at === commit)
         .map((s) => pointOf(machineName, test, s)),
     )
@@ -201,6 +206,17 @@ export async function addMachine(name: string) {
   await waitFor(() => expect(input).toBeEnabled())
   await user.type(input, name)
   await user.click(await screen.findByRole('option', { name }))
+}
+
+/** Add the metric labelled `label` with its combobox (GR1). */
+export function addMetric(label: string) {
+  return pick('Metrics', label)
+}
+
+/** Remove the metric labelled `label` with its chip (GR1). */
+export async function removeMetric(label: string) {
+  const metrics = within(screen.getByRole('list', { name: 'Metrics added' }))
+  await userEvent.setup().click(metrics.getByRole('button', { name: `Remove ${label}` }))
 }
 
 export const GRAPHED =

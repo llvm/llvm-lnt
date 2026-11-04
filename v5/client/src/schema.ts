@@ -55,6 +55,20 @@ export function formatMetricValue(value: FieldValue, metric: Metric): string {
   return formatFieldValue(value, metric.type)
 }
 
+/**
+ * `shown`, a value of `metric` as shown, followed by the metric's unit abbreviation, or by its unit
+ * when it has no abbreviation, and by nothing when it has neither (DA2, GR10).
+ */
+export function withUnit(shown: string, metric: Metric): string {
+  const unit = metric.unit_abbrev ?? metric.unit
+  return unit === null ? shown : `${shown} ${unit}`
+}
+
+/** A metric's value with its unit, as the Graph page shows it (GR10; see `withUnit`). */
+export function formatMeasuredValue(value: FieldValue, metric: Metric): string {
+  return withUnit(formatMetricValue(value, metric), metric)
+}
+
 /** The suite's metrics, in schema order and by label, as the options of a `Select`. */
 export function metricOptions(schema: SuiteSchema): { value: string; label: string }[] {
   return schema.metrics.map((entry) => ({ value: entry.name, label: labelOf(entry) }))

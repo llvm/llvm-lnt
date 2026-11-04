@@ -8,7 +8,7 @@ import type { TrendPoint } from '../../api/trends'
 import { traceColor } from '../../chart-colors'
 import { escapeHtml, formatNumber } from '../../format'
 import { machineLabel, type MachineNames } from '../../labels'
-import type { Metric } from '../../schema'
+import { withUnit, type Metric } from '../../schema'
 
 /** How many machines a suite's cards show (DA2). */
 export const MACHINES_SHOWN = 5
@@ -64,8 +64,7 @@ export function sparklineTraces(
  * real even for an `integer` metric (E9), so it is shown as one (AR6).
  */
 export function formatTrendValue(value: number, metric: Metric): string {
-  const unit = metric.unit_abbrev ?? metric.unit
-  return unit === null ? formatNumber(value) : `${formatNumber(value)} ${unit}`
+  return withUnit(formatNumber(value), metric)
 }
 
 /**

@@ -31,19 +31,20 @@ async function fetchTestNames(
 export interface TestNames {
   /** The names of the tests listed so far, sorted. */
   names: string[]
-  /** Whether every machine's tests are listed. */
+  /** Whether every machine's tests are listed, for every metric. */
   complete: boolean
   /** Why some machine's tests could not be listed, if they could not. */
   error: Error | null
   /** List again the tests that could not be. */
   retry(): void
-  /** The tests of each machine listed so far, by machine. */
-  byMachine: ReadonlyMap<string, ReadonlySet<string>>
+  /** The tests of each machine listed so far, by metric, then by machine. */
+  byMetric: ReadonlyMap<string, ReadonlyMap<string, ReadonlySet<string>>>
 }
 
-/** The tests of one machine, as cached. */
+/** The tests of one machine for one metric, as cached. */
 interface MachineTests {
   machine: string
+  metric: string
   names: string[]
 }
 
@@ -53,6 +54,7 @@ function testNamesQuery(suite: SuiteRef, machine: string, metric: string) {
     queryKey: [...queryKeys.tests(suite), { machine, metric }],
     queryFn: async ({ signal }: { signal: AbortSignal }): Promise<MachineTests> => ({
       machine,
+      metric,
       names: await fetchTestNames(suite, machine, metric, signal),
     }),
   }
@@ -67,21 +69,23 @@ export function keptTestNamesQuery(suite: SuiteRef, machine: string, metric: str
 }
 
 /**
- * The names of the tests with a value for `metric` on any of `machines`, sorted by code point: the
- * union of one `GET tests?machine=...&metric=...` per machine, every page of it, each cached on its
- * own, so that adding a machine lists only its own tests. While some are being listed, those
- * already listed are kept. With `keep`, the lists are never fetched again, and stay cached until
- * removed, as the Graph page does once it leaves their suite (GR8).
+ * The names of the tests with a value for one of `metrics` on any of `machines`, sorted by code
+ * point: the union of one `GET tests?machine=...&metric=...` per machine and metric, every page of
+ * it, each cached on its own, so that adding a machine or a metric lists only its own tests. While
+ * some are being listed, those already listed are kept. With `keep`, the lists are never fetched
+ * again, and stay cached until removed, as the Graph page does once it leaves their suite (GR8).
  */
 export function useTestNames(
   suite: SuiteRef,
   machines: readonly string[],
-  metric: string,
+  metrics: readonly string[],
   { keep = false }: { keep?: boolean } = {},
 ): TestNames {
   return useQueries({
-    queries: machines.map((machine) =>
-      (keep ? keptTestNamesQuery : testNamesQuery)(suite, machine, metric),
+    queries: metrics.flatMap((metric) =>
+      machines.map((machine) =>
+        (keep ? keptTestNamesQuery : testNamesQuery)(suite, machine, metric),
+      ),
     ),
     combine: combineNames,
   })
@@ -96,10 +100,16 @@ function combineNames(
 ): TestNames {
   const listed = results.flatMap((result) => (result.data ? [result.data] : []))
   const names = new Set(listed.flatMap((tests) => tests.names))
+  const byMetric = new Map<string, Map<string, ReadonlySet<string>>>()
+  for (const { machine, metric, names } of listed) {
+    let machines = byMetric.get(metric)
+    if (machines === undefined) byMetric.set(metric, (machines = new Map()))
+    machines.set(machine, new Set(names))
+  }
   return {
     names: [...names].sort(compareStrings),
     complete: results.every((result) => result.data !== undefined),
     ...failuresOf(results),
-    byMachine: new Map(listed.map((tests) => [tests.machine, new Set(tests.names)])),
+    byMetric,
   }
 }

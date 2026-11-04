@@ -32,7 +32,7 @@ import { useTextFilter } from '../../components/use-text-filter'
 import { compareStrings } from '../../format'
 import { suiteOption } from '../../labels'
 import { ACTIVE_STATES, REGRESSION_STATES, type RegressionState } from '../../regression-states'
-import { displayValueOf, isNumeric, labelOf, type Metric } from '../../schema'
+import { displayValueOf, isNumeric, type Metric } from '../../schema'
 import {
   booleanParam,
   enumParam,
@@ -56,6 +56,7 @@ import {
 } from './baselines'
 import { GraphChart } from './graph-chart'
 import { MachineChips } from './machine-chips'
+import { MetricChips } from './metric-chips'
 import { TestTable } from './test-table'
 import styles from './graph.module.css'
 
@@ -95,7 +96,8 @@ const PARAMS = {
   suite: stringParam(),
   /** The machines, in the order of their chips. */
   machine: listParam(),
-  metric: stringParam(),
+  /** The metrics, in the order of their chips, which is that of the chart's panels. */
+  metric: listParam(),
   test_filter: trimmedStringParam(),
   test_filter_regex: booleanParam(false),
   test: listParam(),
@@ -109,12 +111,13 @@ const PARAMS = {
 /** What a suite change clears, since it does not apply to another suite (GR1). */
 const IN_SUITE = {
   machine: [] as string[],
-  metric: '',
+  metric: [] as string[],
   test: [] as string[],
   highlight: [] as string[],
 }
 
 const NO_NAMES: string[] = []
+const NO_METRICS: Metric[] = []
 const NO_SUITES: Suite[] = []
 const nameOf = (name: string) => name
 
@@ -157,17 +160,21 @@ function GraphPage() {
     () => update({ machine: machines }),
   )
 
-  // The metric, once the suite is known to offer it: only a numeric one can be plotted (GR1).
-  const numeric = useMemo(() => schema?.metrics.filter(isNumeric) ?? [], [schema])
-  const metric = numeric.find((entry) => entry.name === settings.metric)
+  // The metrics chosen that the suite is known to offer: only a numeric one can be plotted (GR1).
+  const numeric = useMemo(() => schema?.metrics.filter(isNumeric) ?? NO_METRICS, [schema])
+  const metrics = useMemo(
+    () =>
+      settings.metric.flatMap((name) => numeric.find((entry) => entry.name === name) ?? []),
+    [numeric, settings.metric],
+  )
+  const metricNames = useMemo(() => metrics.map((metric) => metric.name), [metrics])
   useDropUnusable(
     suites,
-    () => schema === undefined || settings.metric === '' || metric !== undefined,
-    () => update({ metric: '' }),
+    () => schema === undefined || metrics.length === settings.metric.length,
+    () => update({ metric: metricNames }),
   )
 
-  const listedFor = metric === undefined ? NO_NAMES : machines
-  const tests = useTestNames(suite, listedFor, metric?.name ?? '', { keep: true })
+  const tests = useTestNames(suite, machines, metricNames, { keep: true })
   const filter = useTextFilter(
     tests.names,
     nameOf,
@@ -175,11 +182,13 @@ function GraphPage() {
     (text) => update({ test_filter: text }),
     { regex: settings.test_filter_regex },
   )
-  // The tests that can be selected, once they are all known: every machine's tests for the metric,
-  // whatever the filter, which only narrows the table. Until then -- while the suite, the machines
-  // or the metric are being checked, or a machine's tests listed -- the selection stays as it is
-  // (GR1, GR14).
-  const known = listed !== undefined && metric !== undefined && tests.complete && !tests.error
+  // The tests that can be selected, once they are all known: every machine's tests for every
+  // metric, whatever the filter, which only narrows the table. Until then -- while the suite, the
+  // machines or the metrics are being checked, or a machine's tests listed -- the selection stays
+  // as it is (GR1, GR14). So does it while no metric is chosen, so that a metric can be replaced by
+  // another without losing it (GR1).
+  const known =
+    listed !== undefined && metrics.length > 0 && tests.complete && tests.error === null
   const selection = useRangeSelection(known ? tests.names : undefined, filter.rows, {
     limit: SELECTION_LIMIT,
     initial: settings.test,
@@ -204,14 +213,14 @@ function GraphPage() {
     if (shared || known) update({ test: shared ? sorted : [] })
   }, [sorted, shared, known, update])
 
-  const series = useSeries(suite, metric?.name ?? '', selected, tests.byMachine)
+  const series = useSeries(suite, metricNames, selected, tests.byMetric)
   const scaffold = useScaffold(suite, machines)
 
   // The baselines (GR9), those of the URL that are unusable dropped (AR2 "State").
   const baselines = useBaselines(
     useParsedBaselines(settings.baseline),
     suites.data,
-    metric,
+    metrics,
     selected,
   )
   const { states } = baselines
@@ -228,19 +237,19 @@ function GraphPage() {
   const removeBaseline = (value: string) =>
     update({ baseline: settings.baseline.filter((entry) => entry !== value) })
 
-  // The regressions marked (GR15): those of the selected tests that some machine's list holds,
-  // since the API refuses a test that does not exist (E8).
+  // The regressions marked (GR15): those of the selected tests that some list holds, since the
+  // API refuses a test that does not exist (E8).
   const marked = useMemo(() => {
-    const held = [...tests.byMachine.values()]
-    return sorted.filter((test) => held.some((names) => names.has(test)))
-  }, [sorted, tests.byMachine])
+    const held = new Set(tests.names)
+    return sorted.filter((test) => held.has(test))
+  }, [sorted, tests.names])
   const mode = settings.regressions
   const regressions = useMarkedRegressions(
     suite,
     {
       machines,
       tests: marked,
-      metric: metric?.name ?? '',
+      metrics: metricNames,
       states: mode === 'off' ? [] : MARKED[mode],
     },
     mode !== 'off' && machines.length > 0 && marked.length > 0,
@@ -251,9 +260,9 @@ function GraphPage() {
   const checking =
     suites.isPending ||
     (schema !== undefined && settings.machine.length > 0 && listed === undefined)
-  const listing =
-    metric !== undefined && machines.length > 0 && !tests.complete && tests.error === null
-  const failed = tests.error !== null || scaffold.failures.length > 0 || series.error !== null
+  const listing = !tests.complete && tests.error === null
+  // The measurements' loading and failures are each metric's (see GraphChart).
+  const failed = tests.error !== null || scaffold.failures.length > 0
 
   // Nothing chosen in a suite applies to another (GR1). The selection is cleared at once, so that
   // writing it to the URL does not put back the tests of the suite left.
@@ -334,21 +343,19 @@ function GraphPage() {
             isDisabled={disabled}
             onChange={(chosen) => update({ machine: chosen })}
           />
-        </div>
-        {/* How it is plotted. */}
-        <div className={styles.settings}>
           {schema !== undefined && numeric.length === 0 ? (
             <p className={styles.note}>This suite has no numeric metric.</p>
           ) : (
-            <Select
-              label="Metric"
-              options={numeric.map((entry) => ({ value: entry.name, label: labelOf(entry) }))}
-              value={metric?.name ?? null}
-              placeholder="-- Select metric --"
-              onChange={(name) => update({ metric: name })}
+            <MetricChips
+              metrics={metrics}
+              all={numeric}
               isDisabled={disabled}
+              onChange={(chosen) => update({ metric: chosen })}
             />
           )}
+        </div>
+        {/* How it is plotted. */}
+        <div className={styles.settings}>
           <Select<Aggregation>
             label="Run aggregation"
             options={AGGREGATION_OPTIONS}
@@ -445,7 +452,7 @@ function GraphPage() {
       )}
       <GraphChart
         schema={schema}
-        metric={metric}
+        metrics={metrics}
         machines={machines}
         labelOfMachine={labelOfMachine}
         selected={sorted}
@@ -453,9 +460,7 @@ function GraphPage() {
         series={series}
         sampleAgg={settings.sample_agg}
         runAgg={settings.run_agg}
-        settled={
-          !checking && !listing && !scaffold.pending && series.loading.size === 0 && !failed
-        }
+        settled={!checking && !listing && !scaffold.pending && !failed}
         baselines={baselines.states}
         regressions={regressions.regressions}
         highlights={drawnHighlights}
@@ -468,7 +473,7 @@ function GraphPage() {
         closeOn={[
           sorted,
           machines.join('\0'),
-          metric?.name,
+          metricNames.join('\0'),
           settings.sample_agg,
           settings.run_agg,
           mode,
@@ -485,7 +490,7 @@ function GraphPage() {
           shared ? undefined : `The URL reflects a selection of at most ${TESTS_IN_URL} tests.`
         }
         listing={listing}
-        empty={emptyTable({ checking, schema, numeric, machines, metric })}
+        empty={emptyTable({ checking, schema, numeric, machines, metrics })}
         emphasis={emphasis}
         hovered={hovered}
       />
@@ -496,17 +501,18 @@ function GraphPage() {
 interface Chosen {
   checking: boolean
   schema: Suite | undefined
-  numeric: Metric[]
+  numeric: readonly Metric[]
   machines: readonly string[]
-  metric: Metric | undefined
+  metrics: readonly Metric[]
 }
 
 /** What the test table says while it has no tests to list, and why. */
-function emptyTable({ checking, schema, numeric, machines, metric }: Chosen): string {
+function emptyTable({ checking, schema, numeric, machines, metrics }: Chosen): string {
   if (checking) return 'Loading...'
   if (schema === undefined) return 'Select a suite first.'
   if (numeric.length === 0) return 'This suite has no numeric metric to plot.'
   if (machines.length === 0) return 'Add a machine to list its tests.'
-  if (metric === undefined) return 'Select a metric to list the tests that have it.'
-  return 'No test has a value for this metric on the machines added.'
+  if (metrics.length === 0) return 'Add a metric to list the tests that have it.'
+  if (metrics.length === 1) return 'No test has a value for this metric on the machines added.'
+  return 'No test has a value for these metrics on the machines added.'
 }

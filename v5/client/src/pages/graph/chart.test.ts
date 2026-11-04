@@ -11,6 +11,8 @@ import {
   highlightCircles,
   highlightShape,
   MARKED_COMMITS,
+  panelAxes,
+  panelTitle,
   plotlyTrace,
   regressionMarkers,
   regressionShapes,
@@ -22,6 +24,16 @@ import {
 
 const display = (commit: string) => `<${commit}>`
 
+/** Execution Time, in seconds, as a panel shows it. */
+const SECONDS = metric('execution_time', { unit: 'seconds', unit_abbrev: 's' })
+
+/** A panel of the layout, with nothing to say. */
+const panel = (name: string | undefined, title: string | null = null) => ({
+  metric: name,
+  title,
+  empty: false,
+})
+
 describe('graphLayout', () => {
   it('spans every commit of the x-axis, labelled by its display value, escaped', () => {
     const commits = ['c1', 'c2']
@@ -29,8 +41,7 @@ describe('graphLayout', () => {
       commits,
       displayValue: display,
       revision: 'm1',
-      metric: 'execution_time',
-      empty: false,
+      panels: [panel('execution_time')],
     })
 
     expect(layout.xaxis).toMatchObject({
@@ -44,6 +55,9 @@ describe('graphLayout', () => {
     expect(layout.uirevision).toBe('m1')
     // A zoom of the y-axis is reset by another metric, on another scale, too.
     expect(layout.yaxis?.uirevision).toBe('m1\0execution_time')
+    expect(layout.yaxis).toMatchObject({ domain: [0, 1] })
+    expect(layout.yaxis).not.toHaveProperty('title')
+    expect(layout.xaxis).toMatchObject({ anchor: 'y' })
     expect(layout.annotations).toEqual([])
   })
 
@@ -52,17 +66,60 @@ describe('graphLayout', () => {
       commits: [],
       displayValue: display,
       revision: '',
-      metric: undefined,
-      empty: true,
+      panels: [{ metric: undefined, title: null, empty: true }],
     })
 
     expect(layout.xaxis).not.toHaveProperty('range')
+    expect(layout.annotations).toMatchObject([{ text: 'No data to plot', y: 0.5 }])
+  })
+
+  it('stacks a panel per metric, each with a y-axis of its own, sharing the x-axis', () => {
+    const layout = graphLayout({
+      commits: ['c1'],
+      displayValue: display,
+      revision: 'm1',
+      panels: [
+        panel('execution_time', 'Execution <Time>'),
+        { metric: 'compile_time', title: 'Compile Time', empty: true },
+      ],
+    }) as Record<string, Record<string, unknown>>
+
+    expect(panelAxes(0)).toEqual({ values: 'y', markers: 'y2' })
+    expect(panelAxes(1)).toEqual({ values: 'y3', markers: 'y4' })
+    const [top, bottom] = [layout.yaxis.domain, layout.yaxis3.domain] as number[][]
+    expect(top[1]).toBe(1)
+    expect(bottom[0]).toBe(0)
+    // As tall as one another, a gap between them.
+    expect(top[1] - top[0]).toBeCloseTo(bottom[1] - bottom[0])
+    expect(top[0]).toBeGreaterThan(bottom[1])
+    expect(layout.yaxis).toMatchObject({ title: { text: 'Execution &lt;Time&gt;' } })
+    expect(layout.yaxis3).toMatchObject({ title: { text: 'Compile Time' } })
+    // A zoom of a panel's y-axis is reset by another metric at its place.
+    expect(layout.yaxis3.uirevision).toBe('m1\0compile_time')
+    // Each panel's markers' axis over its values'.
+    expect(layout.yaxis4).toMatchObject({ overlaying: 'y3', range: [0, 1], visible: false })
+    // The commits' labels under the bottom panel.
+    expect(layout.xaxis).toMatchObject({ anchor: 'y3' })
+    // Only the empty panel says so, in its middle.
     expect(layout.annotations).toMatchObject([{ text: 'No data to plot' }])
+    const [said] = layout.annotations as unknown as { y: number }[]
+    expect(said.y).toBeCloseTo((bottom[0] + bottom[1]) / 2)
+  })
+
+  it("titles a panel with its metric's label and unit", () => {
+    expect(panelTitle(metric('execution_time', { display_name: 'Execution Time' }))).toBe(
+      'Execution Time',
+    )
+    expect(panelTitle({ ...SECONDS, display_name: 'Execution Time' })).toBe(
+      'Execution Time — seconds (s)',
+    )
   })
 })
 
 describe('plotlyTrace', () => {
   const trace: Trace = {
+    metric: SECONDS,
+    panel: 0,
     test: 'BM_vector<int>',
     machine: 'm1',
     machineLabel: 'm&1',
@@ -75,7 +132,7 @@ describe('plotlyTrace', () => {
   }
 
   it("draws a line, with its machine's markers, named after the test and machine, escaped", () => {
-    const drawn = plotlyTrace(trace, display, metric('execution_time'))
+    const drawn = plotlyTrace(trace, display)
 
     expect(drawn).toMatchObject({
       name: 'BM_vector&lt;int&gt; - m&amp;1',
@@ -86,19 +143,30 @@ describe('plotlyTrace', () => {
   })
 
   it("tells in its tooltip the commit's display value, the value as shown, and the runs", () => {
-    const drawn = plotlyTrace(trace, display, metric('execution_time'))
+    const drawn = plotlyTrace(trace, display)
 
     expect(hoverText(drawn, 0)).toBe(
-      '<b>BM_vector&lt;int&gt;</b><br>Machine: m&amp;1<br>Commit: &lt;c1&gt;<br>Value: 1.235<br>' +
+      '<b>BM_vector&lt;int&gt;</b><br>Machine: m&amp;1<br>Commit: &lt;c1&gt;<br>' +
+        // GR10: labelled with the metric, with its unit's abbreviation.
+        'execution_time: 1.235 s (1 run)<br>' +
         // GR10: the last line says what a click does.
-        '1 run<br><i>Click for details</i><extra></extra>',
+        '<i>Click for details</i><extra></extra>',
     )
-    expect(hoverText(drawn, 1)).toContain('Commit: &lt;c2&gt;<br>Value: 2<br>3 runs<br>')
+    expect(hoverText(drawn, 1)).toContain('Commit: &lt;c2&gt;<br>execution_time: 2 s (3 runs)<br>')
+  })
+
+  it('labels the value with the metric, and its unit when it has no abbreviation', () => {
+    const counted = { ...trace, metric: metric('instructions', { unit: 'instructions' }) }
+    expect(hoverText(plotlyTrace(counted, display), 1)).toContain(
+      '<br>instructions: 2 instructions (3 runs)<br>',
+    )
+    const bare = { ...trace, metric: metric('score', { display_name: 'S<core>' }) }
+    expect(hoverText(plotlyTrace(bare, display), 1)).toContain('<br>S&lt;core&gt;: 2 (3 runs)<br>')
   })
 
   it('shows the test and the display value as they are, even with template fields in them', () => {
     const named = { ...trace, test: 'fmt/%{x}', machineLabel: '<&>' }
-    const drawn = plotlyTrace(named, (c) => `${c} %{y}`, metric('execution_time'))
+    const drawn = plotlyTrace(named, (c) => `${c} %{y}`)
 
     expect(hoverText(drawn, 0)).toContain(
       '<b>fmt/%{x}</b><br>Machine: &lt;&amp;&gt;<br>Commit: c1 %{y}<br>',
@@ -119,6 +187,7 @@ describe('markers (GR1)', () => {
       area: { left: 100, top: 0, width: 200, height: 100 },
       x: (value: number) => 100 + 10 * value,
       y: (value: number) => value,
+      yAxes: new Map(),
     }
     expect(commitsInView(geometry, 50)).toBe(21)
     // Fewer commits than room for them.
@@ -137,15 +206,24 @@ describe('markers (GR1)', () => {
       area: { left: 70, top: 0, width: 1014, height: 100 },
       x: (value: number) => 70 + Math.round(pixels * (value - from) * 100) / 100,
       y: (value: number) => value,
+      yAxes: new Map(),
     }
     expect(commitsInView(geometry, 600)).toBe(201)
   })
 
   it('leaves Plotly room to draw the marker of every point in view', () => {
     const { marker } = plotlyTrace(
-      { test: 't', machine: 'm', machineLabel: 'm', machineIndex: 0, color: '#123456', points: [] },
+      {
+        metric: SECONDS,
+        panel: 0,
+        test: 't',
+        machine: 'm',
+        machineLabel: 'm',
+        machineIndex: 0,
+        color: '#123456',
+        points: [],
+      },
       display,
-      metric('execution_time'),
     )
     // One more than are marked in view, which a count one off at an edge may still mark.
     expect((marker as { maxdisplayed: number }).maxdisplayed).toBeGreaterThan(MARKED_COMMITS + 1)
@@ -169,6 +247,8 @@ describe('withEmphasis (GR7)', () => {
 describe('baselineTraces (GR9)', () => {
   it('draws a dashed line across the chart, on an axis of its own, with a tooltip', () => {
     const line = {
+      metric: SECONDS,
+      panel: 1,
       label: 'nts › m › r10',
       suiteLabel: 'nts',
       machineLabel: 'm<1>',
@@ -177,21 +257,23 @@ describe('baselineTraces (GR9)', () => {
       value: 1.5,
       color: '#123456',
     }
-    const [drawn] = baselineTraces([line], metric('execution_time')) as PlotData[]
+    const [drawn] = baselineTraces([line]) as PlotData[]
 
-    expect(drawn).toMatchObject({ mode: 'lines', xaxis: 'x2', line: { dash: 'dash' } })
+    expect(drawn).toMatchObject({ mode: 'lines', xaxis: 'x2', yaxis: 'y3', line: { dash: 'dash' } })
     expect(drawn.x).toHaveLength(101)
     expect((drawn.x as number[]).at(-1)).toBe(1)
     expect(new Set(drawn.y as number[])).toEqual(new Set([1.5]))
     expect(hoverText(drawn, 0)).toBe(
       '<b>Baseline</b><br>Suite: nts<br>Machine: m&lt;1&gt;<br>Commit: r10<br>Test: t<br>' +
-        'Value: 1.5<extra></extra>',
+        'execution_time: 1.5 s<extra></extra>',
     )
     expect(hoverText(drawn, 100)).toBe(hoverText(drawn, 0))
   })
 
   it("shows the test and the commit's display value as they are, even with template fields", () => {
     const line = {
+      metric: SECONDS,
+      panel: 0,
       label: 'nts › <&> › r10 %{x}',
       suiteLabel: 'nts',
       machineLabel: '<&>',
@@ -201,7 +283,7 @@ describe('baselineTraces (GR9)', () => {
       value: 1.5,
       color: '#123456',
     }
-    const [drawn] = baselineTraces([line], metric('execution_time'))
+    const [drawn] = baselineTraces([line])
 
     expect(hoverText(drawn, 50)).toContain(
       'Machine: &lt;&amp;&gt;<br>Commit: r10 %{x}<br>Test: fmt/%{y}<br>',
@@ -212,6 +294,8 @@ describe('baselineTraces (GR9)', () => {
 
 describe('the regression annotations (GR15)', () => {
   const mark = (overrides: Partial<RegressionMark>): RegressionMark => ({
+    metric: 'execution_time',
+    panel: 0,
     uuid: 'u1',
     title: 'Slower',
     state: 'active',
@@ -221,13 +305,14 @@ describe('the regression annotations (GR15)', () => {
     ...overrides,
   })
 
-  it('draws a dashed line across the plot at each commit, coloured by state', () => {
-    const marks = [mark({}), mark({ state: 'detected' }), mark({ state: 'fixed' })]
+  it('draws a dashed line across its panel at each commit, coloured by state', () => {
+    const marks = [mark({}), mark({ state: 'detected' }), mark({ state: 'fixed', panel: 1 })]
     const shapes = regressionShapes(marks)
 
+    expect(shapes[2]).toMatchObject({ yref: 'y3 domain' })
     expect(shapes[0]).toMatchObject({
       xref: 'x',
-      yref: 'paper',
+      yref: 'y domain',
       x0: 'c1',
       x1: 'c1',
       y0: 0,
@@ -245,6 +330,7 @@ describe('the regression annotations (GR15)', () => {
     ]) as PlotData[]
 
     expect(first).toMatchObject({ mode: 'markers', yaxis: 'y2', x: ['c1'] })
+    expect(regressionMarkers([mark({ panel: 1 })])[0]).toMatchObject({ yaxis: 'y4' })
     expect((second.y as number[])[0]).toBeLessThan((first.y as number[])[0])
     expect(hoverText(first, 0)).toContain('<b>(untitled)</b><br>Affects:<br>t&lt;0&gt;<br>')
     expect(hoverText(first, 0)).toContain('t&lt;9&gt;<br>and 2 more<br><i>Click for details</i>')
@@ -266,8 +352,7 @@ describe('the regression annotations (GR15)', () => {
       commits: ['c1'],
       displayValue: display,
       revision: '',
-      metric: undefined,
-      empty: false,
+      panels: [panel(undefined)],
       shapes: regressionShapes([mark({})]),
     })
 
@@ -279,6 +364,8 @@ describe('the regression annotations (GR15)', () => {
 
 describe('the highlighted commits (GR16)', () => {
   const traceOf = (test: string, commits: string[]): Trace => ({
+    metric: SECONDS,
+    panel: test === 'c' ? 1 : 0,
     test,
     machine: 'm1',
     machineLabel: 'm1',
@@ -314,9 +401,12 @@ describe('the highlighted commits (GR16)', () => {
     ])
     expect(circlesAt([a, b, c], ['c9'])).toEqual([])
 
-    const [drawn] = highlightCircles(circles) as PlotData[]
+    const [drawn, other] = highlightCircles(circles) as PlotData[]
+    // In the panel of each trace.
+    expect(other).toMatchObject({ yaxis: 'y3' })
     expect(drawn).toMatchObject({
       mode: 'markers',
+      yaxis: 'y',
       x: ['c2', 'c3'],
       y: [1, 2],
       // Neither hovered nor clicked: the point under it keeps its own tooltip and details.

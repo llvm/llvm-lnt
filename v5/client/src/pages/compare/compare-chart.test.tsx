@@ -126,6 +126,7 @@ describe('the chart (CP3)', () => {
       area: { left: 0, top: 0, width: 200, height: 100 },
       x: (value) => 50 + 100 * value,
       y: (value) => 50 - 50 * value,
+      yAxes: new Map(),
     }
     act(() => chart().onDraw?.(geometry))
     const outline = () => document.querySelector('svg rect')
@@ -201,6 +202,7 @@ describe('the details of a bar (CP3)', () => {
     area: { left: 0, top: 10, width: 200, height: 100 },
     x: (value) => 50 + 100 * value,
     y: (value) => 50 - 10 * value,
+    yAxes: new Map(),
   }
 
   /** A Plotly event on point `index` of the `trace`th trace: the bars, then the shadows' lines. */

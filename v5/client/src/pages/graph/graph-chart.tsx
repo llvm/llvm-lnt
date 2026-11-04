@@ -1,5 +1,13 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
-import type { Data, PlotData, PlotMouseEvent } from 'plotly.js'
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type CSSProperties,
+  type ReactNode,
+} from 'react'
+import type { PlotData, PlotMouseEvent } from 'plotly.js'
 import clsx from 'clsx'
 import type { Aggregation } from '../../aggregation'
 import type { MarkedRegression } from '../../api/regressions'
@@ -21,8 +29,11 @@ import {
   graphLayout,
   highlightCircles,
   highlightShape,
+  layoutAxis,
   markerHeight,
   MARKED_COMMITS,
+  panelAxes,
+  panelTitle,
   plotlyTrace,
   regressionMarkers,
   regressionShapes,
@@ -43,7 +54,8 @@ import styles from './graph.module.css'
 
 interface Props {
   schema: Suite | undefined
-  metric: Metric | undefined
+  /** The metrics plotted, a panel each, in the order of their chips (GR1). */
+  metrics: readonly Metric[]
   /** The machines plotted, in the order of their chips. */
   machines: readonly string[]
   /** The label of each machine of the suite (AR23). */
@@ -54,7 +66,10 @@ interface Props {
   series: Series
   sampleAgg: Aggregation
   runAgg: Aggregation
-  /** Whether nothing the chart draws is loading or failed to load: an empty chart is empty. */
+  /**
+   * Whether nothing the chart draws is loading or failed to load, but for the measurements of each
+   * metric (see `Series.unsettled`): an empty panel is empty.
+   */
   settled: boolean
   baselines: BaselineState[]
   /** The regressions to mark (GR15). */
@@ -86,7 +101,7 @@ const REDRAW_INTERVAL_MS = 300
 /**
  * `value`, which follows `value` at most once every `interval` milliseconds while `throttled`, the
  * latest one each time, and follows it at once otherwise, or once `key` changes: a value for
- * another key, such as another metric's data, is never shown in place of the latest one.
+ * another key, such as other metrics' data, is never shown in place of the latest one.
  */
 function useThrottled<T>(value: T, key: string, throttled: boolean, interval: number): T {
   const [shown, setShown] = useState({ value, key })
@@ -142,6 +157,7 @@ function pointsFor(
 
 /** A trace's data for Plotly, but for its mode, and what it was built from besides the store's. */
 interface BuiltTrace {
+  metric: Metric
   points: Point[]
   machineIndex: number
   machineLabel: string
@@ -157,24 +173,23 @@ interface BuiltTrace {
 class TraceStore {
   private built = new Map<string, BuiltTrace>()
   private displayValue: DisplayValue | null = null
-  private metric: Metric | null = null
 
-  build(traces: Trace[], displayValue: DisplayValue, metric: Metric): Partial<PlotData>[] {
-    if (displayValue !== this.displayValue || metric !== this.metric) this.built.clear()
+  build(traces: Trace[], displayValue: DisplayValue): Partial<PlotData>[] {
+    if (displayValue !== this.displayValue) this.built.clear()
     this.displayValue = displayValue
-    this.metric = metric
     const kept = new Map<string, BuiltTrace>()
     const data = traces.map((trace) => {
       // By test, which gives the trace's colour too (GR1).
-      const key = `${trace.machine}\0${trace.test}`
+      const key = `${trace.metric.name}\0${trace.machine}\0${trace.test}`
       const known = this.built.get(key)
-      const { points, machineIndex, machineLabel } = trace
+      const { metric, points, machineIndex, machineLabel } = trace
       const entry =
         known?.points === points &&
+        known.metric === metric &&
         known.machineIndex === machineIndex &&
         known.machineLabel === machineLabel
           ? known
-          : { points, machineIndex, machineLabel, data: plotlyTrace(trace, displayValue, metric) }
+          : { metric, points, machineIndex, machineLabel, data: plotlyTrace(trace, displayValue) }
       kept.set(key, entry)
       return entry.data
     })
@@ -188,7 +203,7 @@ type Curve =
   | { kind: 'trace'; trace: Trace }
   | { kind: 'circle'; test: string }
   | { kind: 'baseline'; test: string }
-  | { kind: 'regression'; uuid: string }
+  | { kind: 'regression'; uuid: string; metric: string }
 
 /** The test a curve draws, or marks, if any: a circle fades with its trace (GR7, GR16). */
 function testOf(curve: Curve): string | null {
@@ -196,15 +211,18 @@ function testOf(curve: Curve): string | null {
   return curve.kind === 'circle' || curve.kind === 'baseline' ? curve.test : null
 }
 
-/** A point of a trace, by the trace's machine and test and the point's commit. */
+/** A point of a trace, by the trace's metric, machine and test and the point's commit. */
 interface PointKey {
+  metric: string
   machine: string
   test: string
   commit: string
 }
 
-/** What details are open: a point's (GR11), or a regression's (GR15). */
-type Opened = { kind: 'point'; point: PointKey } | { kind: 'regression'; uuid: string }
+/** What details are open: a point's (GR11), or a regression's in a metric's panel (GR15). */
+type Opened =
+  | { kind: 'point'; point: PointKey }
+  | { kind: 'regression'; uuid: string; metric: string }
 
 /** A point drawn: its trace, and its index among the trace's points. */
 interface PointAt {
@@ -213,8 +231,10 @@ interface PointAt {
 }
 
 /** The trace of `key` among `traces`, and the index of its point at `key.commit`, if any. */
-function findPoint(traces: Trace[], { machine, test, commit }: PointKey): PointAt | null {
-  const trace = traces.find((drawn) => drawn.machine === machine && drawn.test === test)
+function findPoint(traces: Trace[], { metric, machine, test, commit }: PointKey): PointAt | null {
+  const trace = traces.find(
+    (drawn) => drawn.metric.name === metric && drawn.machine === machine && drawn.test === test,
+  )
   const index = trace?.points.findIndex((point) => point.commit === commit) ?? -1
   return trace === undefined || index < 0 ? null : { trace, index }
 }
@@ -234,15 +254,27 @@ function runsOf(samples: readonly Measurement[]) {
 }
 
 /**
- * The chart of the Graph page (GR1): a trace per selected test and machine, on the commits of the
- * machines' scaffolds (GR3), drawn once a machine's scaffold has arrived; the highlighted commits'
- * bands (GR16) and the regressions' lines (GR15) under them, and the baselines' lines (GR9), the
- * highlighted commits' circles and the regressions' markers over them. Hovering a point shows its
- * samples (GR10), and clicking it its details (GR11).
+ * Where the `panel`th panel of a plot drawn as `geometry` says draws: its part of the plotting
+ * area, and the position of a value on its y-axis.
+ */
+function panelGeometry(geometry: PlotGeometry, panel: number): PlotGeometry {
+  const axis = geometry.yAxes.get(layoutAxis(panelAxes(panel).values))
+  if (axis === undefined) return geometry
+  const { top, height, y } = axis
+  return { ...geometry, area: { ...geometry.area, top, height }, y }
+}
+
+/**
+ * The chart of the Graph page (GR1): a panel per metric, stacked, each with a trace per selected
+ * test and machine, on the commits of the machines' scaffolds (GR3), drawn once a machine's
+ * scaffold has arrived; the highlighted commits' bands (GR16) and the regressions' lines (GR15)
+ * under them, and the baselines' lines (GR9), the highlighted commits' circles and the regressions'
+ * markers over them. Hovering a point shows its samples (GR10) and a line across the panels at its
+ * commit, and clicking it its details (GR11).
  */
 export function GraphChart({
   schema,
-  metric,
+  metrics,
   machines,
   labelOfMachine,
   selected,
@@ -265,7 +297,7 @@ export function GraphChart({
   const { commits, listed } = scaffold
   const series = useThrottled(
     latest,
-    `${schema?.name}\0${metric?.name}`,
+    [schema?.name, ...metrics.map((metric) => metric.name)].join('\0'),
     latest.loading.size > 0,
     REDRAW_INTERVAL_MS,
   )
@@ -282,56 +314,76 @@ export function GraphChart({
 
   const traces = useMemo(() => {
     const drawn: Trace[] = []
-    if (metric === undefined) return drawn
-    machines.forEach((machine, machineIndex) => {
-      // A machine's traces wait for its scaffold, without which their commits have no position.
-      if (!listed.has(machine)) return
-      for (const test of selected) {
-        const measurements = series.measurementsOf(machine, test)
-        const points = pointsFor(measurements, positions, sampleAgg, runAgg)
-        if (points.length === 0) continue
-        drawn.push({
-          test,
-          machine,
-          machineLabel: labelOfMachine(machine),
-          machineIndex,
-          color: colorOfName(test),
-          points,
-        })
-      }
+    metrics.forEach((metric, panel) => {
+      machines.forEach((machine, machineIndex) => {
+        // A machine's traces wait for its scaffold, without which their commits have no position.
+        if (!listed.has(machine)) return
+        for (const test of selected) {
+          const measurements = series.measurementsOf(metric.name, machine, test)
+          const points = pointsFor(measurements, positions, sampleAgg, runAgg)
+          if (points.length === 0) continue
+          drawn.push({
+            metric,
+            panel,
+            test,
+            machine,
+            machineLabel: labelOfMachine(machine),
+            machineIndex,
+            color: colorOfName(test),
+            points,
+          })
+        }
+      })
     })
     return drawn
-  }, [metric, machines, labelOfMachine, listed, series, selected, positions, sampleAgg, runAgg])
+  }, [metrics, machines, labelOfMachine, listed, series, selected, positions, sampleAgg, runAgg])
 
-  // A line per baseline and selected test it has a value for, once that test's data has arrived.
+  // In each panel, a line per baseline drawn there and selected test it has a value for, once that
+  // test's data has arrived.
   const lines = useMemo(
     () =>
-      baselines.flatMap(({ suiteLabel, machineLabel, display, label, samples }): BaselineLine[] =>
-        samples === undefined
-          ? []
-          : selected.flatMap((test) => {
-              const measured = samples.get(test)
-              if (measured === undefined) return []
-              const value = combineRuns(runValues(measured, sampleAgg), runAgg)
-              const color = colorOfName(test)
-              return [{ label, suiteLabel, machineLabel, commit: display, test, value, color }]
-            }),
+      metrics.flatMap((metric, panel) =>
+        baselines.flatMap(({ suiteLabel, machineLabel, display, label, samples }) => {
+          const ofMetric = samples.get(metric.name)
+          if (ofMetric === undefined) return []
+          return selected.flatMap((test): BaselineLine[] => {
+            const measured = ofMetric.get(test)
+            if (measured === undefined) return []
+            const value = combineRuns(runValues(measured, sampleAgg), runAgg)
+            return [
+              {
+                metric,
+                panel,
+                label,
+                suiteLabel,
+                machineLabel,
+                commit: display,
+                test,
+                value,
+                color: colorOfName(test),
+              },
+            ]
+          })
+        }),
       ),
-    [baselines, selected, sampleAgg, runAgg],
+    [metrics, baselines, selected, sampleAgg, runAgg],
   )
 
-  // The regressions whose commit is on the x-axis, each stacked below those at its commit before,
-  // and the selected tests each affects.
+  // The regressions whose commit is on the x-axis, in the panel of the metric each is marked for,
+  // each stacked below those at its commit in its panel before, and the selected tests each
+  // affects.
   const placed = useMemo(() => {
     const stacked = new Map<string, number>()
     return regressions.flatMap((regression): (MarkedRegression & PlacedRegression)[] => {
       const { commit } = regression
-      if (!positions.has(commit)) return []
-      const stack = stacked.get(commit) ?? 0
-      stacked.set(commit, stack + 1)
-      return [{ ...regression, stack }]
+      const panel = metrics.findIndex((metric) => metric.name === regression.metric)
+      if (panel < 0 || !positions.has(commit)) return []
+      const at = `${panel}\0${commit}`
+      const stack = stacked.get(at) ?? 0
+      stacked.set(at, stack + 1)
+      return [{ ...regression, panel, stack }]
     })
-  }, [regressions, positions])
+  }, [regressions, metrics, positions])
   const marks = useMemo(
     () =>
       placed.map(
@@ -370,17 +422,18 @@ export function GraphChart({
   // Everything drawn, and what each curve is. Each kind is built apart, so that what changes one
   // does not build the others again: the traces' points are many.
   const built = useMemo(
-    () => (metric === undefined ? NO_DATA : traceStore.build(traces, displayValue, metric)),
-    [traceStore, traces, displayValue, metric],
+    () => traceStore.build(traces, displayValue),
+    [traceStore, traces, displayValue],
   )
   const traceData = useMemo(
-    () => built.map((data, i) => ({ ...data, mode: traceMode(traces[i].points.length, markers) })),
+    () =>
+      built.map((data, i) => {
+        const { points, panel } = traces[i]
+        return { ...data, mode: traceMode(points.length, markers), yaxis: panelAxes(panel).values }
+      }),
     [built, traces, markers],
   )
-  const lineData = useMemo(
-    () => (metric === undefined ? NO_DATA : baselineTraces(lines, metric)),
-    [lines, metric],
-  )
+  const lineData = useMemo(() => baselineTraces(lines), [lines])
   const circleData = useMemo(() => highlightCircles(circles), [circles])
   const markerData = useMemo(() => regressionMarkers(marks), [marks])
   const drawn = useMemo(
@@ -395,7 +448,7 @@ export function GraphChart({
         ...lines.map(({ test }): Curve => ({ kind: 'baseline', test })),
         ...traces.map((trace): Curve => ({ kind: 'trace', trace })),
         ...circles.map(({ trace }): Curve => ({ kind: 'circle', test: trace.test })),
-        ...marks.map(({ uuid }): Curve => ({ kind: 'regression', uuid })),
+        ...marks.map(({ uuid, metric }): Curve => ({ kind: 'regression', uuid, metric })),
       ],
     }),
     [traceData, circleData, lineData, markerData, traces, circles, lines, marks],
@@ -420,20 +473,33 @@ export function GraphChart({
     return { data: styled, curveOf }
   }, [drawn, emphasized])
 
-  // Baselines, regressions and the highlighted commits are no points of their own (GR12).
-  const empty = traces.length === 0 && settled
+  // The panels, or a single one without a metric before any is chosen (GR1), each empty when it has
+  // no point to draw, and nothing it would draw is loading or failed to load. Baselines,
+  // regressions and the highlighted commits are no points of their own (GR12).
+  // The metrics still loading by name rather than as the set, which is new whenever a query's
+  // state changes, so that the layout, and so the chart, is not drawn again each time.
+  const unsettled = [...latest.unsettled].join('\0')
+  const panels = useMemo(() => {
+    const loading = new Set(unsettled.split('\0'))
+    const emptyIn = (panel: number) => settled && !traces.some((trace) => trace.panel === panel)
+    if (metrics.length === 0) return [{ metric: undefined, title: null, empty: emptyIn(0) }]
+    return metrics.map((metric, panel) => ({
+      metric: metric.name,
+      title: panelTitle(metric),
+      empty: emptyIn(panel) && !loading.has(metric.name),
+    }))
+  }, [metrics, traces, settled, unsettled])
   const layout = useMemo(() => {
     const values = commits.map((commit) => commit.value)
     return graphLayout({
       commits: values,
       displayValue,
       revision,
-      metric: metric?.name,
-      empty,
+      panels,
       // The bands first, so that a regression's line at their commit is drawn over them (GR16).
       shapes: [...highlights.map(highlightShape), ...regressionShapes(placed)],
     })
-  }, [commits, displayValue, revision, metric, empty, placed, highlights])
+  }, [commits, displayValue, revision, panels, placed, highlights])
 
   const [hoveredPoint, setHoveredPoint] = useState<PointKey | null>(null)
   const [open, setOpen] = useState<Opened | null>(null)
@@ -452,8 +518,8 @@ export function GraphChart({
     return curve && { curve, index: point.pointNumber }
   }
   const pointOf = (trace: Trace, index: number): PointKey => {
-    const { machine, test } = trace
-    return { machine, test, commit: trace.points[index].commit }
+    const { metric, machine, test } = trace
+    return { metric: metric.name, machine, test, commit: trace.points[index].commit }
   }
   const onHover = (event: PlotMouseEvent) => {
     const at = curveAt(event)
@@ -472,7 +538,7 @@ export function GraphChart({
     if (at === undefined || event.event.button !== 0) return false
     const { curve } = at
     if (curve.kind === 'trace') setOpen({ kind: 'point', point: pointOf(curve.trace, at.index) })
-    else if (curve.kind === 'regression') setOpen({ kind: 'regression', uuid: curve.uuid })
+    else if (curve.kind === 'regression') setOpen({ ...curve })
     else return false
     return true
   }
@@ -480,19 +546,25 @@ export function GraphChart({
   // The details opened (GR11, GR15), which close once what they are about is no longer drawn.
   const openPoint = open?.kind === 'point' ? findPoint(traces, open.point) : null
   const openMark =
-    open?.kind === 'regression' ? marks.find((mark) => mark.uuid === open.uuid) : undefined
+    open?.kind === 'regression'
+      ? marks.find((mark) => mark.uuid === open.uuid && mark.metric === open.metric)
+      : undefined
   if (open !== null && !openPoint && openMark === undefined) setOpen(null)
   const hoveredAt = hoveredPoint && findPoint(traces, hoveredPoint)
   const clouds: ReactNode[] = []
+  let hoverLine = null
   let details = null
   if (geometry !== null) {
     const { area } = geometry
     const sideOf = (x: number) => (x < area.left + area.width / 2 ? 'right' : 'left')
     const keyOf = ({ trace, index }: PointAt) =>
-      `${trace.machine}\0${trace.test}\0${trace.points[index].commit}`
+      `${trace.metric.name}\0${trace.machine}\0${trace.test}\0${trace.points[index].commit}`
     const samplesOf = ({ trace, index }: PointAt) =>
-      samplesAt(series.measurementsOf(trace.machine, trace.test), trace.points[index].commit)
-    // The samples of a point, if it has several (GR10).
+      samplesAt(
+        series.measurementsOf(trace.metric.name, trace.machine, trace.test),
+        trace.points[index].commit,
+      )
+    // The samples of a point, if it has several (GR10), in its panel.
     const cloud = (at: PointAt, samples: Measurement[], pinned?: Pinned) => {
       if (samples.length < 2) return
       const { trace, index } = at
@@ -500,20 +572,32 @@ export function GraphChart({
         <SampleCloud
           key={keyOf(at)}
           samples={samples}
-          geometry={geometry}
+          geometry={panelGeometry(geometry, trace.panel)}
           position={trace.points[index].position}
           color={trace.color}
           pinned={pinned}
         />,
       )
     }
-    // The point hovered's, unless its details are open, which show them already.
-    if (hoveredAt && (!openPoint || keyOf(hoveredAt) !== keyOf(openPoint))) {
-      cloud(hoveredAt, samplesOf(hoveredAt))
+    if (hoveredAt) {
+      // The point hovered's, unless its details are open, which show them already.
+      if (!openPoint || keyOf(hoveredAt) !== keyOf(openPoint)) {
+        cloud(hoveredAt, samplesOf(hoveredAt))
+      }
+      // A line across every panel at its commit, to find it in the others (GR10).
+      const x = geometry.x(hoveredAt.trace.points[hoveredAt.index].position)
+      hoverLine = (
+        <div
+          className={styles.hoverLine}
+          style={{ left: x, top: area.top, height: area.height }}
+          aria-hidden="true"
+        />
+      )
     }
     if (schema !== undefined) {
-      if (openPoint && metric !== undefined) {
+      if (openPoint) {
         const { trace, index } = openPoint
+        const { metric } = trace
         const point = trace.points[index]
         const x = geometry.x(point.position)
         const side = sideOf(x)
@@ -539,25 +623,28 @@ export function GraphChart({
             onHighlight={() => onHighlight(point.commit)}
             baselined={isBaseline(trace.machine, point.commit)}
             onBaseline={() => onBaseline(trace.machine, point.commit)}
-            at={{ x, y: geometry.y(point.value), side }}
+            at={{ x, y: panelGeometry(geometry, trace.panel).y(point.value), side }}
             companion={pinnedCloud}
             onClose={close}
           />
         )
       } else if (openMark !== undefined) {
-        const { uuid, commit, stack, tests } = openMark
+        const { panel, uuid, metric, commit, stack, tests } = openMark
         const position = positions.get(commit)!
         const x = geometry.x(position)
-        // On the axis of the markers, which spans the plot from 0 at the bottom to 1 at the top.
-        const y = area.top + (1 - markerHeight(stack)) * area.height
+        // On the axis of the markers, which spans the panel from 0 at the bottom to 1 at the top.
+        const { area: inPanel } = panelGeometry(geometry, panel)
+        const y = inPanel.top + (1 - markerHeight(stack)) * inPanel.height
         details = (
           <RegressionDetails
-            key={uuid}
+            key={`${uuid}\0${metric}`}
             schema={schema}
-            regression={placed.find((regression) => regression.uuid === uuid)!}
+            regression={
+              placed.find((placed) => placed.uuid === uuid && placed.metric === metric)!
+            }
             commit={commits[position]}
             tests={tests}
-            // Below the marker, at the top of the plot, rather than above the plot.
+            // Below the marker, at the top of its panel, rather than above the panel.
             at={{ x, y, side: sideOf(x), align: 'start' }}
             onClose={close}
           />
@@ -566,9 +653,16 @@ export function GraphChart({
     }
   }
 
-  const label = metric ? `${labelOf(metric)} over time` : 'Graph'
+  const label =
+    metrics.length === 0 ? 'Graph' : `${metrics.map(labelOf).join(', ')} over time`
+  const empty = panels.every((panel) => panel.empty)
   return (
-    <div className={clsx(styles.chartArea, dialog.host)} tabIndex={-1}>
+    <div
+      className={clsx(styles.chartArea, dialog.host)}
+      // How tall the chart is: the taller for each panel (GR1).
+      style={{ '--panels': panels.length } as CSSProperties}
+      tabIndex={-1}
+    >
       <Chart
         label={empty ? `${label}: no data to plot` : label}
         className={styles.chart}
@@ -580,11 +674,11 @@ export function GraphChart({
         onDraw={(where) => setDrawnAt({ geometry: where, revision })}
         onRelayout={close}
       />
+      {hoverLine}
       {clouds}
       {details}
     </div>
   )
 }
 
-const NO_DATA: Data[] = []
 const NO_CIRCLES: Circled[] = []

@@ -12,9 +12,7 @@ export interface PlotDiv extends HTMLElement {
   _fullLayout: {
     xaxis: PlotAxis & { range: number[] }
     yaxis: PlotAxis & { range: number[] }
-    /** The axis of what a chart draws over its plot, such as the Graph's regressions. */
-    yaxis2?: PlotAxis
-  }
+  } & Record<string, PlotAxis | undefined>
   _fullData: { name: string; x: (number | string)[]; y: number[]; yaxis: string }[]
 }
 
@@ -36,7 +34,8 @@ export function pointOf(scope: Page | Locator, trace: number | string, index: nu
       const { _fullLayout: layout, _fullData: drawn } = element as PlotDiv
       const data = typeof trace === 'number' ? drawn[trace] : drawn.find((d) => d.name === trace)
       if (data === undefined) throw new Error(`No trace ${trace}`)
-      const yaxis = (data.yaxis === 'y2' && layout.yaxis2) || layout.yaxis
+      // A y-axis of its own, such as one of the Graph's panels, as `yaxis3` names `y3`.
+      const yaxis = layout[`yaxis${data.yaxis.slice(1)}`] ?? layout.yaxis
       return {
         x: layout.xaxis._offset + layout.xaxis.d2p(data.x[index]),
         y: yaxis._offset + yaxis.d2p(data.y[index]),

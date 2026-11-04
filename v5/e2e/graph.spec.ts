@@ -16,7 +16,6 @@ import {
   clickSuggestion,
   openSelect,
   optionGroup,
-  pickOption,
   pickSuggestion,
   pickSuite,
 } from './select.ts'
@@ -104,7 +103,7 @@ test('plots a test chosen from scratch', async ({ page }) => {
 
   await pickSuite(page, 'Suite', 'libc++', 'Microbenchmarks')
   await pickSuggestion(page, 'Machines', LINUX)
-  await pickOption(page, 'Metric', 'Execution Time')
+  await pickSuggestion(page, 'Metrics', 'Execution Time')
   // Found with the filter, which then only narrows the table: the test stays drawn under a filter
   // that hides it, and comes back selected once the filter is cleared (GR1).
   const filter = page.getByRole('searchbox', { name: 'Filter tests' })
@@ -271,7 +270,7 @@ test("shows a point's samples on hover, and keeps them with its details (GR10, G
   await median.hover()
   const tip = page.getByRole('tooltip')
   const run = items[0].run_uuid.slice(0, 8)
-  await expect(tip.locator('span')).toHaveText([/^\d{4}-\d\d-\d\d, /, `${run}…`, /^Value: \d/])
+  await expect(tip.locator('span')).toHaveText([/^\d{4}-\d\d-\d\d, /, `${run}…`, /^Execution Time: \d.* s$/])
   await expect(plotLabel).not.toContainText('Click for details')
 
   // Pressing it leaves the details open, with the focus for Escape to close them, and their links.
@@ -595,4 +594,36 @@ test('highlights a commit with a band of fixed width, circling its point (GR16)'
   await expect(band).toHaveCount(0)
   await expect.poll(() => draws(page, circle)).toBe(false)
   expect(new URL(page.url()).searchParams.has('highlight')).toBe(false)
+})
+
+test('plots each metric in a panel of its own, with a line across them at a point hovered (GR1, GR10)', async ({
+  page,
+}) => {
+  await page.goto(`${LINUX_TEST}&metric=cycles`)
+  await expect(tracesOf(page)).toHaveCount(2)
+  // Each panel's y-axis is titled with its metric and unit.
+  await expect(plotOf(page).locator('text.ytitle')).toHaveText('Execution Time — seconds (s)')
+  await expect(plotOf(page).locator('text.y3title')).toHaveText('Cycles Elapsed — cycles')
+
+  // A point of the bottom panel, in the middle of the history, and the same commit's above it.
+  const index = await plotOf(page).evaluate(
+    (element) => Math.floor((element as PlotDiv)._fullData[1].x.length / 2),
+  )
+  const below = await pointOf(page, 1, index)
+  const above = await pointOf(page, 0, index)
+  expect(below.y).toBeGreaterThan(above.y)
+  const line = page.locator('[class*="hoverLine"]')
+  await expect(line).toHaveCount(0)
+
+  await plotOf(page).hover({ position: below })
+  await expect(page.locator('.hoverlayer')).toContainText('Cycles Elapsed: ')
+  // From the top panel to the bottom one, at the commit hovered.
+  const plot = (await plotOf(page).boundingBox())!
+  const box = (await line.boundingBox())!
+  expect(Math.abs(box.x + box.width / 2 - plot.x - below.x)).toBeLessThan(1)
+  expect(box.y - plot.y).toBeLessThan(above.y)
+  expect(box.y + box.height - plot.y).toBeGreaterThan(below.y)
+
+  await plotOf(page).hover({ position: { x: 5, y: 5 } })
+  await expect(line).toHaveCount(0)
 })

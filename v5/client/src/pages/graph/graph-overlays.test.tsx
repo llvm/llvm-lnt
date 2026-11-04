@@ -41,6 +41,8 @@ import {
   GRAPHED,
   GRAPH_SUITE,
   addMachine,
+  addMetric,
+  removeMetric,
   answerSeries,
   box,
   chart,
@@ -52,6 +54,7 @@ import {
   pointOf,
   testTable,
   type Sample,
+  type World,
 } from './graph-world'
 
 // The tests check what the page hands Plotly to draw (see test/chart.tsx), and play Plotly's part
@@ -63,6 +66,7 @@ const GEOMETRY: PlotGeometry = {
   area: { left: 50, top: 10, width: 500, height: 400 },
   x: (value) => 50 + 100 * value,
   y: (value) => 400 - 10 * value,
+  yAxes: new Map([['yaxis', { top: 10, height: 400, y: (value: number) => 400 - 10 * value }]]),
 }
 
 /** Report that the chart was drawn, where `geometry` says. */
@@ -298,7 +302,9 @@ describe('the point details (GR11)', () => {
       'href',
       '/projects/llvm/suites/libcxx/commits/c20',
     )
-    expect(details().getByText('2 (2 runs)')).toBeInTheDocument()
+    // Labelled with the metric, and given with its unit (GR10).
+    expect(details().getByText('Execution Time')).toBeInTheDocument()
+    expect(details().getByText('2 s (2 runs)')).toBeInTheDocument()
     const table = details().getByRole('table', { name: 'Runs' })
     expect(within(table).getAllByRole('columnheader').map((cell) => cell.textContent)).toEqual([
       'Measured',
@@ -711,7 +717,7 @@ describe('the samples of the point whose details are open (GR10, GR11)', () => {
     expect([...tip.children].map((line) => line.textContent)).toEqual([
       formatTimestamp('2026-08-25T10:00:00Z'),
       shortUuid('r3'),
-      'Value: 6',
+      'Execution Time: 6 s',
     ])
     // Beside the sample, at c20's position, 1, and its value, 6, away from the details.
     expect(tip).toHaveStyle({ left: '150px', top: '340px' })
@@ -1643,7 +1649,8 @@ describe('the highlighted commits (GR16)', () => {
     // Kept, by its commit string, which the x-axis no longer gives the display value of.
     expect(highlightChip()).toHaveTextContent(/^Highlighted: c40×$/)
 
-    await pickOption('Metric', 'Compile Time')
+    await addMetric('Compile Time')
+    await removeMetric('Execution Time')
     await pickOption('Run aggregation', 'max')
     await addMachine('m2')
     await waitFor(() => expect(bands()).toEqual(['c40']))
@@ -1873,5 +1880,245 @@ describe('the markers of the points (GR1)', () => {
     await waitFor(() => expect(drawn()).toEqual(['a - m1']))
     expect((curve('a - m1') as PlotData).customdata).not.toBe(customdata)
     expect((curve('a - m1') as PlotData).customdata).toEqual(customdata)
+  })
+})
+
+describe('the panels of several metrics (GR1)', () => {
+  /** m1's test a for execution time, as by default, and for compile time. */
+  const BOTH: World = {
+    samplesOf: {
+      compile_time: {
+        'm1/a': [
+          ['c10', 'r1', 7],
+          ['c20', 'r2', 8],
+        ],
+      },
+    },
+  }
+  const BOTH_METRICS = `${ONE_MACHINE}&metric=compile_time`
+
+  /**
+   * Where the chart draws two panels: an x-axis position `v` at `50 + 100 v`; in the top panel,
+   * from 10 to 200 pixels, a value `v` at `200 - 10 v`, and in the bottom one, from 220 to 410
+   * pixels, at `410 - 10 v`.
+   */
+  const TWO_PANELS: PlotGeometry = {
+    area: { left: 50, top: 10, width: 500, height: 400 },
+    x: (value) => 50 + 100 * value,
+    y: (value) => 200 - 10 * value,
+    yAxes: new Map([
+      ['yaxis', { top: 10, height: 190, y: (value: number) => 200 - 10 * value }],
+      ['yaxis3', { top: 220, height: 190, y: (value: number) => 410 - 10 * value }],
+    ]),
+  }
+
+  /** The traces of the chart, as `name on y-axis: commit=value...`. */
+  const panelTraces = () =>
+    dataTraces().map(({ name, yaxis, x, y }) => {
+      const points = (x as string[]).map((value, i) => `${value}=${(y as number[])[i]}`)
+      return `${name} on ${yaxis}: ${points.join(' ')}`
+    })
+
+  /** A Plotly event on point `index` of the trace named `name` on the y-axis `yaxis`. */
+  const eventIn = (name: string, yaxis: string, index: number) => {
+    const data = (chart().data as PlotData[]).find(
+      (trace) => trace.name === name && trace.yaxis === yaxis,
+    )
+    if (data === undefined) throw new Error(`No trace named ${name} on ${yaxis}`)
+    return {
+      points: [{ data, pointNumber: index }],
+      event: new MouseEvent('click'),
+    } as unknown as PlotMouseEvent & PlotHoverEvent
+  }
+
+  /** The line across the panels at the commit of the point hovered (GR10), if any. */
+  const hoverLine = () => screen.getByRole('main').querySelector('[class*="hoverLine"]')
+
+  it('plots each metric in a panel of its own, in the order of the chips, titled', async () => {
+    const recorded = mockWorld(BOTH)
+    renderPage(`${BOTH_METRICS}&test=a`)
+
+    await waitFor(() =>
+      expect(panelTraces()).toEqual([
+        'a - m1 on y: c10=1 c20=2',
+        'a - m1 on y3: c10=7 c20=8',
+      ]),
+    )
+    expect(recorded.series.map(({ query }) => query.get('metric')).sort()).toEqual([
+      'compile_time',
+      'execution_time',
+    ])
+    const axes = layout() as Record<string, { title?: { text: string } }>
+    expect(axes.yaxis.title?.text).toBe('Execution Time — seconds (s)')
+    expect(axes.yaxis3.title?.text).toBe('Compile Time')
+    expect(main().getByRole('img')).toHaveAccessibleName('Execution Time, Compile Time over time')
+    // The tooltip labels the value with the panel's metric (GR10).
+    expect(hoverText(eventIn('a - m1', 'y3', 0).points[0].data, 0)).toContain(
+      '<br>Compile Time: 7 (1 run)<br>',
+    )
+  })
+
+  it('fetches only the data of a metric added, nothing once one is removed or added back', async () => {
+    const recorded = mockWorld(BOTH)
+    renderPage(`${ONE_MACHINE}&test=a`)
+    await waitFor(() => expect(panelTraces()).toEqual(['a - m1 on y: c10=1 c20=2']))
+    const asked = () => recorded.series.map(({ query }) => query.get('metric'))
+    expect(asked()).toEqual(['execution_time'])
+
+    await addMetric('Compile Time')
+    await waitFor(() => expect(panelTraces()).toHaveLength(2))
+    expect(asked()).toEqual(['execution_time', 'compile_time'])
+
+    await removeMetric('Compile Time')
+    await waitFor(() => expect(panelTraces()).toEqual(['a - m1 on y: c10=1 c20=2']))
+    await addMetric('Compile Time')
+    await waitFor(() => expect(panelTraces()).toHaveLength(2))
+    await removeMetric('Execution Time')
+    await waitFor(() => expect(panelTraces()).toEqual(['a - m1 on y: c10=7 c20=8']))
+    await settle()
+    expect(asked()).toEqual(['execution_time', 'compile_time'])
+  })
+
+  it('says that there is nothing to plot in the panels without data only (GR12)', async () => {
+    mockWorld({ samplesOf: { compile_time: {} } })
+    renderPage(`${BOTH_METRICS}&test=a`)
+
+    await waitFor(() => expect(layout().annotations).toHaveLength(1))
+    expect(panelTraces()).toEqual(['a - m1 on y: c10=1 c20=2'])
+    // In the bottom panel.
+    expect(layout().annotations?.[0].y).toBeLessThan(0.5)
+    expect(main().getByRole('img')).toHaveAccessibleName('Execution Time, Compile Time over time')
+  })
+
+  it("shows a point's details about its panel's metric, beside it in its panel", async () => {
+    signIn('triage')
+    mockWorld(BOTH)
+    const requests = mockCreateRegression(regressionDetail('d'))
+    renderPage(`${BOTH_METRICS}&test=a`)
+    await waitFor(() => expect(panelTraces()).toHaveLength(2))
+    draw(TWO_PANELS)
+
+    act(() => chart().onClick?.(eventIn('a - m1', 'y3', 1)))
+
+    expect(details().getByText('Compile Time')).toBeInTheDocument()
+    expect(details().getByText('8 (1 run)')).toBeInTheDocument()
+    expect(details().getByRole('link', { name: 'Compare prev' }).getAttribute('href')).toContain(
+      '&metric=compile_time',
+    )
+    // At c20's position, 1, and its value, 8, in the bottom panel.
+    expect(screen.getByRole('dialog')).toHaveStyle({ left: '150px', top: '330px' })
+
+    const user = userEvent.setup()
+    await user.click(details().getByRole('button', { name: 'Create regression' }))
+    await user.type(details().getByRole('textbox', { name: 'Title' }), '{Enter}')
+    await details().findByRole('status')
+    expect(requests.map(({ body }) => body.indicators)).toEqual([
+      [{ machine: 'm1', test: 'a', metric: 'compile_time' }],
+    ])
+  })
+
+  it("draws a line across every panel at a point hovered's commit, none for a baseline", async () => {
+    mockWorld(BOTH)
+    renderPage(`${BOTH_METRICS}&test=a&baseline=llvm/libcxx/m1/c10`)
+    await waitFor(() => expect(panelTraces()).toHaveLength(2))
+    draw(TWO_PANELS)
+    expect(hoverLine()).toBeNull()
+
+    act(() => chart().onHover?.(eventIn('a - m1', 'y3', 1)))
+    // At c20's position, 1, from the top of the plot to its bottom.
+    expect(hoverLine()).toHaveStyle({ left: '150px', top: '10px', height: '400px' })
+
+    unhover()
+    expect(hoverLine()).toBeNull()
+
+    hover('a - baseline llvm › libcxx › m1 › r10', 50)
+    expect(hoverLine()).toBeNull()
+  })
+
+  it('draws a baseline only in the panels of the metrics its suite declares alike', async () => {
+    const [time] = GRAPH_SUITE.metrics
+    const ONLY_TIME: SuiteSchema = { ...GRAPH_SUITE, name: 'timed', metrics: [time] }
+    const recorded = mockWorld({ ...BOTH, suites: [ONLY_TIME] })
+    renderPage(`${BOTH_METRICS}&test=a&baseline=llvm/timed/m1/c10&baseline=llvm/libcxx/m1/c20`)
+
+    await waitFor(() =>
+      expect(
+        (chart().data as PlotData[])
+          .filter((trace) => trace.xaxis === 'x2')
+          .map((trace) => `${trace.name} on ${trace.yaxis}: ${(trace.y as number[])[0]}`),
+      ).toEqual([
+        'a - baseline llvm › timed › m1 › r10 on y: 1',
+        'a - baseline llvm › libcxx › m1 › r20 on y: 2',
+        'a - baseline llvm › libcxx › m1 › r20 on y3: 8',
+      ]),
+    )
+    // Not asked for the metric its suite does not declare.
+    const asked = recorded.series.filter(({ suite }) => suite === 'llvm/timed')
+    expect(asked.map(({ query }) => query.get('metric'))).toEqual(['execution_time'])
+    expect(recorded.tests.filter((listed) => listed.startsWith('llvm/timed/'))).toHaveLength(1)
+  })
+
+  it('marks each regression in the panels of the metrics its indicators name (GR15)', async () => {
+    mockWorld(BOTH)
+    const lookups: Schemas['IndicatorQuery'][] = []
+    const path = '/api/projects/{project}/suites/{suite}/regressions/indicators/query'
+    server.use(
+      mockApi('post', path, async ({ request }) => {
+        const body = await request.json()
+        lookups.push(body)
+        // Regression 1 on both metrics, 2 on compile time only.
+        const named = REGRESSIONS.slice(0, body.metric === 'compile_time' ? 2 : 1)
+        const items = named.map(({ uuid }, i) => ({
+          uuid: uuidOf(`${i}0`),
+          regression_uuid: uuid,
+          machine: 'm1',
+          test: 'a',
+          metric: body.metric!,
+        }))
+        return HttpResponse.json(cursorPage(items))
+      }),
+    )
+    const lists = mockRegressions(() => cursorPage(REGRESSIONS))
+    renderPage(`${BOTH_METRICS}&test=a&regressions=all`)
+
+    const markersOn = (yaxis: string) =>
+      (chart().data as PlotData[])
+        .filter((trace) => trace.yaxis === yaxis)
+        .map((trace) => trace.name)
+    await waitFor(() => expect(markersOn('y4')).toHaveLength(2))
+    expect(markersOn('y2')).toEqual([`regression ${uuidOf('1')}`])
+    expect(markersOn('y4')).toEqual([`regression ${uuidOf('1')}`, `regression ${uuidOf('2')}`])
+    expect(lookups.map((body) => body.metric).sort()).toEqual(['compile_time', 'execution_time'])
+    const listed = lists.map((list) => list.get('metric'))
+    expect(listed.sort()).toEqual(['compile_time', 'execution_time'])
+    // Each line across its own panel.
+    const lines = layout().shapes?.map((shape) => shape.yref)
+    expect(lines).toEqual(['y domain', 'y3 domain', 'y3 domain'])
+
+    // The details of the bottom panel's marker, below it, at the top of that panel.
+    draw(TWO_PANELS)
+    act(() => chart().onClick?.(eventIn(`regression ${uuidOf('2')}`, 'y4', 0)))
+    expect(screen.getByRole('dialog', { name: 'Regression: (untitled)' })).toBeInTheDocument()
+    expect(screen.getByRole('dialog')).toHaveStyle({ left: '150px' })
+    const top = parseFloat(screen.getByRole('dialog').style.top)
+    expect(top).toBeGreaterThan(220)
+    expect(top).toBeLessThan(240)
+  })
+
+  it('keeps the numeric metrics of the URL, each once, in its order', async () => {
+    mockWorld()
+    renderPage(
+      '/graph?project=llvm&suite=libcxx&machine=m1&metric=compile_time&metric=hash' +
+        '&metric=compile_time&metric=execution_time',
+    )
+
+    await waitFor(() =>
+      expect(query().metric).toEqual(['compile_time', 'execution_time']),
+    )
+    const chips = within(screen.getByRole('list', { name: 'Metrics added' }))
+    expect(chips.getAllByRole('listitem').map((chip) => chip.textContent)).toEqual([
+      'Compile Time×',
+      'Execution Time×',
+    ])
   })
 })

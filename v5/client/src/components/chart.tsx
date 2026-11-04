@@ -19,6 +19,19 @@ export interface PlotGeometry {
   area: { left: number; top: number; width: number; height: number }
   x(value: number): number
   y(value: number): number
+  /**
+   * Each y-axis of the plot, by its name in the layout (`yaxis`, `yaxis2`, ...): the part of the
+   * plotting area it spans, from its top, and the position of a value on it. A plot of panels
+   * stacked one above the other has a y-axis per panel, `y` above being the first's.
+   */
+  yAxes: ReadonlyMap<string, YAxisGeometry>
+}
+
+/** Where a y-axis of a plot draws (see `PlotGeometry`). */
+export interface YAxisGeometry {
+  top: number
+  height: number
+  y(value: number): number
 }
 
 /** The parts of Plotly's own state of a plot that place what it draws (see `geometryOf`). */
@@ -27,12 +40,13 @@ interface DrawnPlot {
     _size: { l: number; t: number; w: number; h: number }
     xaxis?: DrawnAxis
     yaxis?: DrawnAxis
-  }
+  } & Record<string, unknown>
 }
 
 interface DrawnAxis {
   l2p(value: number): number
   _offset: number
+  _length: number
 }
 
 /**
@@ -45,10 +59,18 @@ function geometryOf(div: HTMLElement): PlotGeometry | null {
   // A plot purged, or not drawn yet, has no axes.
   if (layout?.xaxis === undefined || layout.yaxis === undefined) return null
   const { _size: size, xaxis, yaxis } = layout
+  const yAxes = new Map<string, YAxisGeometry>()
+  for (const [name, axis] of Object.entries(layout)) {
+    if (!/^yaxis\d*$/.test(name)) continue
+    const drawn = axis as DrawnAxis
+    const { _offset: top, _length: height } = drawn
+    yAxes.set(name, { top, height, y: (value) => drawn.l2p(value) + top })
+  }
   return {
     area: { left: size.l, top: size.t, width: size.w, height: size.h },
     x: (value) => xaxis.l2p(value) + xaxis._offset,
     y: (value) => yaxis.l2p(value) + yaxis._offset,
+    yAxes,
   }
 }
 
@@ -140,8 +162,10 @@ export function Chart({
   const onDraw = useEffectEvent((div: HTMLElement) => {
     const geometry = geometryOf(div)
     if (geometry === null) return
-    const { area, x, y } = geometry
-    const at = [area.left, area.top, area.width, area.height, x(0), x(1), y(0), y(1)].join()
+    const { area, x, yAxes } = geometry
+    const at = [area.left, area.top, area.width, area.height, x(0), x(1)]
+      .concat([...yAxes.values()].flatMap(({ top, height, y }) => [top, height, y(0), y(1)]))
+      .join()
     if (at === drawnAt.current) return
     drawnAt.current = at
     events.onDraw?.(geometry)

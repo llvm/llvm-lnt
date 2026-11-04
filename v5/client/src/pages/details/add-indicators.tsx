@@ -68,7 +68,7 @@ export function AddIndicators({ schema, uuid }: { schema: Suite; uuid: string })
     () => allMachines.filter((name) => machines.selection.selected.has(name)),
     [allMachines, machines.selection.selected],
   )
-  const tests = useTestNames(suite, metric === '' ? NO_NAMES : selectedMachines, metric)
+  const tests = useTestNames(suite, selectedMachines, metric === '' ? NO_NAMES : [metric])
   // Only a complete list shows which tests are no longer offered (AR2 "State"): until then, those
   // selected stay selected, and nothing can be added.
   const testsKnown = tests.complete && tests.error === null
