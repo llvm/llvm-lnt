@@ -1028,10 +1028,12 @@ describe('renaming or moving the suite', () => {
 
     // Its own project, where it can be renamed, is allowed.
     expect(options[0]).toHaveAccessibleName('llvm')
+    expect(options[0]).not.toHaveAttribute('aria-disabled')
     expect(options[1]).toHaveAccessibleName(
       "Swift: Needs an API token with the 'manage' scope covering project 'Swift' in full. The " +
         "token in Settings has the 'manage' scope, covering only 'llvm › libcxx'.",
     )
+    expect(options[1]).toHaveAttribute('aria-disabled', 'true')
   })
 
   it('asks before the editor is left with a new name or project', async () => {
