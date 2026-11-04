@@ -381,6 +381,32 @@ describe('the point details (GR11)', () => {
       expect(diff).toHaveAccessibleDescription('This is the first point of its trace.')
     })
 
+    /** Open the details of the second point of `a` on m1, in a suite with this `range_url`. */
+    async function openWithRange(range_url: string) {
+      const repository = { ...GRAPH_SUITE.repository, range_url }
+      mockWorld({ samples: SAMPLES, suites: [{ ...GRAPH_SUITE, name: 'fields', repository }] })
+      renderPage('/graph?project=llvm&suite=fields&machine=m1&metric=execution_time&test=a')
+      await waitFor(() => expect(dataTraces()).toHaveLength(1))
+      draw()
+      click('a - m1', 1)
+    }
+
+    it('lead to the changes by the commits’ values for the fields they name', async () => {
+      await openWithRange('https://example.com/{from.svn_revision}...{to}')
+
+      expect(diffLink()).toHaveAttribute('href', 'https://example.com/r10...c20')
+    })
+
+    it('lead to no changes when a commit has no value for such a field, saying so', async () => {
+      // No commit has a value for `commit_info`; the point before is at r10, by its display value.
+      await openWithRange('https://example.com/{from.commit_info}...{to.svn_revision}')
+
+      const diff = diffLink()
+      expect(diff).toHaveAttribute('aria-disabled', 'true')
+      expect(diff).not.toHaveAttribute('href')
+      expect(diff).toHaveAccessibleDescription('Commit r10 has no usable commit_info.')
+    })
+
     it('are not shown when the suite has no templates of their URLs', async () => {
       const bare = { ...GRAPH_SUITE, name: 'bare', repository: NO_REPOSITORY }
       mockWorld({ samples: SAMPLES, suites: [bare] })

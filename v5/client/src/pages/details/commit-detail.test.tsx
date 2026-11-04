@@ -363,6 +363,26 @@ describe('the Commit Detail page', () => {
       await screen.findByRole('group', { name: 'Commit' })
       expect(main().queryByRole('link', { name: /^View/ })).not.toBeInTheDocument()
     })
+
+    describe('with a template naming a field', () => {
+      const commit_url = 'https://example.com/{commit.svn_revision}'
+      const suites = [{ ...SUITE, repository: { ...SUITE.repository, commit_url } }]
+
+      it('leads to the commit by its value for the field', async () => {
+        renderCommit({ suites })
+
+        await screen.findByRole('group', { name: 'Commit' })
+        expect(link('View on GitHub')).toHaveAttribute('href', 'https://example.com/r100')
+      })
+
+      it('is not shown when the commit has no value for it', async () => {
+        const fields = { svn_revision: null, commit_info: null }
+        renderCommit({ suites, detail: () => HttpResponse.json({ ...DETAIL, fields }) })
+
+        await screen.findByRole('group', { name: 'Commit' })
+        expect(main().queryByRole('link', { name: /^View/ })).not.toBeInTheDocument()
+      })
+    })
   })
 
   describe('its ordinal and tag', () => {

@@ -31,7 +31,8 @@
   a field the schema does not name is rejected with 400 rather than ignored.
   An optional `repository` block holds URL templates of the repository's
   commits (`{commit}`) and of the changes between two commits (`{from}`,
-  `{to}`), for clients to link to.
+  `{to}`), for clients to link to. `{commit.<field>}`, `{from.<field>}` and
+  `{to.<field>}` stand for a commit's value for one of its text fields instead.
 - **Machine** -- where a benchmark ran, addressed by `name`. Carries the
   declared `machine_fields` under `fields`, an optional built-in
   `display_name` that the web UI names it by, and a built-in `tracked` flag

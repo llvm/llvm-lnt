@@ -20,7 +20,13 @@ import { RunSamplesTable, type RunSamples } from '../../components/run-samples-t
 import { plural, shortUuid } from '../../format'
 import { comparePath, machinePath, regressionPath } from '../../paths'
 import { fillTemplate, NEW_TAB, repositoryLinkText, usableTemplate } from '../../repository'
-import { commitDisplayValue, formatMetricValue, type Commit, type Metric } from '../../schema'
+import {
+  commitDisplayValue,
+  formatMetricValue,
+  labelOf,
+  type Commit,
+  type Metric,
+} from '../../schema'
 import type { Point } from './points'
 import styles from './graph.module.css'
 
@@ -34,8 +40,8 @@ interface Props {
   commit: Commit
   /** The point's runs, in the order they were measured, each with its samples, ascending. */
   runs: RunSamples[]
-  /** The point before it on its trace, if there is one. */
-  previous: Point | null
+  /** The commit of the point before it on its trace, from the x-axis too, if there is one. */
+  previous: Commit | null
   sampleAgg: Aggregation
   runAgg: Aggregation
   /** Whether the point's commit is highlighted (GR16). */
@@ -57,6 +63,36 @@ interface Props {
 
 /** Why there is no point before this one to compare it with. */
 const FIRST_POINT = 'This is the first point of its trace.'
+
+interface DiffPrevProps {
+  schema: Suite
+  /** The suite's template of a range's URL. */
+  range: string
+  previous: Commit | null
+  commit: Commit
+}
+
+/**
+ * "Diff prev on {label}" (GR11): the changes from the previous point's commit to `commit` in the
+ * repository, disabled, saying why, while there is no previous point, or the two commits cannot
+ * fill the template in (AR20).
+ */
+function DiffPrev({ schema, range, previous, commit }: DiffPrevProps) {
+  const text = repositoryLinkText(schema.repository, 'Diff prev')
+  if (previous === null) return <DisabledLink title={FIRST_POINT}>{text}</DisabledLink>
+  const url = fillTemplate(range, { from: previous, to: commit })
+  if (typeof url === 'string') {
+    return (
+      <a href={url} {...NEW_TAB}>
+        {text}
+      </a>
+    )
+  }
+  const lacking = commitDisplayValue(url.commit === 'from' ? previous : commit, schema)
+  const field = schema.commit_fields.find((field) => field.name === url.field)
+  const why = `Commit ${lacking} has no usable ${field ? labelOf(field) : url.field}.`
+  return <DisabledLink title={why}>{text}</DisabledLink>
+}
 
 /**
  * The details of a point clicked on the chart (GR11), in a dialog beside it: its machine, commit,
@@ -92,7 +128,7 @@ export function PointDetails({
       <DisabledLink title={FIRST_POINT}>Compare prev</DisabledLink>
     ) : (
       <Link
-        to={comparePath(side(previous.commit), side(point.commit), {
+        to={comparePath(side(previous.value), side(point.commit), {
           metric: metric.name,
           sampleAgg: linkedAggregation(sampleAgg),
           runAgg: linkedAggregation(runAgg),
@@ -103,15 +139,10 @@ export function PointDetails({
     )
   // The changes since the previous point in the repository, if the suite has a usable template
   // (AR20).
-  const range = usableTemplate(schema.repository, 'range_url')
-  const diffText = repositoryLinkText(schema.repository, 'Diff prev')
+  const range = usableTemplate(schema, 'range_url')
   const diff =
-    range === null ? null : previous === null ? (
-      <DisabledLink title={FIRST_POINT}>{diffText}</DisabledLink>
-    ) : (
-      <a href={fillTemplate(range, { from: previous.commit, to: point.commit })} {...NEW_TAB}>
-        {diffText}
-      </a>
+    range === null ? null : (
+      <DiffPrev schema={schema} range={range} previous={previous} commit={commit} />
     )
 
   return (

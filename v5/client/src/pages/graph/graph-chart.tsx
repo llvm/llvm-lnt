@@ -517,7 +517,7 @@ export function GraphChart({
             point={point}
             commit={commits[point.position]}
             runs={runsOf(samples)}
-            previous={trace.points[index - 1] ?? null}
+            previous={index > 0 ? commits[trace.points[index - 1].position] : null}
             sampleAgg={sampleAgg}
             runAgg={runAgg}
             highlighted={highlights.includes(point.commit)}

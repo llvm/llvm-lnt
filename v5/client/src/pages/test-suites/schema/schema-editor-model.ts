@@ -10,7 +10,7 @@
 
 import type { Schemas } from '../../../api/client'
 import type { SuiteSchema } from '../../../api/suites'
-import { templateProblem, type Repository } from '../../../repository'
+import { templateFieldProblem, templateProblem, type Repository } from '../../../repository'
 import {
   flagAllowed,
   isTextKey,
@@ -265,19 +265,26 @@ export function projectNameProblem(name: string, existing: readonly string[]): s
 }
 
 /**
- * Why each URL of `repository` cannot be sent, by its key, for those that cannot. A URL left as it
- * is stored is not checked, so that a schema stored with one the editor refuses can still be saved;
- * nor is one left empty, which is sent as null.
+ * Why each URL of `repository` cannot be sent, by its key, for those that cannot, with the commit
+ * fields `commitFields`. A URL left as it is stored is only checked for the fields it names, so that
+ * a schema stored with one the editor refuses can still be saved; nor is one left empty, which is
+ * sent as null.
  */
-export function repositoryProblems(repository: DraftRepository): Map<RepositoryKey, string> {
+export function repositoryProblems(
+  repository: DraftRepository,
+  commitFields: readonly DraftEntry[],
+): Map<RepositoryKey, string> {
   const { original } = repository
+  // The commit fields as they would be sent.
+  const fields = commitFields.filter((entry) => !entry.removed)
   const problems = new Map<RepositoryKey, string>()
   for (const key of URL_KEYS) {
     const value = sent(repository[key])
-    if (value === null || (original !== null && !isChanged(repository[key], original[key]))) {
-      continue
-    }
-    const problem = templateProblem(key, value)
+    if (value === null) continue
+    const problem =
+      original !== null && !isChanged(repository[key], original[key])
+        ? templateFieldProblem(value, fields)
+        : templateProblem(key, value, fields)
     if (problem !== undefined) problems.set(key, problem)
   }
   return problems
@@ -294,7 +301,7 @@ export function draftProblem(draft: Draft): string | undefined {
   if (LISTS.some((list) => draft[list].some((entry) => entry.name === ''))) {
     return 'Give every new entry a name first.'
   }
-  if (repositoryProblems(draft.repository).size > 0) {
+  if (repositoryProblems(draft.repository, draft.commit_fields).size > 0) {
     return 'Correct the repository URLs marked in red first.'
   }
   return undefined

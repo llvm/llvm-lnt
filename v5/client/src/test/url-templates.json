@@ -1,5 +1,15 @@
 {
-  "about": "Repository URL templates (D4), which the server and the web UI's schema editor must accept or refuse alike. The last valid commit_url holds characters that Python or JavaScript count as whitespace, but D4 does not exclude.",
+  "about": "Repository URL templates (D4), which the server and the web UI's schema editor must accept or refuse alike, in a suite with the commit_fields below. The valid commit_url with a no-break space holds characters that Python or JavaScript count as whitespace, but D4 does not exclude.",
+  "commit_fields": [
+    {
+      "name": "git_sha",
+      "type": "text"
+    },
+    {
+      "name": "svn_revision",
+      "type": "integer"
+    }
+  ],
   "commit_url": {
     "valid": [
       "https://github.com/llvm/llvm-project/commit/{commit}",
@@ -11,7 +21,9 @@
       "https://user@example.com:8080/{commit}",
       "https://example.com/\u00fcn\u00efcode/{commit}",
       "https://[::1]/{commit}",
-      "https://example.com/\u00a0\u0085\u2028\ufeff/{commit}"
+      "https://example.com/\u00a0\u0085\u2028\ufeff/{commit}",
+      "https://example.com/{commit.git_sha}",
+      "https://example.com/{commit}/{commit.git_sha}?again={commit.git_sha}"
     ],
     "invalid": [
       "",
@@ -45,14 +57,28 @@
       "https://example.com/{commit}\u001f",
       "https://example.com/{commit}\u007f",
       "https://[{commit}]/",
-      "https://example.com\\@{commit}/"
+      "https://example.com\\@{commit}/",
+      "https://example.com/{commit.svn_revision}",
+      "https://example.com/{commit.author}",
+      "https://example.com/{commit.Git_sha}",
+      "https://example.com/{commit.}",
+      "https://example.com/{.git_sha}",
+      "https://example.com/{commit.git_sha.x}",
+      "https://example.com/{commit.git-sha}",
+      "https://example.com/{commit..git_sha}",
+      "https://example.com/{Commit.git_sha}",
+      "https://example.com/{from.git_sha}",
+      "https://{commit.git_sha}/",
+      "https://example.com:{commit.git_sha}/"
     ]
   },
   "range_url": {
     "valid": [
       "https://github.com/llvm/llvm-project/compare/{from}...{to}",
       "https://example.com/log?to={to}&from={from}",
-      "https://example.com/{from}/{to}/{from}"
+      "https://example.com/{from}/{to}/{from}",
+      "https://example.com/compare/{from.git_sha}...{to.git_sha}",
+      "https://example.com/compare/{from}...{to.git_sha}"
     ],
     "invalid": [
       "https://example.com/compare/{from}",
@@ -60,7 +86,12 @@
       "https://example.com/{commit}",
       "https://example.com/{from}...{to}/{commit}",
       "https://{from}.example.com/{to}",
-      "https://example.com/{from}...{to} "
+      "https://example.com/{from}...{to} ",
+      "https://example.com/compare/{from.git_sha}",
+      "https://example.com/compare/{from.git_sha}...{from}",
+      "https://example.com/{from.git_sha}...{to.svn_revision}",
+      "https://example.com/{from}...{to}/{commit.git_sha}",
+      "https://{to.git_sha}.example.com/{from}"
     ]
   }
 }

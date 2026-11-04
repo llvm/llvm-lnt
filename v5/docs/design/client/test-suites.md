@@ -312,9 +312,10 @@ Machine Fields
 Repository
 Label         [GitHub                                                    ]
 Commit URL    [https://github.com/llvm/llvm-project/commit/{commit}      ]
-              {commit} is replaced by the commit.
+              {commit} is replaced by the commit, and {commit.<field>} by its value for a text field.
 Range URL     [                                                          ]
-              {from} and {to} are replaced by the commit the changes start after and the one they end at.
+              {from} and {to} are replaced by the commit the changes start after and the one they end at,
+              {from.<field>} and {to.<field>} by their values for a text field.
 
 New suite in libc++                                                          [Cancel] [Create]
 Editing libc++ › Microbenchmarks                                             [Cancel] [Save]
@@ -341,12 +342,13 @@ others, since at most one can have it.
 As the user types a name, the editor checks it against D4's rules for names, including the
 names that D5 reserves, and for uniqueness within its list: for the suite's name, among the other
 suites of its project, the one picked when editing a schema. Likewise, as the user changes a
-repository URL, the editor checks it, as it would be sent, against D4's rules for templates. A
-name or a URL that fails shows the red halo (see AR11), and says why on hover. "Create" or "Save"
-is disabled while any name or URL fails, or any name is empty, and when disabled, says why on
-hover. When editing a schema, a URL the user has not changed is not checked, so that a schema
-stored with one the editor would refuse can still be saved. The server validates everything else
-when the schema is submitted.
+repository URL or the commit fields, the editor checks the URL, as it would be sent, against D4's
+rules for templates, with the commit fields as they would be sent. A name or a URL that fails shows
+the red halo (see AR11), and says why on hover. "Create" or "Save" is disabled while any name or
+URL fails, or any name is empty, and when disabled, says why on hover. When editing a schema, a URL
+the user has not changed is not checked against D4's rules, except that the fields it names must be
+text commit fields of the schema being edited, so that a schema stored with one the editor would
+refuse can still be saved. The server validates everything else when the schema is submitted.
 
 **Creating a suite**: The editor starts empty. A "Start from" dropdown, over every suite
 (see AR22), replaces the editor's entries and repository with a copy of an existing suite's. It

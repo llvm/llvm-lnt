@@ -480,7 +480,8 @@ describe('the URL checks', () => {
     typeInto(suiteNameInput(), 'fresh')
     const url = screen.getByRole('textbox', { name: 'Range URL' })
     const hint =
-      '{from} and {to} are replaced by the commit the changes start after and the one they end at.'
+      '{from} and {to} are replaced by the commit the changes start after and the one they end ' +
+      'at, {from.<field>} and {to.<field>} by their values for a text field.'
     expect(url).toHaveAccessibleDescription(hint)
 
     typeInto(url, 'https://{from}.example.com/{to}')

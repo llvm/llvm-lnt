@@ -153,7 +153,8 @@ below.
 `searchable: true` (D4, O4) is only valid on `text` entries: setting it on a
 `real`, `integer` or `datetime` field is rejected with 400 when the schema is
 created or changed. Likewise, `display: true` (D4) is only valid on a `text`
-commit field, and `dashboard: true` (D4) only on a numeric metric (see below).
+commit field, as is naming a field in a repository's template (D4), and
+`dashboard: true` (D4) only on a numeric metric (see below).
 
 **Only the JSON representation is accepted.** A submitted value whose JSON type
 is not the one its declared type calls for is rejected with 400, not
@@ -330,27 +331,45 @@ other key is rejected with 400.
   `compare/{from}...{to}` fits, since on a linear history its three dots mean
   the same.
 
+A template may also name one of the commit's fields in place of its commit
+string, with `{commit.<field>}` in a `commit_url`, and `{from.<field>}` or
+`{to.<field>}` in a `range_url`, where `<field>` is the name of one of the
+suite's `text` commit fields: `{commit.git_sha}` stands for the commit's value
+for `git_sha`. This links commits whose commit strings do not fit in the
+repository's URLs, such as ones imported from elsewhere. Below, `{commit}` and
+`{commit.<field>}` are `commit`'s placeholders, and likewise `{from}` and
+`{from.<field>}` are `from`'s, and `{to}` and `{to.<field>}` are `to`'s.
+
 A template is rejected with 400 unless:
-- it contains each of its placeholders at least once, in any order, and no other
-  `{` or `}`: `commit_url` only `{commit}`, `range_url` only `{from}` and
-  `{to}`;
+- it contains at least one placeholder of each of its commits, in any order, and
+  no other `{` or `}`: `commit_url` only `commit`'s, `range_url` only `from`'s
+  and `to`'s;
+- each field it names is a `text` commit field of the suite;
 - it starts with `http://` or `https://`, in any case;
 - its authority, everything between that `://` and the first `/`, `?` or `#`
   after it, is not empty and contains no placeholder;
 - it contains no space or ASCII control character (U+0000 to U+0020, and
   U+007F).
 
+Since the whole schema is validated after every change (see D2), a field that a
+template names cannot be removed unless the same request changes the template
+too.
+
 Together, these make a filled-in template an `http` or `https` link to the
-host the template names, whatever the commit strings filling it in, which
-anyone who can submit a run chooses. Refusing any other brace keeps the syntax
-free for further placeholders.
+host the template names, whatever the commit strings and field values filling
+it in, which anyone who can submit a run chooses. Refusing any other brace keeps
+the syntax free for further placeholders.
 
 The UI fills a template in by replacing every occurrence of each placeholder
-with its commit string, percent-encoded: every character other than an ASCII
-letter, a digit, or one of `-_.!~*'()` is replaced by `%` and two hexadecimal
-digits for each byte of its UTF-8 encoding. Since I1 rejects the commit strings
-`.` and `..`, a placeholder that is a whole path segment never fills it with a
-dot segment, which would change the path.
+with its value, percent-encoded: every character other than an ASCII letter, a
+digit, or one of `-_.!~*'()` is replaced by `%` and two hexadecimal digits for
+each byte of its UTF-8 encoding. The value of `{commit}`, `{from}` or `{to}` is
+its commit's commit string, and that of a field placeholder is its commit's
+value for the field. A field placeholder cannot be filled in, and so neither can
+its template, for a commit whose value for the field is null, empty, `.` or
+`..`. No commit string is any of these either (see I1), so a placeholder that
+is a whole path segment, or one with dots of the template beside it, never
+makes it a dot segment, which would change the path.
 
 **Suite name.** `name` must match `^[a-z0-9][a-z0-9_-]*$` and be at most 64
 characters; anything else is rejected with 400. The name identifies the suite

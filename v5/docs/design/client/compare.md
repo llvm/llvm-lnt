@@ -79,11 +79,12 @@ listed.
 
 Below the two sides, "Diff on {label}" (see AR20), followed by the two commits'
 display values, as in `Diff on GitHub: 0f985af790f8 → 014621ede7c1`, links the
-changes from side A's commit, which fills in `{from}`, to side B's, which fills
-in `{to}`, even when B's is the older. It is shown only while both sides have a
-commit in the same suite, since suites may have different templates. When it
-appears, it pushes what is below it down a line, as a side's runs do when they
-are listed.
+changes from side A's commit, which fills in `from`'s placeholders, to side
+B's, which fills in `to`'s, even when B's is the older. It is shown only while
+both sides have a commit in the same suite, since suites may have different
+templates, and the commits can fill its template in (see CP6): it is not shown
+disabled. When it appears, it pushes what is below it down a line, as a side's
+runs do when they are listed.
 
 A **Swap sides** button between the two sides exchanges their suite, machine,
 commit and runs, each side keeping the runs it had selected. No samples need to
@@ -462,10 +463,11 @@ page or the table.
   side A has the same suite and machine, through `POST commits/resolve` (see
   CP3). The details don't wait for these lookups; only their link to the Graph
   does.
-- A side's commit card (AR21) shows the commit as its picker looked it up or
-  listed it when it was picked. Only while the picker has it neither way, such
-  as while its lookup is pending or after it failed, does the card fetch it,
-  through `POST commits/resolve`, once first shown.
+- A side's commit card (AR21), and the field values "Diff on" needs (CP1), are
+  those of the commit as its picker looked it up or listed it when it was
+  picked. Only while the picker has it neither way, such as while its lookup is
+  pending or after it failed, does the card fetch it, through
+  `POST commits/resolve`, once first shown; "Diff on" goes without.
 - When the page is loaded from a URL, it sends all the requests that the URL's
   values call for at once, without first checking that the values are usable.
   There are exceptions: the page waits for the list of suites before it

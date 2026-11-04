@@ -321,7 +321,9 @@ hidden until the pointer moves again. It shows:
     so that Compare's Value A and Value B are the two points' values.
   - "Diff prev on {label}" (see AR20), which leads to the changes between the
     two commits that "Compare prev" compares, the previous point's filling in
-    `{from}` and this point's `{to}`.
+    `from`'s placeholders and this point's `to`'s. It is also disabled while
+    the two commits cannot fill its template in, saying which commit has no
+    usable value for which field.
 - in a row below them, three buttons:
   - "Highlight commit", which adds the point's commit to the highlighted
     commits (GR16). It is disabled, with the reason, when the maximum number of
