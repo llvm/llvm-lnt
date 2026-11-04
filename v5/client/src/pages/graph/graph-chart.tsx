@@ -289,7 +289,7 @@ export function GraphChart({
     return drawn
   }, [metric, machines, listed, series, selected, positions, sampleAgg, runAgg])
 
-  // A line per baseline and selected test it has a value for, once all its data has arrived.
+  // A line per baseline and selected test it has a value for, once that test's data has arrived.
   const lines = useMemo(
     () =>
       baselines.flatMap(({ baseline, suiteLabel, display, label, samples }): BaselineLine[] =>

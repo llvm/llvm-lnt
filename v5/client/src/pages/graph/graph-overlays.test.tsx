@@ -30,6 +30,7 @@ import {
   query,
   renderPage,
   search,
+  settle,
 } from '../../test/page'
 import { pickOption, pickSuite, selectButton } from '../../test/select'
 import { server } from '../../test/server'
@@ -39,6 +40,7 @@ import {
   GRAPH_SUITE,
   addMachine,
   answerSeries,
+  box,
   chart,
   commitAt,
   drawn,
@@ -1147,10 +1149,13 @@ describe('the baselines (GR9)', () => {
     expect(a.line.dash).toBe('dash')
     expect(a.line.color).toBe(line.line.color)
     expect(hoverText(a, 0)).toContain('Suite: llvm › libcxx<br>Machine: m1<br>Commit: r10<br>Test: a')
-    // Every test's data at the commit, without `has_ordinal`, which leaves in commits without an
-    // ordinal.
-    const baseline = recorded.series.find(({ query }) => query.has('commit'))
-    expect(baseline?.query.toString()).toBe('metric=execution_time&machine=m1&commit=c10')
+    // Each selected test's data at the commit on its own, without `has_ordinal`, which leaves in
+    // commits without an ordinal.
+    const asked = recorded.series.filter(({ query }) => query.has('commit'))
+    expect(asked.map(({ query }) => query.toString()).sort()).toEqual([
+      'metric=execution_time&machine=m1&test=a&commit=c10',
+      'metric=execution_time&machine=m1&test=b&commit=c10',
+    ])
     const chips = within(baselineChips())
     expect(chips.getByRole('listitem')).toHaveTextContent('llvm › libcxx › m1 › r10')
   })
@@ -1168,24 +1173,106 @@ describe('the baselines (GR9)', () => {
     expect(query().baseline).toEqual(['llvm/other/m1/c10'])
   })
 
-  it("does not wait for the traces' requests, even when they take every turn (GR2)", async () => {
+  it("waits for its turn with the traces' requests (GR2)", async () => {
     const held = gate()
     const names = ['a', 't1', 't2', 't3', 't4', 't5']
     const recorded = mockWorld({ machines: ['m1'], tests: { m1: names } })
-    // Every trace's body held, as a large selection keeps them, and the baseline's answered.
+    // Every trace's body held, as a large selection keeps them, and the baseline's answered: it
+    // has data for a alone.
     answerSeries(recorded, (asked) =>
       asked.has('commit')
-        ? ndjsonResponse([[pointOf('m1', 'a', ['c10', 'r1', 1])]])
+        ? ndjsonResponse(asked.get('test') === 'a' ? [[pointOf('m1', 'a', ['c10', 'r1', 1])]] : [])
         : ndjsonResponse([], { wait: () => held.promise }),
     )
     const tests = names.map((name) => `&test=${name}`).join('')
     renderPage(`${ONE_MACHINE}${tests}&baseline=llvm/libcxx/m1/c10`)
 
-    await waitFor(() => expect(baselineLines()).toEqual(['a - baseline llvm › libcxx › m1 › r10: 1']))
-    const traces = recorded.series.filter(({ query }) => !query.has('commit'))
-    expect(traces).toHaveLength(6)
-    expect(traces.every(({ signal }) => !signal.aborted)).toBe(true)
+    // The traces' requests, asked for first, take every turn.
+    await waitFor(() => expect(recorded.series).toHaveLength(6))
+    await settle()
+    expect(recorded.series.filter(({ query }) => query.has('commit'))).toEqual([])
+    expect(baselineLines()).toEqual([])
+
     act(() => held.open())
+    await waitFor(() => expect(baselineLines()).toEqual(['a - baseline llvm › libcxx › m1 › r10: 1']))
+  })
+
+  it('asks only for the selected tests its machine lists, and for each only once', async () => {
+    const recorded = mockWorld()
+    renderPage(`${ONE_MACHINE}&test=a&test=b&baseline=llvm/libcxx/m2/c40`)
+    await waitFor(() => expect(baselineLines()).toEqual(['b - baseline llvm › libcxx › m2 › r40: 4']))
+    const asked = () =>
+      recorded.series.filter(({ query }) => query.has('commit')).map(({ query }) => query.get('test'))
+    // m2 does not list a.
+    expect(asked()).toEqual(['b'])
+
+    // Neither deselecting and selecting b again, nor another aggregation, asks for it again.
+    fireEvent.click(box('b'))
+    expect(baselineLines()).toEqual([])
+    fireEvent.click(box('b'))
+    await pickOption('Run aggregation', 'min')
+    await settle()
+    expect(baselineLines()).toEqual(['b - baseline llvm › libcxx › m2 › r40: 4'])
+    expect(asked()).toEqual(['b'])
+  })
+
+  it('stops loading the data of a test once it is deselected', async () => {
+    const recorded = mockWorld()
+    const held = gate()
+    answerSeries(recorded, (asked) =>
+      asked.has('commit')
+        ? ndjsonResponse([], { wait: () => held.promise })
+        : ndjsonResponse([[pointOf('m1', asked.get('test')!, ['c10', 'r1', 1])]]),
+    )
+    renderPage(`${ONE_MACHINE}&test=a&test=b&baseline=llvm/libcxx/m1/c10`)
+    const baselineOf = (test: string) =>
+      recorded.series.find(({ query }) => query.has('commit') && query.get('test') === test)
+    await waitFor(() => expect(baselineOf('b')).toBeDefined())
+
+    fireEvent.click(box('b'))
+
+    await waitFor(() => expect(baselineOf('b')!.signal.aborted).toBe(true))
+    expect(baselineOf('a')!.signal.aborted).toBe(false)
+    act(() => held.open())
+  })
+
+  it('draws a test\'s line once its data has arrived, before the others\'', async () => {
+    const recorded = mockWorld()
+    const held = gate()
+    answerSeries(recorded, (asked) => {
+      const test = asked.get('test')!
+      const point = pointOf('m1', test, ['c10', 'r1', test === 'a' ? 1 : 3])
+      return asked.has('commit') && test === 'b'
+        ? ndjsonResponse([[point]], { wait: () => held.promise })
+        : ndjsonResponse([[point]])
+    })
+    renderPage(`${ONE_MACHINE}&test=a&test=b&baseline=llvm/libcxx/m1/c10`)
+
+    await waitFor(() => expect(baselineLines()).toEqual(['a - baseline llvm › libcxx › m1 › r10: 1']))
+    act(() => held.open())
+    await waitFor(() =>
+      expect(baselineLines()).toEqual([
+        'a - baseline llvm › libcxx › m1 › r10: 1',
+        'b - baseline llvm › libcxx › m1 › r10: 3',
+      ]),
+    )
+  })
+
+  it('asks for its data without waiting for its commit to be looked up', async () => {
+    mockWorld()
+    const checked = gate()
+    mockCommits(async (query) => {
+      const only = query.get('commit')
+      if (only !== null) await checked.promise
+      const listed = COMMITS.m1.map(commitAt)
+      return cursorPage(only === null ? listed : listed.filter((entry) => entry.value === only))
+    })
+    renderPage(`${ONE_MACHINE}&test=a&baseline=llvm/libcxx/m1/c10`)
+
+    // Named by its commit until its display value is known.
+    await waitFor(() => expect(baselineLines()).toEqual(['a - baseline llvm › libcxx › m1 › c10: 1']))
+    act(() => checked.open())
+    await waitFor(() => expect(baselineLines()).toEqual(['a - baseline llvm › libcxx › m1 › r10: 1']))
   })
 
   it('combines the baseline\'s samples as the traces are', async () => {
@@ -1223,6 +1310,40 @@ describe('the baselines (GR9)', () => {
     const baselines = recorded.series.filter(({ query }) => query.has('commit'))
     expect(baselines.map(({ query }) => query.get('commit'))).toEqual(['c20'])
     expect(query().baseline).toEqual(['llvm/other/m1/c10', 'llvm/libcxx/m1/c20'])
+  })
+
+  it('asks for nothing from a suite, a machine or a metric that does not exist', async () => {
+    const recorded = mockWorld()
+    const kept = 'baseline=llvm%2Ftext_only%2Fm1%2Fc10&baseline=llvm%2Flibcxx%2Fm1%2Fc20'
+    renderPage(
+      `${ONE_MACHINE}&test=a&baseline=llvm/nope/m1/c10&baseline=llvm/libcxx/gone/c10` +
+        '&baseline=llvm/text_only/m1/c10&baseline=llvm/libcxx/m1/c20',
+    )
+
+    await waitFor(() => expect(baselineLines()).toEqual(['a - baseline llvm › libcxx › m1 › r20: 2']))
+    // The suite and the machine that do not exist dropped; text_only has no such metric.
+    await waitFor(() => expect(currentUrl()).toBe(`${ONE_MACHINE}&test=a&${kept}`))
+    // Only m1's tests in libcxx listed, for the traces and the baseline alike.
+    expect(new Set(recorded.tests)).toEqual(new Set(['llvm/libcxx/m1']))
+    const baselines = recorded.series.filter(({ query }) => query.has('commit'))
+    expect(baselines.map(({ suite, query }) => `${suite}/${query}`)).toEqual([
+      'llvm/libcxx/metric=execution_time&machine=m1&test=a&commit=c20',
+    ])
+  })
+
+  it("lists the tests of a baseline's machine in its own suite, asking only for those", async () => {
+    const recorded = mockWorld({
+      suites: [{ ...GRAPH_SUITE, name: 'other', display_name: 'Other suite' }],
+      testsIn: { other: { m1: ['b', 'z'] } },
+    })
+    renderPage(`${ONE_MACHINE}&test=a&test=b&baseline=llvm/other/m1/c10`)
+
+    await waitFor(() => expect(baselineLines()).toEqual(['b - baseline llvm › Other suite › m1 › r10: 3']))
+    expect(recorded.tests).toContain('llvm/other/m1')
+    const baselines = recorded.series.filter(({ query }) => query.has('commit'))
+    expect(baselines.map(({ suite, query }) => `${suite}/${query.get('test')}`)).toEqual([
+      'llvm/other/b',
+    ])
   })
 
   it('says that there is nothing to plot while only a baseline is drawn (GR12)', async () => {
@@ -1285,7 +1406,10 @@ describe('the baselines (GR9)', () => {
     // its data is asked for.
     expect(recorded.lookups).not.toContain('m1/c20')
     const asked = recorded.series.filter(({ query }) => query.get('commit') === 'c20')
-    expect(asked.map(({ query }) => query.get('machine'))).toEqual(['m1'])
+    expect(asked.map(({ query }) => `${query.get('machine')}/${query.get('test')}`).sort()).toEqual([
+      'm1/a',
+      'm1/b',
+    ])
 
     await user.click(remove)
 
