@@ -5,27 +5,13 @@ from __future__ import annotations
 from enum import StrEnum
 
 
-# In its own module because both the database layer, which constrains the stored value, and the
-# authentication layer, which compares a key's scope against an endpoint's requirement, need it,
-# and neither should have to import the other.
-#
-# The class docstring is published: it is this enum's description in the OpenAPI document.
+# In its own module, with `KeyScope`, because both the database layer, which constrains a key's
+# stored scope, and the authentication layer, which compares it against an endpoint's requirement,
+# need them, and neither should have to import the other.
 class Scope(StrEnum):
-    """What an API key is allowed to do. Each scope includes the ones before it: read < submit <
-    triage < manage < admin.
+    """The scope an endpoint requires (I5). Each scope includes the ones before it.
 
-    - `read`: read all data. Doesn't need a key at all.
-    - `submit`: submit runs and create commits.
-    - `triage`: create, update and delete regressions and their indicators.
-    - `manage`: create, update and delete machines; update and delete commits; delete runs; create,
-      rename, move, change and delete test suites; create, rename, change and delete projects.
-    - `admin`: list, create and revoke API keys.
-
-    A `submit`, `triage` or `manage` key can be restricted to some projects as a whole and some
-    single test suites. It then has its scope only in the suites it covers, and only `read`
-    everywhere else. Creating a test suite in a project, moving one into it, or changing or
-    deleting the project, needs a key covering that project as a whole. Creating a project always
-    needs an unrestricted key.
+    `read` needs no key: see `KeyScope` for the scopes a key can have.
     """
 
     # Lowest privilege first: the declaration order *is* the hierarchy, and `grants` reads it.
@@ -49,6 +35,35 @@ class Scope(StrEnum):
 _RANK = {scope: rank for rank, scope in enumerate(Scope)}
 
 
-# I5: the scopes that a restricted key cannot have. A restricted `read` key would grant nothing
-# beyond anonymous access, and the endpoints `admin` is for address no project or suite.
-UNRESTRICTABLE_SCOPES = (Scope.READ, Scope.ADMIN)
+# The class docstring is published: it is this enum's description in the OpenAPI document.
+class KeyScope(StrEnum):
+    """What an API key is allowed to do. Each scope includes the ones before it, submit < triage <
+    manage < admin, and reading, which needs no key at all.
+
+    - `submit`: submit runs and create commits.
+    - `triage`: create, update and delete regressions and their indicators.
+    - `manage`: create, update and delete machines; update and delete commits; delete runs; create,
+      rename, move, change and delete test suites; create, rename, change and delete projects.
+    - `admin`: list, create and revoke API keys.
+
+    A `submit`, `triage` or `manage` key can be restricted to some projects as a whole and some
+    single test suites. It then has its scope only in the suites it covers, and can only read
+    everywhere else. Creating a test suite in a project, moving one into it, or changing or
+    deleting the project, needs a key covering that project as a whole. Creating a project always
+    needs an unrestricted key.
+    """
+
+    # I5: every scope but `read`, which needs no key.
+    SUBMIT = Scope.SUBMIT.value
+    TRIAGE = Scope.TRIAGE.value
+    MANAGE = Scope.MANAGE.value
+    ADMIN = Scope.ADMIN.value
+
+    def grants(self, required: Scope) -> bool:
+        """Whether a key holding this scope satisfies an endpoint requiring `required`."""
+        return Scope(self.value).grants(required)
+
+
+# I5: the scopes a restricted key can have. The endpoints `admin` is for address no project or
+# suite.
+RESTRICTABLE_SCOPES = (KeyScope.SUBMIT, KeyScope.TRIAGE, KeyScope.MANAGE)

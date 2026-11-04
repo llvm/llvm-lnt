@@ -23,7 +23,7 @@ from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy.sql.elements import ColumnElement
 
 from .db import unique_violation_constraint
-from .scopes import UNRESTRICTABLE_SCOPES, Scope
+from .scopes import RESTRICTABLE_SCOPES, KeyScope, Scope
 from .suites.store import full_name
 from .tables import (
     KEY_NAME_MAX_LENGTH,
@@ -78,7 +78,7 @@ class ApiKeyInfo:
 
     prefix: str
     name: str
-    scope: Scope
+    scope: KeyScope
     # None for a key valid across the instance, or the entries it is restricted to, ordered as E11
     # lists them (I5). Empty once everything they listed has been deleted.
     restricted_to: tuple[Entry, ...] | None
@@ -175,7 +175,7 @@ _SHOWN_COLUMNS = (
 def _shown(row: Row[Any]) -> dict[str, Any]:
     values = {field.name: row._mapping[field.name] for field in fields(ApiKeyInfo)}
     return values | {
-        "scope": Scope(values["scope"]),
+        "scope": KeyScope(values["scope"]),
         "restricted_to": (
             tuple(_entry(text) for text in values["restricted_to"]) if row.restricted else None
         ),
@@ -201,7 +201,10 @@ def hash_token(token: str) -> str:
 
 
 def create_key(
-    connection: Connection, name: str, scope: Scope, restricted_to: Sequence[Entry] | None = None
+    connection: Connection,
+    name: str,
+    scope: KeyScope,
+    restricted_to: Sequence[Entry] | None = None,
 ) -> CreatedKey:
     """Mint a key and store it, returning the raw token to show the operator once.
 
@@ -258,7 +261,7 @@ def create_key(
 
 
 def _checked_entries(
-    connection: Connection, scope: Scope, entries: Sequence[Entry]
+    connection: Connection, scope: KeyScope, entries: Sequence[Entry]
 ) -> list[dict[str, int | None]]:
     """The restriction rows of a key to be restricted to `entries`, each with the `project_id` of a
     whole project or the `suite_id` of a single suite, once E11's rules are checked.
@@ -270,7 +273,7 @@ def _checked_entries(
     foreign key instead. The projects are locked before the suites, the order writers that lock
     both take, so that none can deadlock with it.
     """
-    if scope in UNRESTRICTABLE_SCOPES:
+    if scope not in RESTRICTABLE_SCOPES:
         raise ValueError(f"A key with the '{scope.value}' scope cannot be restricted.")
     if len(set(entries)) != len(entries):
         raise ValueError("A restricted key must not list an entry more than once.")

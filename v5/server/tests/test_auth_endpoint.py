@@ -14,7 +14,7 @@ from fastapi.testclient import TestClient
 from conftest import code_of
 from lnt_v5.keys import Entry
 from lnt_v5.routes.auth import AUTH_PATH
-from lnt_v5.scopes import Scope
+from lnt_v5.scopes import KeyScope, Scope
 
 KEYS = "/api/admin/api-keys"
 
@@ -26,14 +26,14 @@ def test_reports_no_key_for_an_anonymous_caller(api_client: TestClient) -> None:
     assert response.json() == {"key": None}
 
 
-@pytest.mark.parametrize("scope", list(Scope))
+@pytest.mark.parametrize("scope", list(KeyScope))
 def test_reports_the_scope_of_any_key(
     api_client: TestClient,
     make_key: Callable[..., str],
     bearer: Callable[[str], dict[str, str]],
-    scope: Scope,
+    scope: KeyScope,
 ) -> None:
-    # `read` included: the endpoint exists so that any key can learn its own scope.
+    # Whatever its scope: the endpoint exists so that any key can learn its own.
     token = make_key(scope)
 
     response = api_client.get(AUTH_PATH, headers=bearer(token))
@@ -70,7 +70,7 @@ def test_answers_with_the_key_object_the_admin_list_gives(
     # E12 reuses E11's key fields rather than defining a shape of its own -- which also shows that
     # nothing internal, such as the row id or the token, leaks into it.
     token = make_key(Scope.ADMIN)
-    make_key(Scope.READ, name="another key")
+    make_key(Scope.SUBMIT, name="another key")
 
     own = api_client.get(AUTH_PATH, headers=bearer(token)).json()["key"]
     listed = api_client.get(KEYS, headers=bearer(token)).json()["items"]
@@ -85,7 +85,7 @@ def test_reports_last_used_at_as_it_stood_before_the_request(
 ) -> None:
     # Stricter than E12, which only says the value may predate the request: this server reads the
     # key before recording its use, so the first request still sees null.
-    token = make_key(Scope.READ)
+    token = make_key(Scope.SUBMIT)
 
     first = api_client.get(AUTH_PATH, headers=bearer(token)).json()["key"]
     second = api_client.get(AUTH_PATH, headers=bearer(token)).json()["key"]

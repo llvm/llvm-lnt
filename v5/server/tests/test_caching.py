@@ -125,7 +125,7 @@ def test_the_key_a_request_authenticated_with_is_private(
     # response is revalidated instead, so that a cache checks with the server before reusing it,
     # and the server answers any request with a token itself.
     anonymous = api_client.get("/api/auth")
-    keyed = api_client.get("/api/auth", headers=bearer(make_key(Scope.READ)))
+    keyed = api_client.get("/api/auth", headers=bearer(make_key(Scope.SUBMIT)))
 
     assert anonymous.json() == {"key": None}
     assert_cache_headers(anonymous, REVALIDATE)

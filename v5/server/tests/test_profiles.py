@@ -684,14 +684,14 @@ class TestAuthorization:
     def test_needs_no_credential(self, api_client: TestClient, paths: list[str]) -> None:
         assert [api_client.get(path).status_code for path in paths] == [200] * len(paths)
 
-    def test_a_read_key_is_enough(
+    def test_the_lowest_key_is_enough(
         self,
         api_client: TestClient,
         paths: list[str],
         make_key: Callable[..., str],
         bearer: Callable[[str], dict[str, str]],
     ) -> None:
-        headers = bearer(make_key(Scope.READ))
+        headers = bearer(make_key(Scope.SUBMIT))
 
         assert [api_client.get(path, headers=headers).status_code for path in paths] == [200] * len(
             paths

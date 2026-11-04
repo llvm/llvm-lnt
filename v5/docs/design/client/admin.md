@@ -31,8 +31,9 @@ one again. A check that does not accept a token with `admin` scope replaces the 
 banner.
 
 A "Create API Key" form has a text input for the key name, a dropdown to select
-the scope of the key, starting on `read`, the lowest, a choice of what the key
-covers, and a "Create key" button to create the new key:
+the scope of the key, starting on `submit`, the lowest a key can have (see I5),
+a choice of what the key covers, and a "Create key" button to create the new
+key:
 
 ```
 Name [ci-bot      ]   Scope [triage v]   Covers
@@ -54,8 +55,8 @@ unchecked, and scrolls when long. It is not an AR10 list: there is no checkbox s
 The dropdown's button shows "Select projects or suites" while nothing is checked, and otherwise
 names what is checked as AR22 shows what a key covers, or says how many entries there are when there
 are more than two. "Create key" is disabled, saying why on hover, while "Only these:" is selected
-with nothing checked. Only `submit`, `triage` and `manage` keys can be restricted (see I5): for
-another scope, "Only these:" is disabled, saying why on hover, and the choice goes back to
+with nothing checked. Only `submit`, `triage` and `manage` keys can be restricted (see I5): for an
+`admin` key, "Only these:" is disabled, saying why on hover, and the choice goes back to
 "Everything (instance-wide)". While the projects are not loaded, or there are none, only "Only
 these:" is unavailable.
 
@@ -76,7 +77,7 @@ Below the creation widget, a table like this shows the existing API keys:
 ```
 Prefix      Name          Scope       Covers                     Created                     Last Used                   Active
 --------------------------------------------------------------------------------------------------------------------------------------------------------
-229d78c5    test-key2     read        All                        2026-08-13, 3:01:04 AM      Never                       Yes           [red Revoke button]
+229d78c5    test-key2     triage      All                        2026-08-13, 3:01:04 AM      Never                       Yes           [red Revoke button]
 135f502b    test-key      manage      libc++ (all), LLVM › nts   2026-08-11, 1:04:23 PM      2026-08-18, 3:49:26 AM      Yes           [red Revoke button]
 7d1e40aa    swift-bot     submit      Nothing                    2026-08-02, 4:40:10 PM      2026-08-09, 1:15:57 AM      Yes           [red Revoke button]
 3f0ac112    old-bot       submit      All                        2026-07-02, 9:12:44 AM      2026-08-01, 6:20:11 PM      No
@@ -93,7 +94,7 @@ Column headers are click-to-sort, applied client-side over the already-loaded
 keys -- the list endpoint is unpaginated, so sorting issues no request. Sorting
 by `Last Used` is how to surface the most- and least-recently-active keys; keys
 that have never been used sort after every key carrying a timestamp, in both
-directions. `Scope` sorts by I5's hierarchy, from `read` to `admin`, rather than
+directions. `Scope` sorts by I5's hierarchy, from `submit` to `admin`, rather than
 alphabetically. `Covers` sorts `All` first, then by the entries it shows,
 compared in turn, and `Nothing` last. Keys with the same value keep the default
 order, which is `Created` descending, also the order the API returns. The URL

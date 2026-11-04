@@ -31,7 +31,7 @@ from lnt_v5.routes.suites import (
     patch_schema,
     patch_suite,
 )
-from lnt_v5.scopes import Scope
+from lnt_v5.scopes import KeyScope, Scope
 from lnt_v5.suites import migrations
 from lnt_v5.suites.evolve import SchemaPatch
 from lnt_v5.suites.registry import SuiteRegistry
@@ -71,7 +71,7 @@ def suite_names(engine: Engine) -> list[tuple[str, str]]:
 MANAGE_KEY = keys.ResolvedKey(
     prefix="00000000",
     name="manage",
-    scope=Scope.MANAGE,
+    scope=KeyScope.MANAGE,
     restricted_to=None,
     created_at=datetime.now(UTC),
     last_used_at=None,
@@ -572,7 +572,7 @@ class TestRaces:
     ) -> None:
         def create_key() -> Any:
             with db_engine.begin() as connection:
-                return keys.create_key(connection, "k", Scope.MANAGE, [entry])
+                return keys.create_key(connection, "k", KeyScope.MANAGE, [entry])
 
         with db_engine.connect() as renaming, renaming.begin():
             lock_project(renaming, "libcxx", for_update=True)
@@ -587,7 +587,7 @@ class TestRaces:
         self, db_engine: Engine, background: Callable[..., Future[Any]]
     ) -> None:
         with db_engine.connect() as creating, creating.begin():
-            created = keys.create_key(creating, "k", Scope.MANAGE, [keys.Entry("libcxx", None)])
+            created = keys.create_key(creating, "k", KeyScope.MANAGE, [keys.Entry("libcxx", None)])
             renaming = background(rename_project, db_engine, {"name": "libcpp"})
             until_blocked(db_engine)
 
@@ -602,7 +602,9 @@ class TestRaces:
     ) -> None:
         def create_key() -> Any:
             with db_engine.begin() as connection:
-                return keys.create_key(connection, "k", Scope.MANAGE, [keys.Entry("libcxx", "nts")])
+                return keys.create_key(
+                    connection, "k", KeyScope.MANAGE, [keys.Entry("libcxx", "nts")]
+                )
 
         with db_engine.connect() as renaming, renaming.begin():
             lock_project(renaming, "libcxx")
@@ -618,7 +620,7 @@ class TestRaces:
         self, db_engine: Engine, background: Callable[..., Future[Any]]
     ) -> None:
         with db_engine.connect() as creating, creating.begin():
-            created = keys.create_key(creating, "k", Scope.MANAGE, [keys.Entry("libcxx", "nts")])
+            created = keys.create_key(creating, "k", KeyScope.MANAGE, [keys.Entry("libcxx", "nts")])
             renaming = background(move, db_engine, {"name": "bench"})
             until_blocked(db_engine)
 

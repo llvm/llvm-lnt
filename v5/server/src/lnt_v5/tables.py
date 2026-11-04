@@ -28,7 +28,7 @@ from sqlalchemy import (
     true,
 )
 
-from .scopes import UNRESTRICTABLE_SCOPES, Scope
+from .scopes import RESTRICTABLE_SCOPES, KeyScope
 
 # Deterministic names for every constraint and index, rather than whatever Postgres would invent.
 # Two things rest on this. Alembic needs stable names to emit migrations that can be reversed.
@@ -167,17 +167,17 @@ api_key = Table(
     Column("last_used_at", DateTime(timezone=True), nullable=True),
     Column("is_active", Boolean, nullable=False, server_default=true()),
     # D5 has the database layer validate the scope on create. Restating it as a constraint costs
-    # a migration if I5's five ever change -- they are fixed for v5 -- and in exchange a bug that
-    # writes an unknown scope fails at the boundary instead of minting a key that authenticates
-    # as something nobody intended. Built from the enum so the two cannot drift.
+    # a migration whenever the scopes a key can have change, and in exchange a bug that writes an
+    # unknown scope fails at the boundary instead of minting a key that authenticates as something
+    # nobody intended. Built from the enum so the two cannot drift.
     CheckConstraint(
-        "scope IN ({})".format(", ".join(f"'{scope.value}'" for scope in Scope)),
+        "scope IN ({})".format(", ".join(f"'{scope.value}'" for scope in KeyScope)),
         name="scope",
     ),
     # D5: the scopes that cannot be restricted (I5) are never stored as restricted.
     CheckConstraint(
-        "NOT restricted OR scope NOT IN ({})".format(
-            ", ".join(f"'{scope.value}'" for scope in UNRESTRICTABLE_SCOPES)
+        "NOT restricted OR scope IN ({})".format(
+            ", ".join(f"'{scope.value}'" for scope in RESTRICTABLE_SCOPES)
         ),
         name="restricted",
     ),

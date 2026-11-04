@@ -64,7 +64,7 @@ describe('the token authenticated requests carry', () => {
       mockApi('get', '/api/auth', ({ request }) => {
         if (request.headers.get('Authorization') === `Bearer ${TOKEN}`) {
           return new Promise((resolve) => {
-            answerFirst = () => resolve(HttpResponse.json({ key: apiKey('read') }))
+            answerFirst = () => resolve(HttpResponse.json({ key: apiKey('submit') }))
           })
         }
         return HttpResponse.json({ key: apiKey('admin') })

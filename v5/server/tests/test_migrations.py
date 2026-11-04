@@ -894,7 +894,7 @@ class TestProjects:
         return empty_engine
 
     @pytest.fixture
-    def at_head(self, empty_engine: Engine) -> Engine:
+    def at_0009(self, empty_engine: Engine) -> Engine:
         """At 0009: projects `llvm` (suites `nts`, `zeta`), `libcxx` (suite `benchmarks`) and
         `swift` (no suite), each suite with a display name, and keys:
 
@@ -1013,10 +1013,10 @@ class TestProjects:
             normalized_json(SuiteSchema.model_validate_json(stored["before"]))
         )
 
-    def test_downgrading_names_the_suites_again(self, at_head: Engine) -> None:
-        downgrade_by_hand(at_head, "0008")
+    def test_downgrading_names_the_suites_again(self, at_0009: Engine) -> None:
+        downgrade_by_hand(at_0009, "0008")
 
-        with at_head.connect() as connection:
+        with at_0009.connect() as connection:
             rows = connection.execute(text("SELECT prefix, suites, is_active FROM api_key")).all()
         assert {row.prefix: (row.suites, row.is_active) for row in rows} == {
             # A whole project becomes the suites it holds, `nts` once though listed twice.
@@ -1030,26 +1030,26 @@ class TestProjects:
         }
 
     def test_downgrading_removes_the_display_names_whatever_they_hold(
-        self, at_head: Engine
+        self, at_0009: Engine
     ) -> None:
-        downgrade_by_hand(at_head, "0008")
+        downgrade_by_hand(at_0009, "0008")
 
-        assert stored_schema_json(at_head) == {
+        assert stored_schema_json(at_0009) == {
             name: compact({"name": name}) for name in ("nts", "zeta", "benchmarks")
         }
         # D2: like any other change to a stored schema.
-        assert schema_version_of(at_head) == 1
+        assert schema_version_of(at_0009) == 1
 
-    def test_downgrading_undoes_the_structure(self, at_head: Engine) -> None:
-        downgrade_by_hand(at_head, "0008")
+    def test_downgrading_undoes_the_structure(self, at_0009: Engine) -> None:
+        downgrade_by_hand(at_0009, "0008")
 
-        assert "id" not in column_names(at_head, "public", "schema")
-        assert "project_id" not in column_names(at_head, "public", "schema")
-        assert "restricted" not in column_names(at_head, "public", "api_key")
-        assert inspect(at_head).get_pk_constraint("schema")["constrained_columns"] == ["name"]
-        unique = inspect(at_head).get_unique_constraints("schema")
+        assert "id" not in column_names(at_0009, "public", "schema")
+        assert "project_id" not in column_names(at_0009, "public", "schema")
+        assert "restricted" not in column_names(at_0009, "public", "api_key")
+        assert inspect(at_0009).get_pk_constraint("schema")["constrained_columns"] == ["name"]
+        unique = inspect(at_0009).get_unique_constraints("schema")
         assert [constraint["name"] for constraint in unique] == ["uq_schema_namespace"]
-        tables = inspect(at_head).get_table_names()
+        tables = inspect(at_0009).get_table_names()
         assert "project" not in tables
         assert "api_key_restriction" not in tables
 
@@ -1073,12 +1073,102 @@ class TestProjects:
         # Refused before changing anything.
         assert all("display_name" in stored for stored in stored_schema_json(empty_engine).values())
 
-    def test_downgrading_and_upgrading_again_matches_the_code(self, at_head: Engine) -> None:
-        downgrade_by_hand(at_head, "0008")
+    def test_downgrading_and_upgrading_again_matches_the_code(self, at_0009: Engine) -> None:
+        downgrade_by_hand(at_0009, "0008")
 
-        upgrade_by_hand(at_head, "0009")
+        upgrade_by_hand(at_0009, "head")
 
-        assert_no_pending_revision(at_head)
+        assert_no_pending_revision(at_0009)
+
+
+def accepts_key_row(engine: Engine, scope: str, restricted: bool) -> bool:
+    """Whether `api_key` takes a row of `scope`, restricted or not. Nothing is kept either way.
+
+    The check constraints are tried by inserting rows, because Alembic does not compare them.
+    """
+    with engine.connect() as connection:
+        try:
+            connection.execute(
+                text(
+                    "INSERT INTO api_key (prefix, key_hash, name, scope, restricted) "
+                    "VALUES ('ffffffff', :hash, 'k', :scope, :restricted)"
+                ),
+                {"hash": "f" * 64, "scope": scope, "restricted": restricted},
+            )
+        except IntegrityError:
+            return False
+        finally:
+            connection.rollback()
+        return True
+
+
+class TestNoReadKeys:
+    """0010 deletes the `read` keys, which no key can have any more (I5, D5)."""
+
+    @pytest.fixture
+    def at_0009(self, empty_engine: Engine) -> Engine:
+        """At 0009, with keys `aaaaaaaa` (`read`), `bbbbbbbb` (`read`, revoked), `cccccccc`
+        (`submit`, restricted to project `llvm`) and `dddddddd` (`admin`)."""
+        upgrade_by_hand(empty_engine, "0009")
+        for prefix, scope in [
+            ("aaaaaaaa", "read"),
+            ("bbbbbbbb", "read"),
+            ("cccccccc", "submit"),
+            ("dddddddd", "admin"),
+        ]:
+            insert_key_row(empty_engine, prefix, scope)
+        with empty_engine.begin() as connection:
+            connection.execute(
+                text(
+                    "UPDATE api_key SET is_active = false WHERE prefix = 'bbbbbbbb'; "
+                    "UPDATE api_key SET restricted = true WHERE prefix = 'cccccccc'; "
+                    "INSERT INTO project (name) VALUES ('llvm'); "
+                    "INSERT INTO api_key_restriction (api_key_id, project_id) "
+                    "SELECT api_key.id, project.id FROM api_key, project "
+                    "WHERE prefix = 'cccccccc'"
+                )
+            )
+        return empty_engine
+
+    def test_deletes_the_read_keys_and_nothing_else(self, at_0009: Engine) -> None:
+        upgrade_by_hand(at_0009, "0010")
+
+        with at_0009.connect() as connection:
+            rows = connection.execute(text("SELECT prefix, scope, is_active FROM api_key")).all()
+        assert {row.prefix: (row.scope, row.is_active) for row in rows} == {
+            "cccccccc": ("submit", True),
+            "dddddddd": ("admin", True),
+        }
+        with at_0009.connect() as connection:
+            listed = connection.execute(
+                text(
+                    "SELECT prefix, project.name FROM api_key_restriction "
+                    "JOIN api_key ON api_key.id = api_key_id "
+                    "JOIN project ON project.id = project_id"
+                )
+            ).all()
+        assert [tuple(row) for row in listed] == [("cccccccc", "llvm")]
+
+    def test_downgrading_accepts_read_keys_again(self, at_0009: Engine) -> None:
+        upgrade_by_hand(at_0009, "0010")
+
+        downgrade_by_hand(at_0009, "0009")
+
+        assert accepts_key_row(at_0009, "read", restricted=False)
+        assert not accepts_key_row(at_0009, "read", restricted=True)
+        assert not accepts_key_row(at_0009, "admin", restricted=True)
+
+    def test_downgrading_and_upgrading_again_matches_the_code(self, at_0009: Engine) -> None:
+        upgrade_by_hand(at_0009, "0010")
+        downgrade_by_hand(at_0009, "0009")
+
+        upgrade_by_hand(at_0009, "0010")
+
+        assert_no_pending_revision(at_0009)
+        # As at the head `test_tables.py` checks them on.
+        assert not accepts_key_row(at_0009, "read", restricted=False)
+        assert accepts_key_row(at_0009, "submit", restricted=True)
+        assert not accepts_key_row(at_0009, "admin", restricted=True)
 
 
 class TestConcurrentUpgrade:

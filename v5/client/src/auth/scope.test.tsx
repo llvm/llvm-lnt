@@ -8,7 +8,7 @@ import { BARE_SUITE, PROJECT, SUITE } from '../test/fixtures'
 import { errorResponse } from '../test/mock-api'
 import { providers } from '../test/render'
 import { TOKEN_STORAGE_KEY } from './storage-key'
-import { grants, useScopeGate, type Scope, type Target } from './scope'
+import { grants, KEY_SCOPES, useScopeGate, type Scope, type Target } from './scope'
 import { useAuth } from './use-auth'
 
 const SCOPES: Scope[] = ['read', 'submit', 'triage', 'manage', 'admin']
@@ -20,11 +20,12 @@ const LLVM: Target = { project: 'llvm' }
 
 describe('grants', () => {
   it('follows the hierarchy read < submit < triage < manage < admin', () => {
-    for (const [i, scope] of SCOPES.entries()) {
+    // Each scope a key can have (I5), against each an action can need.
+    for (const scope of KEY_SCOPES) {
       for (const [j, required] of SCOPES.entries()) {
         for (const target of [NTS, LLVM, null]) {
           const granted = grants({ scope, restricted_to: null }, required, target)
-          expect(granted, `${scope} grants ${required}`).toBe(i >= j)
+          expect(granted, `${scope} grants ${required}`).toBe(SCOPES.indexOf(scope) >= j)
         }
       }
     }

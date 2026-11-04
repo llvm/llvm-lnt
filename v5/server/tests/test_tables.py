@@ -12,7 +12,7 @@ from sqlalchemy.exc import IntegrityError
 from conftest import ensure_project
 from introspection import assert_names_survived, stored_names
 from lnt_v5.keys import PREFIX_CONSTRAINT
-from lnt_v5.scopes import UNRESTRICTABLE_SCOPES, Scope
+from lnt_v5.scopes import RESTRICTABLE_SCOPES, KeyScope
 from lnt_v5.tables import (
     api_key,
     api_key_restriction,
@@ -83,15 +83,16 @@ class TestApiKey:
         with pytest.raises(IntegrityError), db.begin_nested():
             insert_key(prefix="ffffffff")
 
-    @pytest.mark.parametrize("scope", list(Scope))
-    def test_accepts_every_scope(self, insert_key: Callable[..., None], scope: Scope) -> None:
+    @pytest.mark.parametrize("scope", list(KeyScope))
+    def test_accepts_every_scope(self, insert_key: Callable[..., None], scope: KeyScope) -> None:
         insert_key(
             scope=scope.value,
             prefix=scope.value[:8].ljust(8, "0"),
             key_hash=scope.value.ljust(64, "0"),
         )
 
-    @pytest.mark.parametrize("scope", ["", "root", "READ", "superuser"])
+    # `read` among them: every request gets it, with or without a key (I5).
+    @pytest.mark.parametrize("scope", ["", "root", "read", "SUBMIT", "superuser"])
     def test_rejects_a_scope_outside_that_set(
         self, db: Connection, insert_key: Callable[..., None], scope: str
     ) -> None:
@@ -100,15 +101,15 @@ class TestApiKey:
         with pytest.raises(IntegrityError), db.begin_nested():
             insert_key(scope=scope)
 
-    @pytest.mark.parametrize("scope", sorted(set(Scope) - set(UNRESTRICTABLE_SCOPES)))
+    @pytest.mark.parametrize("scope", RESTRICTABLE_SCOPES)
     def test_can_restrict_a_restrictable_scope(
-        self, insert_key: Callable[..., None], scope: Scope
+        self, insert_key: Callable[..., None], scope: KeyScope
     ) -> None:
         insert_key(scope=scope.value, restricted=True)
 
-    @pytest.mark.parametrize("scope", UNRESTRICTABLE_SCOPES)
+    @pytest.mark.parametrize("scope", sorted(set(KeyScope) - set(RESTRICTABLE_SCOPES)))
     def test_cannot_restrict_another_scope(
-        self, db: Connection, insert_key: Callable[..., None], scope: Scope
+        self, db: Connection, insert_key: Callable[..., None], scope: KeyScope
     ) -> None:
         # Alembic does not compare check constraints, so this is what shows that the migration
         # created this one. `create_key` checks it first.
@@ -133,7 +134,7 @@ class TestApiKeyRestriction:
     @pytest.fixture
     def ids(self, db: Connection, insert_key: Callable[..., None]) -> tuple[int, int]:
         """The ids of a restricted key and of a suite."""
-        insert_key(scope=Scope.SUBMIT.value, restricted=True)
+        insert_key(scope=KeyScope.SUBMIT.value, restricted=True)
         suite = db.execute(
             insert(schema)
             .values(

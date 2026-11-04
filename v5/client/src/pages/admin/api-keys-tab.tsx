@@ -13,13 +13,13 @@ import {
 } from '../../api/suites'
 import {
   grants,
+  KEY_SCOPES,
   refusal,
   RESTRICTABLE_SCOPES,
   RESTRICTED_TO_NOTHING,
   scopeRank,
-  SCOPES,
   useScopeGate,
-  type Scope,
+  type KeyScope,
   type ScopeGate,
 } from '../../auth/scope'
 import { acceptedKey, useAuth } from '../../auth/use-auth'
@@ -110,7 +110,7 @@ function CreateKey() {
   const titleId = useId()
   const warningId = useId()
   const [name, setName] = useState('')
-  const [scope, setScope] = useState<Scope>('read')
+  const [scope, setScope] = useState<KeyScope>('submit')
   // Whether "Only these:" is chosen over "Everything", and what is checked under it: projects by
   // their names, and suites by their full names.
   const [restrict, setRestrict] = useState(false)
@@ -175,7 +175,7 @@ function CreateKey() {
           </label>
           <Select
             label="Scope"
-            options={SCOPES.map((option) => ({ value: option, label: option }))}
+            options={KEY_SCOPES.map((option) => ({ value: option, label: option }))}
             value={scope}
             onChange={(next) => {
               setScope(next)
@@ -218,7 +218,7 @@ function CreateKey() {
 }
 
 /** Why a key of `scope` cannot be restricted for now, given `projects`, if it cannot. */
-function whyUnrestrictable(scope: Scope, projects: ReturnType<typeof useProjects>) {
+function whyUnrestrictable(scope: KeyScope, projects: ReturnType<typeof useProjects>) {
   if (!RESTRICTABLE_SCOPES.includes(scope)) {
     return "Only 'submit', 'triage' and 'manage' keys can be restricted."
   }

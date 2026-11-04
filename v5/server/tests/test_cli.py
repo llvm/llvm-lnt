@@ -21,7 +21,7 @@ from introspection import namespace_of
 from lnt_v5 import cli, keys, migrate
 from lnt_v5.config import get_settings
 from lnt_v5.keys import Entry
-from lnt_v5.scopes import Scope
+from lnt_v5.scopes import KeyScope
 from lnt_v5.suites import migrations as suite_migrations
 from lnt_v5.suites.inactivity import SWEEP_LOCK_KEY
 from lnt_v5.suites.schema import SuiteSchema
@@ -74,6 +74,7 @@ class TestArgumentParsing:
             (["server", "create-key", "--name", "k"], "no --scope"),
             (["server", "create-key", "--scope", "admin"], "no --name"),
             (["server", "create-key", "--name", "k", "--scope", "root"], "not a scope"),
+            (["server", "create-key", "--name", "k", "--scope", "read"], "a scope no key has (I5)"),
             (["server", "run", "--port", "http"], "not a port number"),
             (["server", "run", "--port", "-1"], "negative port"),
             (["server", "run", "--port", "70000"], "port above 65535"),
@@ -364,10 +365,9 @@ class TestCreateKey:
         assert stored.scope == "submit"
         assert stored.prefix == token[:8]
 
-    @pytest.mark.parametrize("scope", [scope.value for scope in Scope])
+    @pytest.mark.parametrize("scope", [scope.value for scope in KeyScope])
     def test_accepts_every_scope(self, configured_database: Engine, scope: str) -> None:
-        # Spelled out from Scope rather than a literal list so a renamed member fails here, but
-        # I5 fixes the set at these five.
+        # Spelled out from KeyScope rather than a literal list so a renamed member fails here.
         assert cli.main(["server", "create-key", "--name", "k", "--scope", scope]) == 0
 
     def test_refuses_an_uninitialized_database_rather_than_migrating_it(

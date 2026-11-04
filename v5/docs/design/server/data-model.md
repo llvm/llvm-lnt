@@ -484,14 +484,14 @@ namespace of their own (see below).
   `prefix` is stored in recoverable form.
 - `name` is a human-readable label, deliberately not unique: two keys may share
   a name.
-- `scope` is one of `read`, `submit`, `triage`, `manage`, `admin` (see I5). The
+- `scope` is one of `submit`, `triage`, `manage`, `admin` (see I5). The
   database layer validates it on create. It is stored as text rather than as an
   integer code (unlike `{suite}.regression.state`, below), because it is read
   once per authenticated request and never filtered or sorted on, so
   readability in the database matters more than compactness.
 - `restricted` is true for a key restricted to the projects and suites its
-  `api_key_restriction` rows list (see I5). The database layer rejects it on a
-  `read` or `admin` key.
+  `api_key_restriction` rows list (see I5). The database layer rejects it on an
+  `admin` key.
 - `last_used_at` is null until the key is first used. It is recorded on
   successful authentication, on a best-effort basis: an implementation may
   coalesce or drop these writes, so the value may lag actual use. It is not an

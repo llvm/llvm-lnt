@@ -1045,7 +1045,7 @@ class TestAuthorization:
         assert code_of(response) == "unauthorized"
 
     @pytest.mark.parametrize(("method", "path", "body"), WRITES)
-    def test_a_write_needs_more_than_read(
+    def test_a_write_is_403_for_a_key_below_manage(
         self,
         api_client: TestClient,
         create: Callable[..., Any],
@@ -1058,7 +1058,7 @@ class TestAuthorization:
         create("linux")
 
         response = api_client.request(
-            method.upper(), path, json=body, headers=bearer(make_key(Scope.READ))
+            method.upper(), path, json=body, headers=bearer(make_key(Scope.TRIAGE))
         )
 
         assert response.status_code == 403
@@ -1083,7 +1083,7 @@ class TestAuthorization:
     ) -> None:
         # I5: resolving first and answering 404 would let an under-scoped caller enumerate which
         # suites and machines exist.
-        response = api_client.delete(path, headers=bearer(make_key(Scope.READ)))
+        response = api_client.delete(path, headers=bearer(make_key(Scope.TRIAGE)))
 
         assert response.status_code == 403
 

@@ -916,7 +916,7 @@ export interface components {
              * @example libcxx-ci-linux
              */
             name: string;
-            scope: components["schemas"]["Scope"];
+            scope: components["schemas"]["KeyScope"];
             /**
              * Restricted To
              * @description The whole projects and the single test suites the key is restricted to, under their current names, sorted by project name, a whole project before the suites of that project, then by suite name. Null if it isn't restricted. A restricted key has its scope only in the test suites it covers, and can only read everywhere else. A project or a suite that is deleted is removed from the list, so the list is empty once all of them are: the key then can only read.
@@ -958,7 +958,7 @@ export interface components {
              * @description A label for the key. Several keys can have the same name.
              */
             name: string;
-            scope: components["schemas"]["Scope"];
+            scope: components["schemas"]["KeyScope"];
             /**
              * Restricted To
              * @description The whole projects and the single test suites to restrict the key to, each listed once. The key then has its scope only in the suites it covers, and can only read everywhere else. Creating a test suite in a project, or changing or deleting the project, needs the whole project. Only `submit`, `triage` and `manage` keys can be restricted, and every project and suite must exist. Leave out, or set to null, for an unrestricted key.
@@ -982,7 +982,7 @@ export interface components {
              * @example libcxx-ci-linux
              */
             name: string;
-            scope: components["schemas"]["Scope"];
+            scope: components["schemas"]["KeyScope"];
             /**
              * Restricted To
              * @description The whole projects and the single test suites the key is restricted to, under their current names, sorted by project name, a whole project before the suites of that project, then by suite name. Null if it isn't restricted. A restricted key has its scope only in the test suites it covers, and can only read everywhere else. A project or a suite that is deleted is removed from the list, so the list is empty once all of them are: the key then can only read.
@@ -1709,6 +1709,25 @@ export interface components {
              */
             text: string;
         };
+        /**
+         * KeyScope
+         * @description What an API key is allowed to do. Each scope includes the ones before it, submit < triage <
+         *     manage < admin, and reading, which needs no key at all.
+         *
+         *     - `submit`: submit runs and create commits.
+         *     - `triage`: create, update and delete regressions and their indicators.
+         *     - `manage`: create, update and delete machines; update and delete commits; delete runs; create,
+         *       rename, move, change and delete test suites; create, rename, change and delete projects.
+         *     - `admin`: list, create and revoke API keys.
+         *
+         *     A `submit`, `triage` or `manage` key can be restricted to some projects as a whole and some
+         *     single test suites. It then has its scope only in the suites it covers, and can only read
+         *     everywhere else. Creating a test suite in a project, moving one into it, or changing or
+         *     deleting the project, needs a key covering that project as a whole. Creating a project always
+         *     needs an unrestricted key.
+         * @enum {string}
+         */
+        KeyScope: "submit" | "triage" | "manage" | "admin";
         /**
          * Machine
          * @description A machine that benchmarks run on.
@@ -3051,26 +3070,6 @@ export interface components {
             machine_fields?: components["schemas"]["MachineFieldChanges"];
             repository?: components["schemas"]["RepositoryUpdate"];
         };
-        /**
-         * Scope
-         * @description What an API key is allowed to do. Each scope includes the ones before it: read < submit <
-         *     triage < manage < admin.
-         *
-         *     - `read`: read all data. Doesn't need a key at all.
-         *     - `submit`: submit runs and create commits.
-         *     - `triage`: create, update and delete regressions and their indicators.
-         *     - `manage`: create, update and delete machines; update and delete commits; delete runs; create,
-         *       rename, move, change and delete test suites; create, rename, change and delete projects.
-         *     - `admin`: list, create and revoke API keys.
-         *
-         *     A `submit`, `triage` or `manage` key can be restricted to some projects as a whole and some
-         *     single test suites. It then has its scope only in the suites it covers, and only `read`
-         *     everywhere else. Creating a test suite in a project, moving one into it, or changing or
-         *     deleting the project, needs a key covering that project as a whole. Creating a project always
-         *     needs an unrestricted key.
-         * @enum {string}
-         */
-        Scope: "read" | "submit" | "triage" | "manage" | "admin";
         /**
          * SuiteSchema
          * @description A test suite's schema: its name and display name, the metrics, commit fields and machine

@@ -121,32 +121,32 @@ class TestCreate:
         admin: dict[str, str],
         bearer: Callable[[str], dict[str, str]],
     ) -> None:
-        token = api_client.post(KEYS, headers=admin, json={"name": "bot", "scope": "read"}).json()[
-            "token"
-        ]
+        token = api_client.post(
+            KEYS, headers=admin, json={"name": "bot", "scope": "submit"}
+        ).json()["token"]
 
         assert api_client.get("/api", headers=bearer(token)).status_code == 200
 
     def test_sets_no_location_header(self, api_client: TestClient, admin: dict[str, str]) -> None:
         # Deliberate: there is no per-key detail route, so the list is the only way to read a key
         # back and there is nothing for a Location to point at.
-        response = api_client.post(KEYS, headers=admin, json={"name": "bot", "scope": "read"})
+        response = api_client.post(KEYS, headers=admin, json={"name": "bot", "scope": "submit"})
 
         assert "Location" not in response.headers
 
     def test_the_token_is_shown_only_once(
         self, api_client: TestClient, admin: dict[str, str]
     ) -> None:
-        token = api_client.post(KEYS, headers=admin, json={"name": "bot", "scope": "read"}).json()[
-            "token"
-        ]
+        token = api_client.post(
+            KEYS, headers=admin, json={"name": "bot", "scope": "submit"}
+        ).json()["token"]
 
         assert token not in api_client.get(KEYS, headers=admin).text
 
     def test_two_keys_may_share_a_name(self, api_client: TestClient, admin: dict[str, str]) -> None:
         # `name` is a label rather than an identifier.
-        first = api_client.post(KEYS, headers=admin, json={"name": "bot", "scope": "read"})
-        second = api_client.post(KEYS, headers=admin, json={"name": "bot", "scope": "read"})
+        first = api_client.post(KEYS, headers=admin, json={"name": "bot", "scope": "submit"})
+        second = api_client.post(KEYS, headers=admin, json={"name": "bot", "scope": "submit"})
 
         assert first.status_code == second.status_code == 201
         assert first.json()["prefix"] != second.json()["prefix"]
@@ -154,15 +154,19 @@ class TestCreate:
     @pytest.mark.parametrize(
         ("body", "why"),
         [
-            ({"scope": "read"}, "no name"),
-            ({"name": "", "scope": "read"}, "an empty name"),
-            ({"name": "x" * (KEY_NAME_MAX_LENGTH + 1), "scope": "read"}, "an oversized name"),
-            ({"name": "a\x00b", "scope": "read"}, "a name PostgreSQL cannot store (D5)"),
+            ({"scope": "submit"}, "no name"),
+            ({"name": "", "scope": "submit"}, "an empty name"),
+            ({"name": "x" * (KEY_NAME_MAX_LENGTH + 1), "scope": "submit"}, "an oversized name"),
+            ({"name": "a\x00b", "scope": "submit"}, "a name PostgreSQL cannot store (D5)"),
             ({"name": "bot"}, "no scope"),
-            ({"name": "bot", "scope": "root"}, "a scope outside I5's five"),
-            ({"name": "bot", "scope": "READ"}, "a scope in the wrong case"),
+            ({"name": "bot", "scope": "root"}, "a scope I5 does not have"),
+            ({"name": "bot", "scope": "read"}, "the scope every request has without a key (I5)"),
+            ({"name": "bot", "scope": "SUBMIT"}, "a scope in the wrong case"),
             ({"name": "bot", "scope": None}, "a null scope"),
-            ({"name": "bot", "scope": "read", "expires": "never"}, "a key the body does not take"),
+            (
+                {"name": "bot", "scope": "submit", "expires": "never"},
+                "a key the body does not take",
+            ),
         ],
     )
     def test_rejects_a_bad_body(
@@ -178,7 +182,7 @@ class TestCreate:
     ) -> None:
         name = "x" * KEY_NAME_MAX_LENGTH
 
-        response = api_client.post(KEYS, headers=admin, json={"name": name, "scope": "read"})
+        response = api_client.post(KEYS, headers=admin, json={"name": name, "scope": "submit"})
 
         assert response.status_code == 201
         assert response.json()["name"] == name
@@ -245,7 +249,6 @@ class TestCreateRestricted:
         ("scope", "entries", "why"),
         [
             ("submit", [], "an empty list, which would grant nothing anywhere"),
-            ("read", [NTS], "a read key, which a restriction would leave as anonymous"),
             ("admin", [NTS], "an admin key, whose endpoints address no suite"),
             ("submit", [NTS, NTS], "an entry listed twice"),
             ("submit", [{"project": "llvm"}] * 2, "a project listed twice"),

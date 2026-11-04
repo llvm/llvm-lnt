@@ -28,7 +28,7 @@ from conftest import code_of, ensure_project
 from lnt_v5 import keys
 from lnt_v5.auth import iter_routes, required_scope
 from lnt_v5.querying import _takes_several
-from lnt_v5.scopes import UNRESTRICTABLE_SCOPES, Scope
+from lnt_v5.scopes import RESTRICTABLE_SCOPES, KeyScope, Scope
 from lnt_v5.tables import api_key
 
 # A read-scoped endpoint and an admin-scoped one.
@@ -162,7 +162,7 @@ class TestHeaderParsing:
 
 
 class TestScopeEnforcement:
-    @pytest.mark.parametrize("scope", [Scope.READ, Scope.SUBMIT, Scope.TRIAGE, Scope.MANAGE])
+    @pytest.mark.parametrize("scope", [Scope.SUBMIT, Scope.TRIAGE, Scope.MANAGE])
     def test_a_key_below_the_requirement_is_a_403(
         self,
         api_client: TestClient,
@@ -175,13 +175,13 @@ class TestScopeEnforcement:
         assert response.status_code == 403
         assert response.json()["error"]["code"] == "forbidden"
 
-    @pytest.mark.parametrize("scope", list(Scope))
+    @pytest.mark.parametrize("scope", list(KeyScope))
     def test_every_scope_reaches_a_read_endpoint(
         self,
         api_client: TestClient,
         make_key: Callable[..., str],
         bearer: Callable[[str], dict[str, str]],
-        scope: Scope,
+        scope: KeyScope,
     ) -> None:
         # A key grants its own scope plus every lower one, so `read` is reachable by all of them.
         assert api_client.get(READABLE, headers=bearer(make_key(scope))).status_code == 200
@@ -221,8 +221,7 @@ class TestSuiteRestriction:
         endpoint whose suite is not where the authorization looks for it fails one or the other.
         """
         elsewhere = bearer(restricted_key(Scope.MANAGE, "other"))
-        restrictable = set(Scope) - set(UNRESTRICTABLE_SCOPES)
-        found = operations(api_app, restrictable)
+        found = operations(api_app, {Scope(scope.value) for scope in RESTRICTABLE_SCOPES})
 
         for method, template in found:
             response = api_client.request(method, placeholders_filled(template), headers=elsewhere)
@@ -714,7 +713,7 @@ class TestRevocation:
         bearer: Callable[[str], dict[str, str]],
     ) -> None:
         admin = make_key(Scope.ADMIN)
-        revoked = make_key(Scope.READ, name="doomed")
+        revoked = make_key(Scope.SUBMIT, name="doomed")
         api_client.delete(f"{ADMIN_ONLY}/{revoked[:8]}", headers=bearer(admin))
 
         assert api_client.get(READABLE, headers=bearer(revoked)).status_code == 401
@@ -858,7 +857,7 @@ class TestLastUsed:
         is recorded, while the endpoint never ran and so had no transaction for the write to have
         ridden along in.
         """
-        token = make_key(Scope.READ)
+        token = make_key(Scope.SUBMIT)
 
         assert api_client.get(ADMIN_ONLY, headers=bearer(token)).status_code == 403
 
@@ -878,7 +877,7 @@ class TestLastUsed:
         now = 0.0
         monkeypatch.setattr(keys, "monotonic", lambda: now)
         token = make_key(Scope.ADMIN)
-        other = make_key(Scope.READ, name="other")
+        other = make_key(Scope.SUBMIT, name="other")
         api_client.get(READABLE, headers=bearer(token))
 
         # Cleared behind the server's back, so that only a new write can fill it in again.
@@ -906,7 +905,7 @@ class TestLastUsed:
         bearer: Callable[[str], dict[str, str]],
     ) -> None:
         admin = make_key(Scope.ADMIN)
-        revoked = make_key(Scope.READ, name="doomed")
+        revoked = make_key(Scope.SUBMIT, name="doomed")
         api_client.delete(f"{ADMIN_ONLY}/{revoked[:8]}", headers=bearer(admin))
 
         api_client.get(READABLE, headers=bearer(revoked))

@@ -2170,29 +2170,6 @@ class TestAuthorization:
         assert code_of(response) == "unauthorized"
 
     @pytest.mark.parametrize(("method", "path", "scope"), WRITES)
-    def test_a_write_needs_more_than_read(
-        self,
-        api_client: TestClient,
-        submitted: Callable[..., Any],
-        make_key: Callable[..., str],
-        bearer: Callable[[str], dict[str, str]],
-        method: str,
-        path: str,
-        scope: Scope,
-    ) -> None:
-        body = submitted()
-
-        response = api_client.request(
-            method.upper(),
-            path.format(uuid=body["uuid"]),
-            json=payload(),
-            headers=bearer(make_key(Scope.READ)),
-        )
-
-        assert response.status_code == 403
-        assert code_of(response) == "forbidden"
-
-    @pytest.mark.parametrize(("method", "path", "scope"), WRITES)
     def test_each_write_accepts_exactly_the_scope_endpoints_md_gives_it(
         self,
         api_client: TestClient,
