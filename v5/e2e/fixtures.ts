@@ -22,7 +22,7 @@ import { stackLog } from './global-setup.ts'
 
 export { expect }
 
-export type Scope = components['schemas']['Scope']
+export type KeyScope = components['schemas']['KeyScope']
 
 /**
  * An entry of a key's restriction (E11): a whole project, with a null `suite`, or a single suite.
@@ -71,8 +71,8 @@ export async function profiledRun(request: APIRequestContext, machine: string, c
 }
 
 interface Fixtures {
-  tokenFor: (scope: Scope, restrictedTo?: Entry[]) => Promise<string>
-  signIn: (page: Page, scope: Scope, restrictedTo?: Entry[]) => Promise<string>
+  tokenFor: (scope: KeyScope, restrictedTo?: Entry[]) => Promise<string>
+  signIn: (page: Page, scope: KeyScope, restrictedTo?: Entry[]) => Promise<string>
   serverLog: void
 }
 

@@ -17,7 +17,7 @@ from lnt_v5.auth import require_scope
 from lnt_v5.db import EngineDep
 from lnt_v5.errors import ApiError, ErrorCode, ErrorEnvelope
 from lnt_v5.responses import Items
-from lnt_v5.scopes import Scope
+from lnt_v5.scopes import KeyScope, Scope
 from lnt_v5.strings import Storable
 from lnt_v5.suites.schema import SuiteNameStr
 from lnt_v5.tables import KEY_NAME_MAX_LENGTH
@@ -73,7 +73,7 @@ class ApiKey(BaseModel):
         description="A label for the key. Several keys can have the same name.",
         examples=[examples.API_KEY_NAME],
     )
-    scope: Scope
+    scope: KeyScope
     restricted_to: list[RestrictionEntry] | None = Field(
         description=(
             "The whole projects and the single test suites the key is restricted to, under their "
@@ -119,7 +119,7 @@ class ApiKeyCreate(BaseModel):
         max_length=KEY_NAME_MAX_LENGTH,
         description="A label for the key. Several keys can have the same name.",
     )
-    scope: Scope
+    scope: KeyScope
     # Only the shape is checked here. Which keys can be restricted, and to which existing projects
     # and suites, is checked by `keys.create_key`, which the CLI shares.
     restricted_to: list[RestrictionEntry] | None = Field(

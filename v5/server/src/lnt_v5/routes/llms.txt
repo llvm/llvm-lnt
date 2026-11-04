@@ -194,19 +194,19 @@ Deleting a suite, or removing entries from its schema, destroys data and needs
 ## Authentication
 
 Send `Authorization: Bearer <token>`. Scopes form a hierarchy -- `read` <
-`submit` < `triage` < `manage` < `admin` -- and a key grants its own scope and
-every lower one. `read` endpoints allow anonymous access, so send no header if
-you only read. A header that carries no usable Bearer token, or an unknown or
-revoked one, is 401 even on a `read` endpoint, and too little scope is 403. A
-key may be restricted (its `restricted_to` list) to whole projects, each
-`{"project": ..., "suite": null}`, and single suites, each `{"project": ...,
-"suite": ...}`, and then has its scope only in the suites it covers: those it
-lists, and every suite of the projects it lists; it can only read anywhere else.
-Creating a suite in a project, moving a suite into it, or changing or deleting
-the project needs the whole project listed, and creating a project needs an
-unrestricted key. To check a token before relying on it, `GET /api/auth`
-returns the key it belongs to, including the scope it grants and its
-`restricted_to`.
+`submit` < `triage` < `manage` < `admin` -- and a key grants its own scope, one
+of the last four, and every lower one. `read` endpoints allow anonymous access,
+so send no header if you only read. A header that carries no usable Bearer
+token, or an unknown or revoked one, is 401 even on a `read` endpoint, and too
+little scope is 403. A key may be restricted (its `restricted_to` list) to whole
+projects, each `{"project": ..., "suite": null}`, and single suites, each
+`{"project": ..., "suite": ...}`, and then has its scope only in the suites it
+covers: those it lists, and every suite of the projects it lists; it can only
+read anywhere else. Creating a suite in a project, moving a suite into it, or
+changing or deleting the project needs the whole project listed, and creating a
+project needs an unrestricted key. To check a token before relying on it,
+`GET /api/auth` returns the key it belongs to, including the scope it grants and
+its `restricted_to`.
 
 ## Workflows
 

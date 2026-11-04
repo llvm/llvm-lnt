@@ -50,7 +50,7 @@ from .auth import (
     required_scope,
 )
 from .errors import ErrorEnvelope
-from .scopes import UNRESTRICTABLE_SCOPES, Scope
+from .scopes import RESTRICTABLE_SCOPES, KeyScope, Scope
 
 # Read once, at import, like `llms.txt`: a packaging mistake that lost it should fail the process.
 OVERVIEW = Path(__file__).with_name("openapi.md").read_text(encoding="utf-8")
@@ -196,7 +196,7 @@ def _authorization(scope: Scope, path: str) -> str:
     if scope is Scope.READ:
         return "**Authorization:** no API key needed."
     sentence = f"**Authorization:** requires an API key with the `{scope.value}` scope"
-    if scope in UNRESTRICTABLE_SCOPES:
+    if KeyScope(scope.value) not in RESTRICTABLE_SCOPES:
         return f"{sentence}."
     if addresses_suite(path):
         return f"{sentence}, unrestricted or covering this test suite."

@@ -326,7 +326,7 @@ the request's `Accept-Encoding` carries `Vary: Accept-Encoding`.
 **Scopes.** Every endpoint under `/api/` declares the scope it requires. Scopes
 form a strict hierarchy, `read` < `submit` < `triage` < `manage` < `admin`, and
 a key grants its own scope plus every lower one: an `admin` key can do
-everything a `read` key can. A restricted key grants its scope only on what it
+everything a `submit` key can. A restricted key grants its scope only on what it
 covers (see Restrictions below).
 
 - **read** -- read-only access to test suites and everything in them. Covers
@@ -339,6 +339,9 @@ covers (see Restrictions below).
   runs; create/rename/move/delete test suites and change their schemas;
   create/update/delete projects
 - **admin** -- list, create, and revoke API keys
+
+A key has one of `submit`, `triage`, `manage` and `admin`. `read` needs no key
+(see Unauthenticated access).
 
 The HTTP method does not determine the scope, in either direction: some POST
 endpoints only require `read`, and the API key endpoints require `admin` even
@@ -373,8 +376,7 @@ needs beyond covering the suite is checked once the body is valid, still before 
 destination is looked up, so an invalid body is a 400 even from a key that does
 not cover the destination.
 
-- Only `submit`, `triage` and `manage` keys can be restricted. A restricted
-  `read` key would grant nothing more than no key at all, and `admin` keys are
+- Only `submit`, `triage` and `manage` keys can be restricted. `admin` keys are
   always instance-wide, since the API key endpoints address no project or suite.
 - An entry is linked to its project or suite by identity, not by name (see D5),
   and never changes on a rename or a move: an entry for a suite follows the

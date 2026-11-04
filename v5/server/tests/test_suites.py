@@ -1668,7 +1668,7 @@ class TestWriteAuthorization:
         ("method", "path"),
         [("post", SUITES), ("patch", f"{SUITES}/nts/schema"), ("delete", f"{SUITES}/nts")],
     )
-    def test_a_write_needs_more_than_read(
+    def test_a_write_is_403_for_a_key_below_manage(
         self,
         api_client: TestClient,
         create: Callable[..., Any],
@@ -1678,7 +1678,7 @@ class TestWriteAuthorization:
         path: str,
     ) -> None:
         response = api_client.request(
-            method.upper(), path, json={}, headers=bearer(make_key(Scope.READ))
+            method.upper(), path, json={}, headers=bearer(make_key(Scope.TRIAGE))
         )
 
         assert response.status_code == 403
@@ -1697,7 +1697,7 @@ class TestWriteAuthorization:
         path = f"{SUITES}/nope/schema" if method == "patch" else f"{SUITES}/nope"
 
         response = api_client.request(
-            method.upper(), path, json={}, headers=bearer(make_key(Scope.READ))
+            method.upper(), path, json={}, headers=bearer(make_key(Scope.TRIAGE))
         )
 
         assert response.status_code == 403

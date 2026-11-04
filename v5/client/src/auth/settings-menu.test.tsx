@@ -229,7 +229,7 @@ describe('Settings panel', () => {
   })
 
   it('checks a token entered again, even the one already stored', async () => {
-    const checks = signIn('read')
+    const checks = signIn('submit')
     renderMenu()
     openPanel()
     await waitFor(() => expect(status()).toHaveTextContent('Using key'))
@@ -306,7 +306,7 @@ describe('Settings panel', () => {
         const header = request.headers.get('Authorization')
         if (header === `Bearer ${TOKEN}`) {
           return new Promise((resolve) => {
-            answerFirst = () => resolve(HttpResponse.json({ key: apiKey('read', { name: 'first' }) }))
+            answerFirst = () => resolve(HttpResponse.json({ key: apiKey('submit', { name: 'first' }) }))
           })
         }
         return HttpResponse.json({ key: apiKey('admin', { name: 'second' }) })

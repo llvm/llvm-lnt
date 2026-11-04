@@ -14,11 +14,11 @@ Reading data doesn't require an API key. Everything else does: send the key's to
 `Authorization: Bearer <token>` header. To try those operations from this page, click
 **Authorize** and paste your token. It is saved in your browser until you log out.
 
-Each operation lists the scope it requires, and the `Scope` schema describes what each scope
+Each operation lists the scope it requires, and the `KeyScope` schema describes what each scope
 allows. Scopes are ordered `read` < `submit` < `triage` < `manage` < `admin`, and a key can do
-everything its scope and the scopes below it allow. A key can also be restricted to some whole
-projects and some single test suites, and then has its scope only in the suites it covers. A key
-covering a project as a whole can also create test suites in it, move test suites into it, and
+everything its scope and the scopes below it allow. `read` is the scope of the operations that don't
+need a key. A key can also be restricted to some whole projects and some single test suites, and
+then has its scope only in the suites it covers. A key covering a project as a whole can also create test suites in it, move test suites into it, and
 change or delete the project. Creating a project always needs an unrestricted key.
 Restrictions follow renames: a key listing a suite keeps covering it under its new names, and a key
 listing a project covers the suites the project holds now. Keys are created with

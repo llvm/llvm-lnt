@@ -2,7 +2,7 @@ import { HttpResponse } from 'msw'
 import type { Schemas } from '../api/client'
 import { TOKEN_STORAGE_KEY } from '../auth/storage-key'
 import type { ApiKey } from '../auth/credentials'
-import type { Scope, ScopeGate } from '../auth/scope'
+import type { KeyScope, ScopeGate } from '../auth/scope'
 import { PROJECT } from './fixtures'
 import { errorResponse, mockApi } from './mock-api'
 import { server } from './server'
@@ -13,7 +13,7 @@ export const TOKEN = 'a'.repeat(64)
 /** The gate of a control whose action the token allows (see `useScopeGate`). */
 export const ALLOWED: ScopeGate = { disabled: false, title: undefined }
 
-export function apiKey(scope: Scope, overrides: Partial<ApiKey> = {}): ApiKey {
+export function apiKey(scope: KeyScope, overrides: Partial<ApiKey> = {}): ApiKey {
   return {
     prefix: TOKEN.slice(0, 8),
     name: `${scope}-key`,
@@ -31,7 +31,7 @@ export function apiKey(scope: Scope, overrides: Partial<ApiKey> = {}): ApiKey {
  * as the app does, before rendering, and have `GET /api/auth` accept it. Returns the headers the
  * check was sent with, one per check.
  */
-export function signIn(scope: Scope, restrictedTo: ApiKey['restricted_to'] = null): string[] {
+export function signIn(scope: KeyScope, restrictedTo: ApiKey['restricted_to'] = null): string[] {
   localStorage.setItem(TOKEN_STORAGE_KEY, TOKEN)
   return mockAuth(() => HttpResponse.json({ key: apiKey(scope, { restricted_to: restrictedTo }) }))
 }

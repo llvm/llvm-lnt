@@ -11,10 +11,17 @@ import {
 import type { ApiKey } from './credentials'
 import { acceptedKey, useAuth, type TokenStatus } from './use-auth'
 
-export type Scope = Schemas['Scope']
+/** The scope an API key has (I5): any but `read`, which every request gets, with or without one. */
+export type KeyScope = Schemas['KeyScope']
+
+/** The scope an action needs (I5). */
+export type Scope = 'read' | KeyScope
+
+/** The scopes a key can have, lowest first. */
+export const KEY_SCOPES = ['submit', 'triage', 'manage', 'admin'] as const satisfies KeyScope[]
 
 /** I5's hierarchy, lowest first: a key grants its own scope and every lower one. */
-export const SCOPES = ['read', 'submit', 'triage', 'manage', 'admin'] as const satisfies Scope[]
+export const SCOPES = ['read', ...KEY_SCOPES] as const satisfies Scope[]
 
 /** The scopes a key can be restricted with (I5). */
 export const RESTRICTABLE_SCOPES: readonly Scope[] = ['submit', 'triage', 'manage']

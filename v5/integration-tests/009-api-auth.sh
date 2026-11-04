@@ -48,7 +48,7 @@ expect_header Cache-Control 'private, no-store[[:space:]]*$'
 
 echo "  a key created over the API is usable immediately, on whichever worker answers"
 request -X POST -H "Authorization: Bearer ${bootstrap}" -H 'Content-Type: application/json' \
-    --data '{"name":"integration-bot","scope":"read"}' "$KEYS"
+    --data '{"name":"integration-bot","scope":"submit"}' "$KEYS"
 expect_status 201
 bot="$(extract_token)"
 if [ -z "$bot" ]; then
@@ -80,7 +80,7 @@ done
 echo "  the revoked key is still listed, marked inactive"
 request -H "Authorization: Bearer ${bootstrap}" "$KEYS"
 expect_status 200
-expect_body '"prefix":"'"${bot:0:8}"'","name":"integration-bot","scope":"read".*"is_active":false'
+expect_body '"prefix":"'"${bot:0:8}"'","name":"integration-bot","scope":"submit".*"is_active":false'
 
 echo "  the routes outside the REST API never authenticate"
 for path in /api/openapi.json /api/docs /llms.txt /robots.txt; do

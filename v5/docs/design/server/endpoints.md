@@ -856,8 +856,8 @@ nullable, and only approximate (see D5). Revoked keys are included, with
 `is_active: false`.
 
 **Create** (`POST /api/admin/api-keys`): the body has `name` (string, required),
-`scope` (string, required: one of `read`, `submit`, `triage`, `manage`,
-`admin`), and `restricted_to` (optional: a non-empty list of entries, as in the
+`scope` (string, required: one of `submit`, `triage`, `manage`, `admin`), and
+`restricted_to` (optional: a non-empty list of entries, as in the
 key object, except that a whole project's may leave `suite` out, to restrict the
 key to them, or null). An omitted or null `restricted_to` makes the key
 instance-wide. The list may name a suite along with its whole project (see
@@ -867,13 +867,13 @@ I5).
   is shown only this once and cannot be retrieved afterwards (see I5). No
   `Location` header is set: there is deliberately no per-key detail route.
 - 400 if `name` is missing, empty, or longer than 256 characters (see D5), or
-  if `scope` is missing or not one of the five values. `name` is a label rather
-  than an identifier, so two keys may share one.
+  if `scope` is missing or not one of these four values. `name` is a label
+  rather than an identifier, so two keys may share one.
 - 400 if `restricted_to` is an empty list, has an entry without `project` or
   with a key other than `project` and `suite`, holds a name that is not a valid
   project or suite name (see D4 and D7) or a null `project`, lists an entry more
-  than once, or is a list on a `read` or `admin` key, which cannot be restricted
-  (see I5).
+  than once, or is a list on an `admin` key, which cannot be restricted (see
+  I5).
 - 404 if an entry names a project that does not exist, or a suite that its
   project does not have.
 

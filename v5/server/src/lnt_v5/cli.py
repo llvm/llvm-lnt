@@ -21,7 +21,7 @@ from sqlalchemy.exc import DBAPIError
 from . import keys, migrate
 from .config import Settings, get_settings
 from .db import is_undefined_table, make_engine
-from .scopes import Scope
+from .scopes import KeyScope
 from .suites import inactivity
 from .suites import migrations as suite_migrations
 from .suites.registry import SuiteRegistry
@@ -145,7 +145,7 @@ def _serve_dev(settings: Settings, port: int) -> int:
 
 
 def _create_key(
-    settings: Settings, name: str, scope: Scope, restricted_to: Sequence[keys.Entry] | None
+    settings: Settings, name: str, scope: KeyScope, restricted_to: Sequence[keys.Entry] | None
 ) -> int:
     """Create an API key (`server create-key`).
 
@@ -284,7 +284,7 @@ def _build_parser() -> argparse.ArgumentParser:
         required=True,
         # The values rather than the members, so that a misspelling is answered by argparse with
         # the list of what is accepted -- an operator hits this over an SSM session.
-        choices=[scope.value for scope in Scope],
+        choices=[scope.value for scope in KeyScope],
         help="privilege level the key grants",
     )
     # Both into one list, which restricts the key to every entry it holds (default: none, for a key
@@ -341,5 +341,5 @@ def main(argv: Sequence[str] | None = None) -> int:
     if args.command == "sweep":
         return _sweep(settings)
     if args.command == "create-key":
-        return _create_key(settings, args.name, Scope(args.scope), args.restricted_to)
+        return _create_key(settings, args.name, KeyScope(args.scope), args.restricted_to)
     raise AssertionError(f"unhandled command: {args.command}")

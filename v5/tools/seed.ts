@@ -121,12 +121,11 @@ export const PROJECTS: Project[] = [
  */
 export const KEYS: {
   name: string
-  scope: components['schemas']['Scope']
+  scope: components['schemas']['KeyScope']
   // The response's type, rather than the request's, so that it compares with what the API lists.
   restricted_to?: components['schemas']['RestrictionEntry'][]
   revoked?: true
 }[] = [
-  { name: 'dashboard-reader', scope: 'read' },
   { name: 'ci-submitter', scope: 'submit' },
   { name: 'triage-bot', scope: 'triage' },
   { name: 'release-manager', scope: 'manage' },

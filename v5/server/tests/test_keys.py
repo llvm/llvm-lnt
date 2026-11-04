@@ -15,7 +15,7 @@ from conftest import TOKEN_PATTERN, UNREACHABLE_URL
 from introspection import counting_statements
 from lnt_v5 import keys
 from lnt_v5.keys import ApiKeyInfo, CreatedKey, Entry, UnknownEntriesError, create_key
-from lnt_v5.scopes import Scope
+from lnt_v5.scopes import KeyScope, Scope
 from lnt_v5.tables import (
     KEY_NAME_MAX_LENGTH,
     TOKEN_PREFIX_LENGTH,
@@ -50,7 +50,7 @@ class TestToken:
 
 class TestCreateKey:
     def test_returns_the_token_once_and_stores_only_its_hash(self, db: Connection) -> None:
-        created = create_key(db, "bot", Scope.SUBMIT)
+        created = create_key(db, "bot", KeyScope.SUBMIT)
 
         stored = db.execute(select(api_key.c.prefix, api_key.c.key_hash, api_key.c.scope)).one()
         assert stored.key_hash == keys.hash_token(created.token)
@@ -60,15 +60,15 @@ class TestCreateKey:
         assert created.token not in str(tuple(stored))
 
     def test_describes_the_key_it_created(self, db: Connection) -> None:
-        created = create_key(db, "bot", Scope.SUBMIT)
+        created = create_key(db, "bot", KeyScope.SUBMIT)
 
         assert isinstance(created, CreatedKey)
         assert created.name == "bot"
-        assert created.scope is Scope.SUBMIT
+        assert created.scope is KeyScope.SUBMIT
         assert created.created_at is not None
 
-    @pytest.mark.parametrize("scope", list(Scope))
-    def test_accepts_every_scope(self, db: Connection, scope: Scope) -> None:
+    @pytest.mark.parametrize("scope", list(KeyScope))
+    def test_accepts_every_scope(self, db: Connection, scope: KeyScope) -> None:
         created = create_key(db, "a key", scope)
 
         assert created.scope is scope
@@ -83,9 +83,9 @@ class TestCreateKey:
         collides = "abcdef01" + "1" * 56
         free = "99999999" + "2" * 56
         stub_tokens(monkeypatch, taken, collides, free)
-        create_key(db, "first", Scope.READ)
+        create_key(db, "first", KeyScope.SUBMIT)
 
-        created = create_key(db, "second", Scope.READ)
+        created = create_key(db, "second", KeyScope.SUBMIT)
 
         assert created.token == free
         assert created.prefix == "99999999"
@@ -105,10 +105,10 @@ class TestCreateKey:
             return "abcdef01" + f"{next(suffixes):056x}"
 
         monkeypatch.setattr(keys, "generate_token", colliding_token)
-        create_key(db, "first", Scope.READ)
+        create_key(db, "first", KeyScope.SUBMIT)
 
         with pytest.raises(RuntimeError, match="unused prefix"):
-            create_key(db, "second", Scope.READ)
+            create_key(db, "second", KeyScope.SUBMIT)
 
     @pytest.mark.parametrize(
         ("name", "why"),
@@ -118,17 +118,17 @@ class TestCreateKey:
         # The API answers 400 for these; rejecting here means the CLI does too, and neither has
         # to discover it as a database error.
         with pytest.raises(ValueError, match="name"):
-            create_key(db, name, Scope.READ)
+            create_key(db, name, KeyScope.SUBMIT)
 
     def test_accepts_a_name_at_the_limit(self, db: Connection) -> None:
-        created = create_key(db, "x" * KEY_NAME_MAX_LENGTH, Scope.READ)
+        created = create_key(db, "x" * KEY_NAME_MAX_LENGTH, KeyScope.SUBMIT)
 
         assert created.name == "x" * KEY_NAME_MAX_LENGTH
 
     def test_lets_two_keys_share_a_name(self, db: Connection) -> None:
         # D5 is explicit that a name is a label, not an identifier.
-        create_key(db, "bot", Scope.READ)
-        create_key(db, "bot", Scope.READ)
+        create_key(db, "bot", KeyScope.SUBMIT)
+        create_key(db, "bot", KeyScope.SUBMIT)
 
         assert db.execute(select(func.count()).select_from(api_key)).scalar_one() == 2
 
@@ -162,7 +162,7 @@ class TestCreateRestrictedKey:
 
     def test_stores_and_describes_its_entries_in_order(self, db: Connection) -> None:
         created = create_key(
-            db, "bot", Scope.SUBMIT, [Entry("llvm", "nts"), Entry("libcxx", "benchmarks")]
+            db, "bot", KeyScope.SUBMIT, [Entry("llvm", "nts"), Entry("libcxx", "benchmarks")]
         )
 
         expected = (Entry("libcxx", "benchmarks"), Entry("llvm", "nts"))
@@ -178,7 +178,7 @@ class TestCreateRestrictedKey:
         assert resolved.restricted_to == expected
 
     def test_tells_suites_of_the_same_name_apart_by_their_project(self, db: Connection) -> None:
-        created = create_key(db, "bot", Scope.SUBMIT, [Entry("other", "nts")])
+        created = create_key(db, "bot", KeyScope.SUBMIT, [Entry("other", "nts")])
 
         assert created.restricted_to == (Entry("other", "nts"),)
         assert created.covers("other", "nts")
@@ -189,7 +189,7 @@ class TestCreateRestrictedKey:
         created = create_key(
             db,
             "bot",
-            Scope.SUBMIT,
+            KeyScope.SUBMIT,
             [Entry("llvm", "ab"), Entry("llvm", "a_c"), Entry("llvm", "a-b")],
         )
 
@@ -199,7 +199,7 @@ class TestCreateRestrictedKey:
         assert listed.restricted_to == expected
 
     def test_is_not_restricted_by_default(self, db: Connection) -> None:
-        created = create_key(db, "bot", Scope.SUBMIT)
+        created = create_key(db, "bot", KeyScope.SUBMIT)
 
         assert created.restricted_to is None
         assert db.execute(select(api_key.c.restricted)).scalar_one() is False
@@ -208,7 +208,7 @@ class TestCreateRestrictedKey:
     def test_is_resolved_with_its_entries_in_one_statement(self, db: Connection) -> None:
         # I5 looks the key up on every request: its entries must not cost a round trip of their own.
         created = create_key(
-            db, "bot", Scope.SUBMIT, [Entry("llvm", "nts"), Entry("libcxx", "benchmarks")]
+            db, "bot", KeyScope.SUBMIT, [Entry("llvm", "nts"), Entry("libcxx", "benchmarks")]
         )
 
         # Every statement, whatever it names, since what is counted is round trips.
@@ -221,7 +221,7 @@ class TestCreateRestrictedKey:
 
     def test_loses_a_suite_that_is_deleted(self, db: Connection) -> None:
         created = create_key(
-            db, "bot", Scope.SUBMIT, [Entry("llvm", "nts"), Entry("libcxx", "benchmarks")]
+            db, "bot", KeyScope.SUBMIT, [Entry("llvm", "nts"), Entry("libcxx", "benchmarks")]
         )
 
         db.execute(delete(schema).where(schema.c.namespace == "llvm_nts"))
@@ -240,14 +240,13 @@ class TestCreateRestrictedKey:
     @pytest.mark.parametrize(
         ("scope", "entries", "why"),
         [
-            (Scope.READ, [Entry("llvm", "nts")], "a read key"),
-            (Scope.ADMIN, [Entry("llvm", "nts")], "an admin key"),
-            (Scope.SUBMIT, [Entry("llvm", "nts"), Entry("llvm", "nts")], "an entry twice"),
-            (Scope.SUBMIT, [Entry("llvm", None), Entry("llvm", None)], "a project twice"),
+            (KeyScope.ADMIN, [Entry("llvm", "nts")], "an admin key"),
+            (KeyScope.SUBMIT, [Entry("llvm", "nts"), Entry("llvm", "nts")], "an entry twice"),
+            (KeyScope.SUBMIT, [Entry("llvm", None), Entry("llvm", None)], "a project twice"),
         ],
     )
     def test_rejects_a_restriction_that_cannot_be_valid(
-        self, db: Connection, scope: Scope, entries: list[Entry], why: str
+        self, db: Connection, scope: KeyScope, entries: list[Entry], why: str
     ) -> None:
         # The API answers 400 for these; rejecting here means the CLI does too.
         with pytest.raises(ValueError) as raised:
@@ -256,7 +255,9 @@ class TestCreateRestrictedKey:
 
     def test_lists_a_suite_along_with_its_whole_project(self, db: Connection) -> None:
         # A suite along with its whole project (I5): both entries stay.
-        created = create_key(db, "bot", Scope.SUBMIT, [Entry("llvm", "nts"), Entry("llvm", None)])
+        created = create_key(
+            db, "bot", KeyScope.SUBMIT, [Entry("llvm", "nts"), Entry("llvm", None)]
+        )
 
         assert created.restricted_to == (Entry("llvm", None), Entry("llvm", "nts"))
 
@@ -269,7 +270,7 @@ class TestCreateRestrictedKey:
             Entry("go", "x"),
         ]
         with pytest.raises(UnknownEntriesError) as raised:
-            create_key(db, "bot", Scope.SUBMIT, entries)
+            create_key(db, "bot", KeyScope.SUBMIT, entries)
 
         assert str(raised.value) == (
             "Project 'llvm' has no test suite named 'ntss'. No project is named 'swift'. "
@@ -281,7 +282,7 @@ class TestCreateRestrictedKey:
         created = create_key(
             db,
             "bot",
-            Scope.MANAGE,
+            KeyScope.MANAGE,
             [Entry("other", "nts"), Entry("llvm", None), Entry("empty", None)],
         )
 
@@ -314,7 +315,7 @@ class TestCreateRestrictedKey:
         created = create_key(
             db,
             "bot",
-            Scope.SUBMIT,
+            KeyScope.SUBMIT,
             [Entry("lib_b", None), Entry("lib-a", None), Entry("libcxx", None)],
         )
 
@@ -322,7 +323,9 @@ class TestCreateRestrictedKey:
         assert created.restricted_to == expected
 
     def test_follows_a_suite_moved_into_a_project_it_lists(self, db: Connection) -> None:
-        created = create_key(db, "bot", Scope.MANAGE, [Entry("llvm", "nts"), Entry("libcxx", None)])
+        created = create_key(
+            db, "bot", KeyScope.MANAGE, [Entry("llvm", "nts"), Entry("libcxx", None)]
+        )
 
         # A move changes only the suite's project (D7). Both entries stay, and the suite's follows
         # the suite (I5).
@@ -338,7 +341,7 @@ class TestCreateRestrictedKey:
     def test_a_whole_project_gains_a_suite_moved_into_it_and_loses_one_moved_out(
         self, db: Connection
     ) -> None:
-        created = create_key(db, "bot", Scope.MANAGE, [Entry("llvm", None)])
+        created = create_key(db, "bot", KeyScope.MANAGE, [Entry("llvm", None)])
         other = db.execute(select(project.c.id).where(project.c.name == "other")).scalar_one()
 
         db.execute(update(schema).where(schema.c.namespace == "llvm_ab").values(project_id=other))
@@ -358,7 +361,9 @@ class TestCreateRestrictedKey:
         assert not resolved.covers("other", "ab")
 
     def test_loses_a_project_that_is_deleted(self, db: Connection) -> None:
-        created = create_key(db, "bot", Scope.MANAGE, [Entry("empty", None), Entry("llvm", "nts")])
+        created = create_key(
+            db, "bot", KeyScope.MANAGE, [Entry("empty", None), Entry("llvm", "nts")]
+        )
 
         db.execute(delete(project).where(project.c.name == "empty"))
         resolved = keys.resolve_token(db, created.token)
@@ -376,7 +381,7 @@ class TestCreateRestrictedKey:
         assert str(Entry("llvm", "nts")) == "llvm/nts"
 
 
-def key_with(scope: Scope, restricted_to: tuple[Entry, ...] | None) -> ApiKeyInfo:
+def key_with(scope: KeyScope, restricted_to: tuple[Entry, ...] | None) -> ApiKeyInfo:
     return ApiKeyInfo(
         prefix="0123abcd",
         name="a key",
@@ -427,18 +432,18 @@ class TestRestriction:
         suite: str | None,
         granted: bool,
     ) -> None:
-        key = key_with(Scope.MANAGE, restricted_to)
+        key = key_with(KeyScope.MANAGE, restricted_to)
         assert key.grants(Scope.MANAGE, project_name, suite) is granted
 
     @pytest.mark.parametrize(
         ("project_name", "suite"), [("llvm", "nts"), ("llvm", None), (None, None)]
     )
     def test_grants_read_everywhere(self, project_name: str | None, suite: str | None) -> None:
-        assert key_with(Scope.MANAGE, (BENCHMARKS,)).grants(Scope.READ, project_name, suite)
-        assert key_with(Scope.MANAGE, ()).grants(Scope.READ, project_name, suite)
+        assert key_with(KeyScope.MANAGE, (BENCHMARKS,)).grants(Scope.READ, project_name, suite)
+        assert key_with(KeyScope.MANAGE, ()).grants(Scope.READ, project_name, suite)
 
     def test_keeps_the_hierarchy_within_what_it_covers(self) -> None:
-        key = key_with(Scope.TRIAGE, (NTS,))
+        key = key_with(KeyScope.TRIAGE, (NTS,))
 
         assert key.grants(Scope.SUBMIT, "llvm", "nts")
         assert not key.grants(Scope.MANAGE, "llvm", "nts")
@@ -474,6 +479,12 @@ class TestScopeHierarchy:
 
     def test_every_scope_grants_itself(self) -> None:
         assert all(scope.grants(scope) for scope in Scope)
+
+    def test_a_key_can_have_every_scope_but_read(self) -> None:
+        # I5: every request gets `read`, with or without a key.
+        assert [str(scope) for scope in KeyScope] == [
+            str(scope) for scope in Scope if scope is not Scope.READ
+        ]
 
     def test_is_not_the_alphabetical_order_str_comparison_would_give(self) -> None:
         # Compared as plain strings, "admin" sorts below "read" -- the exact inversion of I5's

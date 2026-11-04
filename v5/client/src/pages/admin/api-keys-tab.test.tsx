@@ -29,7 +29,7 @@ import {
   rowsOf,
   table,
 } from '../../test/page'
-import { pickOption, selectButton, toggleOptions } from '../../test/select'
+import { optionsIn, pickOption, selectButton, toggleOptions } from '../../test/select'
 import { BARE_SUITE, PROJECT, SUITE } from '../../test/fixtures'
 import { server } from '../../test/server'
 
@@ -42,7 +42,7 @@ const OWN = apiKey('admin', {
 
 /** As the API lists them: newest first. */
 const KEYS: ApiKey[] = [
-  apiKey('read', {
+  apiKey('triage', {
     prefix: '229d78c5',
     name: 'test-key2',
     created_at: '2026-08-13T03:01:04Z',
@@ -67,7 +67,7 @@ const KEYS: ApiKey[] = [
 ]
 
 const ROWS = [
-  '229d78c5 | test-key2 | read | All | 2026-08-13, 3:01:04 AM | Never | Yes | Revoke',
+  '229d78c5 | test-key2 | triage | All | 2026-08-13, 3:01:04 AM | Never | Yes | Revoke',
   '135f502b | test-key | manage | llvm › libcxx, llvm › nts | 2026-08-11, 1:04:23 PM | 2026-08-18, 3:49:26 AM | Yes | Revoke',
   'aaaaaaaa | my-admin | admin | All | 2026-08-05, 10:00:00 AM | 2026-08-20, 8:00:00 AM | Yes | Revoke',
   '3f0ac112 | old-bot | submit | llvm › nts | 2026-07-02, 9:12:44 AM | 2026-08-01, 6:20:11 PM | No | ',
@@ -262,7 +262,7 @@ describe('the API Keys tab', () => {
     expect(requests).toEqual([])
   })
 
-  it.each(['read', 'manage'] as const)(
+  it.each(['submit', 'manage'] as const)(
     'says that permission is denied with a %s token',
     async (scope) => {
       signIn(scope)
@@ -384,7 +384,7 @@ describe('sorting the keys', () => {
     const { list, store } = await renderKeys()
 
     fireEvent.click(within(list).getByRole('button', { name: 'Scope' }))
-    expect(prefixes(list)).toEqual(['229d78c5', '3f0ac112', '135f502b', 'aaaaaaaa'])
+    expect(prefixes(list)).toEqual(['3f0ac112', '229d78c5', '135f502b', 'aaaaaaaa'])
 
     // my-admin, old-bot, test-key, test-key2.
     fireEvent.click(within(list).getByRole('button', { name: 'Name' }))
@@ -541,15 +541,24 @@ describe('creating a key', () => {
     const sent = mockCreate(store)
     expect(createButton()).toBeDisabled()
     expect(createButton()).toHaveAccessibleDescription('Give the key a name first.')
-    expect(selectButton('Scope', createForm())).toHaveTextContent('read')
+    // From the lowest scope a key can have: none has 'read' (I5).
+    expect(selectButton('Scope', createForm())).toHaveTextContent('submit')
+    const user = userEvent.setup()
+    await user.click(selectButton('Scope', createForm()))
+    expect(optionsIn(await screen.findByRole('listbox'))).toEqual([
+      'submit',
+      'triage',
+      'manage',
+      'admin',
+    ])
+    await user.click(screen.getByRole('option', { name: 'triage' }))
 
     fireEvent.change(nameInput(), { target: { value: ' ci-bot ' } })
-    await pickOption('Scope', 'submit', createForm())
     fireEvent.click(createButton())
 
     const created = await findCreatedKey()
     expect(sent.map(({ body }) => body)).toEqual([
-      { name: 'ci-bot', scope: 'submit', restricted_to: null },
+      { name: 'ci-bot', scope: 'triage', restricted_to: null },
     ])
     expect(created).toHaveTextContent(
       'Key created. Copy the token now — it will not be shown again:',
@@ -573,11 +582,6 @@ describe('creating a key', () => {
     const all = form.getByRole('radio', { name: 'Everything (instance-wide)' })
     const only = form.getByRole('radio', { name: 'Only these:' })
     expect(all).toBeChecked()
-    // Not for a read key.
-    expect(only).toBeDisabled()
-    expect(only).toHaveAccessibleDescription(
-      "Only 'submit', 'triage' and 'manage' keys can be restricted.",
-    )
 
     fireEvent.change(nameInput(), { target: { value: 'ci-bot' } })
     await pickOption('Scope', 'triage', createForm())
@@ -758,6 +762,9 @@ describe('creating a key', () => {
 
     expect(form.getByRole('radio', { name: 'Everything (instance-wide)' })).toBeChecked()
     expect(form.getByRole('radio', { name: 'Only these:' })).toBeDisabled()
+    expect(form.getByRole('radio', { name: 'Only these:' })).toHaveAccessibleDescription(
+      "Only 'submit', 'triage' and 'manage' keys can be restricted.",
+    )
     // For good: a scope that can be restricted again finds "Everything" still chosen, and what
     // was checked kept for "Only these:".
     await pickOption('Scope', 'triage', createForm())

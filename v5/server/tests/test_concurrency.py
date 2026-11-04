@@ -35,7 +35,7 @@ from lnt_v5.routes.commits import COMMITS_PATH, Commits
 from lnt_v5.routes.machines import Machines
 from lnt_v5.routes.regressions import REGRESSIONS_PATH, IndicatorObject, Regressions
 from lnt_v5.routes.runs import RUNS_PATH, Runs
-from lnt_v5.scopes import Scope
+from lnt_v5.scopes import KeyScope
 from lnt_v5.suites import inactivity
 from lnt_v5.suites import tables as suite_tables
 from lnt_v5.suites.concurrency import resolve_names
@@ -1372,7 +1372,7 @@ class TestKeyCreationRacingSuiteDeletion:
             db_engine,
             background,
             self.delete_nts,
-            lambda connection: create_key(connection, "bot", Scope.SUBMIT, ENTRIES),
+            lambda connection: create_key(connection, "bot", KeyScope.SUBMIT, ENTRIES),
         )
 
         with pytest.raises(UnknownEntriesError) as raised:
@@ -1391,7 +1391,7 @@ class TestKeyCreationRacingSuiteDeletion:
         # route does, under `suite_write`'s lock timeout, which the wait must not exceed.
         with db_engine.connect() as creating:
             with creating.begin():
-                token = create_key(creating, "bot", Scope.SUBMIT, ENTRIES).token
+                token = create_key(creating, "bot", KeyScope.SUBMIT, ENTRIES).token
                 deleting = background(delete_nts)
                 until_blocked(db_engine)
             deleting.result(timeout=BLOCK_TIMEOUT)
@@ -1407,10 +1407,12 @@ class TestKeyCreationRacingSuiteDeletion:
         # not with another key's creation taking the same lock.
         def create_second() -> str:
             with db_engine.begin() as connection:
-                return create_key(connection, "other", Scope.SUBMIT, [Entry("nts", "nts")]).prefix
+                return create_key(
+                    connection, "other", KeyScope.SUBMIT, [Entry("nts", "nts")]
+                ).prefix
 
         with db_engine.connect() as creating, creating.begin():
-            create_key(creating, "bot", Scope.SUBMIT, [Entry("nts", "nts")])
+            create_key(creating, "bot", KeyScope.SUBMIT, [Entry("nts", "nts")])
             second = background(create_second)
             # Completes while the first key's transaction is still open.
             assert second.result(timeout=BLOCK_TIMEOUT)
@@ -1442,7 +1444,7 @@ class TestKeyCreationRacingProjectDeletion:
             db_engine,
             background,
             self.delete_swift,
-            lambda connection: create_key(connection, "bot", Scope.MANAGE, self.WHOLE),
+            lambda connection: create_key(connection, "bot", KeyScope.MANAGE, self.WHOLE),
         )
 
         with pytest.raises(UnknownEntriesError) as raised:
@@ -1460,7 +1462,7 @@ class TestKeyCreationRacingProjectDeletion:
         # succeeds, as the route runs it.
         with db_engine.connect() as creating:
             with creating.begin():
-                token = create_key(creating, "bot", Scope.MANAGE, self.WHOLE).token
+                token = create_key(creating, "bot", KeyScope.MANAGE, self.WHOLE).token
                 deleting = background(delete_swift)
                 until_blocked(db_engine)
             deleting.result(timeout=BLOCK_TIMEOUT)
@@ -1484,6 +1486,6 @@ class TestKeyCreationRacingProjectDeletion:
             return api_client.patch("/api/projects/swift", json=body, headers=manage).status_code
 
         with db_engine.connect() as creating, creating.begin():
-            create_key(creating, "bot", Scope.MANAGE, self.WHOLE)
+            create_key(creating, "bot", KeyScope.MANAGE, self.WHOLE)
             # Completes while the key's transaction is still open.
             assert background(change_display_name).result(timeout=BLOCK_TIMEOUT) == 200

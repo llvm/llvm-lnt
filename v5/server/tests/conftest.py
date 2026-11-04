@@ -32,7 +32,7 @@ from lnt_v5.config import Settings, get_settings
 from lnt_v5.keys import Entry, create_key
 from lnt_v5.migrate import upgrade_to_head
 from lnt_v5.routes.suites import SUITES_PATH
-from lnt_v5.scopes import Scope
+from lnt_v5.scopes import KeyScope, Scope
 from lnt_v5.suites.schema import SuiteSchema
 from lnt_v5.suites.store import add_suite, bump
 from lnt_v5.suites.tables import SuiteTables, build
@@ -232,7 +232,7 @@ def _key_values(**overrides: Any) -> dict[str, Any]:
         "prefix": "0123abcd",
         "key_hash": "a" * 64,
         "name": "a key",
-        "scope": Scope.READ.value,
+        "scope": KeyScope.SUBMIT.value,
     }
     return values | overrides
 
@@ -311,17 +311,18 @@ def ensure_project(connection: Connection, name: str) -> int:
 
 @pytest.fixture
 def make_key(db_engine: Engine) -> Callable[..., str]:
-    """Mint a real key and return its token, committed so the server can resolve it. What it is
-    restricted to, `restricted_to`, is read as `entry_of` reads it."""
+    """Mint a real key and return its token, committed so the server can resolve it. Its scope may
+    be given as an endpoint's, any but `read`, so that a test can name it as it names what an
+    endpoint requires. What it is restricted to, `restricted_to`, is read as `entry_of` reads it."""
 
     def make(
-        scope: Scope = Scope.ADMIN,
+        scope: Scope | KeyScope = Scope.ADMIN,
         name: str = "test key",
         restricted_to: Sequence[str | Entry] | None = None,
     ) -> str:
         entries = None if restricted_to is None else [entry_of(entry) for entry in restricted_to]
         with db_engine.begin() as connection:
-            return create_key(connection, name, scope, entries).token
+            return create_key(connection, name, KeyScope(scope.value), entries).token
 
     return make
 

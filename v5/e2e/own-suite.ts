@@ -8,7 +8,7 @@ import type { APIRequestContext, TestInfo } from '@playwright/test'
 import type { components } from '../client/src/api/schema.d.ts'
 import type { Submission } from '../tools/synthetic.ts'
 import { suitePath } from '../client/src/paths.ts'
-import { expect, type Scope, type SuiteRef } from './fixtures.ts'
+import { expect, type KeyScope, type SuiteRef } from './fixtures.ts'
 
 /** A run to submit: its machine, its commit and ordinal, and its tests, as a submission has them. */
 export interface OwnRun {
@@ -60,7 +60,7 @@ export async function withOwnSuite(
  */
 export async function ownSuite(
   request: APIRequestContext,
-  tokenFor: (scope: Scope) => Promise<string>,
+  tokenFor: (scope: KeyScope) => Promise<string>,
   testInfo: TestInfo,
   runs: OwnRun[],
   use: (suite: SuiteRef, runs: string[]) => Promise<void>,
