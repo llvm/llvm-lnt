@@ -416,9 +416,9 @@ a restricted token, the hover of a control says what it needs: a token covering
 the suite, one covering the project in full, or an instance-wide token, naming
 the suite or the project as AR22 says. Where an action depends on a choice, such
 as the project a suite is moved to, the options that the token
-does not allow are disabled, saying why on hover, and the control that starts
-the action is enabled as long as one of them is allowed. A request the API
-nevertheless refuses with 401 or 403 is reported as
+does not allow are disabled, saying why on hover and to assistive technology,
+and the control that starts the action is enabled as long as one of them is
+allowed. A request the API nevertheless refuses with 401 or 403 is reported as
 `Permission denied. Set an API token with the required scope in Settings.`
 
 

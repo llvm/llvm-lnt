@@ -1,4 +1,12 @@
-import { useContext, useEffect, useId, useMemo, useRef, type Ref } from 'react'
+import {
+  useContext,
+  useEffect,
+  useId,
+  useMemo,
+  useRef,
+  type ComponentProps,
+  type Ref,
+} from 'react'
 import clsx from 'clsx'
 import type { DisabledBehavior } from '@react-types/shared'
 import {
@@ -24,9 +32,10 @@ export interface Option<Value extends string> {
   label: string
   /**
    * Why the option cannot be picked, if it cannot, such as one the token does not allow (AR17):
-   * shown on hover over the whole option, and part of its accessible name. It can still be focused
-   * in the open list, from the keyboard too, so that the reason can be read, but picking it changes
-   * nothing. Stepping through the options of the closed dropdown skips it.
+   * shown on hover over the whole option, and part of its accessible name. The option is marked
+   * disabled for assistive technology, but can still be focused in the open list, from the keyboard
+   * too, so that the reason can be read; picking it changes nothing. Stepping through the options
+   * of the closed dropdown skips it.
    */
   reason?: string
   /**
@@ -63,21 +72,34 @@ function ForgetRefusedFocus({ refused }: { refused: ReadonlySet<string> }) {
   return null
 }
 
+/**
+ * A refused option's element, marked disabled for assistive technology. React Aria marks an option
+ * disabled only when it cannot be focused either, unlike a refused one (see `disabledKeys` below),
+ * and drops an `aria-disabled` given to `ListBoxItem`.
+ */
+function renderRefused(props: ComponentProps<'div'> | ComponentProps<'a'>) {
+  // React Aria renders an option as a link only when given an `href`, which no option has.
+  return <div {...(props as ComponentProps<'div'>)} aria-disabled="true" />
+}
+
 /** An option as the list shows it. */
 function optionItem<Value extends string>(option: Option<Value>) {
+  const { reason } = option
+  const refused = reason !== undefined
   return (
     <ListBoxItem
       id={option.value}
-      className={clsx(shared.option, option.reason !== undefined && shared.refused)}
+      className={clsx(shared.option, refused && shared.refused)}
       textValue={option.label}
+      render={refused ? renderRefused : undefined}
     >
-      {option.reason === undefined ? (
-        option.label
-      ) : (
-        <span className={shared.refusedText} title={option.reason}>
+      {refused ? (
+        <span className={shared.refusedText} title={reason}>
           {option.label}
-          <VisuallyHidden elementType="span">: {option.reason}</VisuallyHidden>
+          <VisuallyHidden elementType="span">: {reason}</VisuallyHidden>
         </span>
+      ) : (
+        option.label
       )}
     </ListBoxItem>
   )

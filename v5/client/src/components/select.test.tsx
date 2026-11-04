@@ -79,6 +79,8 @@ describe('Select', () => {
     await user.click(selectButton('Project'))
     const refused = screen.getByRole('option', { name: 'Swift: Needs a token covering it.' })
     expect(screen.getByTitle('Needs a token covering it.')).toHaveTextContent(/^Swift/)
+    expect(refused).toHaveAttribute('aria-disabled', 'true')
+    expect(screen.getByRole('option', { name: 'LLVM' })).not.toHaveAttribute('aria-disabled')
 
     // It can be reached from the keyboard, so that its reason can be read, but not picked: the list
     // stays open.
@@ -434,6 +436,7 @@ describe('Select with options in groups', () => {
       name: 'bench: Needs a token covering it.',
     })
     expect(screen.getByRole('group', { name: 'Swift' })).toContainElement(option)
+    expect(option).toHaveAttribute('aria-disabled', 'true')
     await user.keyboard('{End}')
     expect(option).toHaveFocus()
     await user.keyboard('{Enter}')
