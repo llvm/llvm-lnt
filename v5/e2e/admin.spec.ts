@@ -190,8 +190,12 @@ test.describe('the API Keys tab', () => {
         direction,
       )
       await expect(page).toHaveURL(`/admin?sort=${sort}`)
-      // Keys never used come last, whichever the direction.
-      const lastUsed = await column(keys, 5)
+      // Keys never used come last among the active keys, which come first (other tests revoke
+      // keys), whichever the direction.
+      const activeColumn = await column(keys, 6)
+      const activeCount = activeColumn.lastIndexOf('Yes') + 1
+      expect(activeColumn.slice(activeCount).every((value) => value === 'No')).toBe(true)
+      const lastUsed = (await column(keys, 5)).slice(0, activeCount)
       const firstNever = lastUsed.indexOf('Never')
       expect(firstNever).toBeGreaterThan(0)
       expect(lastUsed.slice(firstNever).every((value) => value === 'Never')).toBe(true)

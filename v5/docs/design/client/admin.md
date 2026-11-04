@@ -83,30 +83,31 @@ Prefix      Name          Scope       Covers                     Created        
 3f0ac112    old-bot       submit      All                        2026-07-02, 9:12:44 AM      2026-08-01, 6:20:11 PM      No
 ```
 
-Keys are listed newest first, so a newly created key appears at the top of the table without a
-reload. Revoked keys remain in the table with `Active` showing `No`, since revoking does not delete
-them, and they carry no Revoke button. `Covers` shows what the key covers, as AR22 says. `Nothing`
-is muted, and its hover says that what the key listed was deleted, so that it grants only `read`
-(see I5). `Last Used` shows `Never` for a key that has not yet authenticated a request, and is
-otherwise a best-effort value that may lag actual use (see D5).
+Active keys are listed first, newest first, so a newly created key appears at the top of the table
+without a reload. Revoked keys remain in the table, since revoking does not delete them: they come
+after every active key, whatever the sort, muted, with `Active` showing `No` and no Revoke button.
+`Covers` shows what the key covers, as AR22 says. `Nothing` is muted, and its hover says that what
+the key listed was deleted, so that it grants only `read` (see I5). `Last Used` shows `Never` for a
+key that has not yet authenticated a request, and is otherwise a best-effort value that may lag
+actual use (see D5).
 
-Column headers are click-to-sort, applied client-side over the already-loaded
+Column headers other than `Active` are click-to-sort, sorting the active keys
+and the revoked ones each among themselves, client-side over the already-loaded
 keys -- the list endpoint is unpaginated, so sorting issues no request. Sorting
 by `Last Used` is how to surface the most- and least-recently-active keys; keys
 that have never been used sort after every key carrying a timestamp, in both
-directions. `Scope` sorts by I5's hierarchy, from `submit` to `admin`, rather than
-alphabetically. `Covers` sorts `All` first, then by the entries it shows,
+directions. `Scope` sorts by I5's hierarchy, from `submit` to `admin`, rather
+than alphabetically. `Covers` sorts `All` first, then by the entries it shows,
 compared in turn, and `Nothing` last. Keys with the same value keep the default
 order, which is `Created` descending, also the order the API returns. The URL
-names the sort column after its key in the API, prefixed with `-` for
-descending order (`sort=-last_used_at`, `sort=restricted_to`).
+names the sort column after its key in the API, prefixed with `-` for descending
+order (`sort=-last_used_at`, `sort=restricted_to`).
 
-Clicking Revoke asks for a plain confirmation (see AR16) before the request is sent. On
-success the row's `Active` flips to `No` in place and its Revoke button disappears --
-the row is not removed. Revoking the key of the token set in Settings checks the token again at
-once, so that the Settings panel, this tab and every control gated on the token show straight
-away that it is no longer valid. The confirmation of that revocation warns that the tab will no
-longer be available, and that a token shown and not copied yet will be lost.
+Clicking Revoke asks for a plain confirmation (see AR16) before the request is sent. On success the
+row moves among the revoked keys -- it is not removed. Revoking the key of the token set in Settings
+checks the token again at once, so that the Settings panel, this tab and every control gated on the
+token show straight away that it is no longer valid. The confirmation of that revocation warns that
+the tab will no longer be available, and that a token shown and not copied yet will be lost.
 
 ### AD3: Projects tab detail
 

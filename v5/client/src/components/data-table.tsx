@@ -86,6 +86,12 @@ interface Props<Row> {
   confirming?: (row: Row) => boolean
   /** Rows shown before the others, whatever the sort, such as one summing them up. */
   pinned?: Row[]
+  /**
+   * Which rows are shown after the others, whatever the sort, each part sorted on its own: those no
+   * longer in use, say. With `presorted`, or without a sort, each part keeps the order its rows
+   * come in.
+   */
+  trailing?: (row: Row) => boolean
 }
 
 /**
@@ -115,15 +121,20 @@ function DataTableImpl<Row>({
   onSort,
   confirming,
   pinned,
+  trailing,
   presorted = false,
 }: Props<Row>) {
   const { sortKey, compare } = columns.find((column) => column.id === sort?.column) ?? {}
   const direction = sort?.direction
   const sorted = useMemo(() => {
-    if (presorted || !direction) return rows
-    if (compare) return sortRowsBy(rows, compare, direction)
-    return sortKey ? sortRows(rows, sortKey, direction) : rows
-  }, [rows, sortKey, compare, direction, presorted])
+    const order = (part: Row[]) => {
+      if (presorted || !direction) return part
+      if (compare) return sortRowsBy(part, compare, direction)
+      return sortKey ? sortRows(part, sortKey, direction) : part
+    }
+    if (!trailing) return order(rows)
+    return [...order(rows.filter((row) => !trailing(row))), ...order(rows.filter(trailing))]
+  }, [rows, sortKey, compare, direction, presorted, trailing])
   return (
     <table
       ref={ref}

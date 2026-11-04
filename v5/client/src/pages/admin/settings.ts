@@ -18,7 +18,6 @@ export const KEY_SORT_COLUMNS = [
   'restricted_to',
   'created_at',
   'last_used_at',
-  'is_active',
 ] as const
 
 /** The order the API lists keys in, which the table starts with (AD1). */
