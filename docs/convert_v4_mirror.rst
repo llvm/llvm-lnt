@@ -105,6 +105,14 @@ keeps the name, and each of the others gets a suffix ``-import-<id>``, where
 
 The resulting names must be unique and valid v5 names, otherwise it is an error.
 
+A machine whose name had a ``/`` or a ``%`` replaced gets a display name, which
+is how the v5 web UI shows it: its v4 name, followed by the same suffix as its
+v5 name if it has one. For example, v4 machines with IDs ``352`` and ``372``,
+both named ``x86_64/O3``, become ``x86_64_O3``, shown as ``x86_64/O3``, and
+``x86_64_O3-import-372``, shown as ``x86_64/O3-import-372``. A display name
+need not be unique, but the suffix keeps duplicates apart. Other machines get no
+display name.
+
 Commits
 ~~~~~~~
 
@@ -156,6 +164,7 @@ With ``--schema-out FILE``, it also writes the target suite's schema to
 ``FILE``. The schema's ``name`` is the one given with ``--target-suite``, or the
 mirrored suite's name by default.
 
-The command reports on its standard error which machines it renamed, and every
-run that cannot be converted, and carries on with the next run. It exits with a
-non-zero status if any run cannot be converted.
+The command reports on its standard error which machines it renamed, with
+their display names, and every run that cannot be converted, and carries on
+with the next run. It exits with a non-zero status if any run cannot be
+converted.

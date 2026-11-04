@@ -267,20 +267,33 @@ with open(os.path.join(TMP, 'basic-schema.json')) as f:
 # ---------------------------------------------------------------------------
 print('# MACHINE NAMES')
 # Among machines of the same name, the one with the lowest identifier keeps
-# it. A "/" or a "%" becomes "_".
+# it. A "/" or a "%" becomes "_". A machine whose name changed for either
+# reason other than a suffix alone is shown by its v4 name, with its suffix.
 D = [{'id': i, 'name': 'dup'} for i in (4, 9, 7)]
 S = {'id': 5, 'name': 'with/slash'}
 P = {'id': 6, 'name': 'build%2Fmain'}
-names = make_mirror('names', [(m, []) for m in D + [S, P]])
+S2 = {'id': 8, 'name': 'with/slash'}
+names = make_mirror('names', [(m, []) for m in D + [S, P, S2]])
 run_cli(names, '--suite', 'nts')
+dump({machine_id: machine.get('display_name') for machine_id, machine
+      in make_plan(read_mirror(names, 'nts'), 'nts').machines.items()})
 # The target suite has the mirrored suite's name by default.
 # CHECK-LABEL: # MACHINE NAMES
 # CHECK-NEXT: Converting suite 'nts' of http://v4.example.com (database 'default') into suite 'nts'
-# CHECK:      machine 5 (with/slash) is renamed 'with_slash'
-# CHECK-NEXT: machine 6 (build%2Fmain) is renamed 'build_2Fmain'
+# CHECK:      machine 5 (with/slash) is renamed 'with_slash', shown as 'with/slash'
+# CHECK-NEXT: machine 6 (build%2Fmain) is renamed 'build_2Fmain', shown as 'build%2Fmain'
 # CHECK-NEXT: machine 7 (dup) is renamed 'dup-import-7'
+# CHECK-NEXT: machine 8 (with/slash) is renamed 'with_slash-import-8', shown as 'with/slash-import-8'
 # CHECK-NEXT: machine 9 (dup) is renamed 'dup-import-9'
 # CHECK:      exit: 0
+# CHECK-NEXT: {
+# CHECK-NEXT:  "4": null,
+# CHECK-NEXT:  "5": "with/slash",
+# CHECK-NEXT:  "6": "build%2Fmain",
+# CHECK-NEXT:  "7": null,
+# CHECK-NEXT:  "8": "with/slash-import-8",
+# CHECK-NEXT:  "9": null
+# CHECK-NEXT: }
 
 # Names that end up the same, or that v5 does not accept, are errors.
 clash = make_mirror('clash', [

@@ -32,13 +32,13 @@ from lnt_v5.suites.schema import (
     SUITE_DISPLAY_NAME,
     CommitField,
     CommitUrl,
+    DisplayName,
     Entry,
     EntryName,
     Label,
     MachineField,
     Metric,
     RangeUrl,
-    SuiteLabel,
     SuiteSchema,
 )
 from lnt_v5.suites.store import StoredSuite, bump, normalized_json
@@ -212,7 +212,7 @@ class SchemaPatch(BaseModel):
     # As `_EntryUpdate`: only a `display_name` the request sends is read, so its default never is.
     model_config = ConfigDict(extra="forbid", json_schema_extra=omit_defaults)
 
-    display_name: SuiteLabel | None = Field(
+    display_name: DisplayName | None = Field(
         default=None, description=f"{SUITE_DISPLAY_NAME} Null removes it."
     )
     metrics: MetricChanges = Field(default_factory=MetricChanges)

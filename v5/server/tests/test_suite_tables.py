@@ -274,6 +274,7 @@ class TestBuiltInColumns:
                     "id",
                     "name",
                     "tracked",
+                    "display_name",
                     "first_seen_at",
                     "delete_after_inactive_days",
                     "hardware",
@@ -367,6 +368,7 @@ class TestBuiltInColumns:
             ("commit", "delete_after_inactive_days", True),
             ("machine", "name", False),
             ("machine", "tracked", False),
+            ("machine", "display_name", True),
             ("machine", "first_seen_at", False),
             ("machine", "delete_after_inactive_days", True),
             # O1: every run has a commit, and the submission cannot supply the timestamp. D5: a run

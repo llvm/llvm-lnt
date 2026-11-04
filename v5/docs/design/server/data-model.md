@@ -570,12 +570,17 @@ and the tables below are named that way.
 |--------|------|-------------|
 | id | INTEGER | PK |
 | name | VARCHAR(256) | unique, not null |
+| display_name | VARCHAR(256) | nullable |
 | tracked | BOOLEAN | not null, default `true` |
 | first_seen_at | TIMESTAMP WITH TIME ZONE | not null, default `now()` |
 | delete_after_inactive_days | INTEGER | nullable, between 1 and 36500 |
 | _(dynamic)_ | per machine_fields | nullable |
 
 - `name` is unique.
+- `display_name` is how the UI names the machine when it is set. The API never
+  addresses the machine by it; only `name` does. It follows the rules of a
+  suite's `display_name` (D4). It never appears in a path, so unlike the name,
+  it may contain `/` or `%` (see I1), and it is not unique.
 - A suite is expected to have few machines: at most a few thousand, retired ones
   included. The machine list (E2) is not paginated, and `last_run_at` (below) is
   computed per machine, on that assumption.
@@ -595,8 +600,8 @@ and the tables below are named that way.
   the type-to-column mapping). Keys submitted for a machine that are not
   declared as `machine_fields` are rejected (see O1).
 - `machine_fields` names must not collide with the built-in column names
-  (`id`, `name`, `tracked`, `first_seen_at`, `delete_after_inactive_days`); the
-  schema parser rejects them.
+  (`id`, `name`, `display_name`, `tracked`, `first_seen_at`,
+  `delete_after_inactive_days`); the schema parser rejects them.
 - `last_run_at` is not a column. It is the latest `measured_at` among the
   machine's runs, or null if the machine has no runs, computed when read; the
   machine endpoints return it and can sort on it. It is deliberately not

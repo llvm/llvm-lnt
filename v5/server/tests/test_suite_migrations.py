@@ -603,14 +603,23 @@ class TestSteps:
         assert calls == [("reference", "after")]
         assert "after" in suite_column_names(db_engine, "reference", "machine")
 
+    @pytest.mark.parametrize(
+        ("version", "field"),
+        [
+            # Version 5 reserves `first_seen_at` and `delete_after_inactive_days` on machines and
+            # commits, and version 9 `display_name` on machines.
+            (4, "first_seen_at"),
+            (8, "display_name"),
+        ],
+    )
     def test_a_suite_declaring_a_field_named_like_a_new_built_in_is_refused(
-        self, db_engine: Engine
+        self, db_engine: Engine, version: int, field: str
     ) -> None:
-        # D6: version 5 reserves `first_seen_at` and `delete_after_inactive_days` on machines and
-        # commits, so a suite that already declares one cannot be migrated, and no suite is.
-        store_suite(db_engine, suite_named("a"), version=4)
+        # D6: a suite that already declares a field named after a built-in column a step adds
+        # cannot be migrated, and no suite is.
+        store_suite(db_engine, suite_named("a"), version=version)
         clashing = reference_schema().model_dump(mode="json") | {"name": "clash"}
-        clashing["machine_fields"] = [{"name": "first_seen_at", "type": "text"}]
+        clashing["machine_fields"] = [{"name": field, "type": "text"}]
         with db_engine.begin() as connection:
             connection.execute(
                 insert(schema).values(
@@ -618,16 +627,16 @@ class TestSteps:
                     name="clash",
                     namespace="clash",
                     schema_json=json.dumps(clashing),
-                    migration_version=4,
+                    migration_version=version,
                 )
             )
 
         with pytest.raises(
-            MigrationError, match=r"(?s)'clash/clash'.*'first_seen_at' is already a built-in column"
+            MigrationError, match=rf"(?s)'clash/clash'.*'{field}' is already a built-in column"
         ):
             upgrade_to_head(db_engine)
 
-        assert version_of(db_engine, "a") == 4
+        assert version_of(db_engine, "a") == version
 
 
 class TestClearedComment:

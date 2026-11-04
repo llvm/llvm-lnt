@@ -108,6 +108,7 @@ export function machine(
 ): Schemas['Machine'] {
   return {
     name,
+    display_name: null,
     tracked: true,
     delete_after_inactive_days: null,
     fields: { hardware: null, os: null, core_count: null },

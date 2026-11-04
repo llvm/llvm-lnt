@@ -111,7 +111,11 @@ def submitted_machine(
     name: str = "linux", *, tracked: bool = True, **fields: Any
 ) -> SubmittedMachine:
     return SubmittedMachine(
-        name=name, tracked=tracked, delete_after_inactive_days=None, fields=fields
+        name=name,
+        display_name=None,
+        tracked=tracked,
+        delete_after_inactive_days=None,
+        fields=fields,
     )
 
 

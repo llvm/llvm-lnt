@@ -119,6 +119,8 @@ OTHER_METRIC = "instructions"
 
 # Two machines, from the real runs.
 MACHINE = "linux-x86_64"
+# A display name can hold what a name can't, such as a '/'.
+MACHINE_DISPLAY_NAME = "Linux / x86-64"
 MACHINE_VALUES: dict[str, Any] = {
     "hardware": "AMD EPYC 9654",
     "os": "Ubuntu 24.04",

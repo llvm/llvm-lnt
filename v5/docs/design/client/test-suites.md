@@ -53,7 +53,7 @@ path and params to restore state. On changes, updates the URL.
 | Tab | Content | API | Search/Filter |
 |-----|---------|-----|---------------|
 | Runs | Run list with cursor pagination, most recently submitted first | `GET runs?search=...&sort=-submitted_at&limit=25` | Machine, commit or UUID prefix (see O4) |
-| Machines | Every machine, by name | `GET machines?search=...` | Substring match on machine name and searchable machine fields |
+| Machines | Every machine, by name | `GET machines?search=...` | Substring match on machine name, display name and searchable machine fields |
 | Commits | Commit list with cursor pagination, most recently seen first | `GET commits?search=...&sort=-first_seen&limit=25` | Substring match on commit, tag and searchable commit fields |
 | Regressions | Full regression triage interface (see below) | `GET regressions?state=...&machine=...&metric=...&has_commit=...&search=...&sort=-created_at&limit=25` | State chips, machine combobox, metric selector, "No commit set" checkbox, title or UUID prefix search |
 | Schema | The suite's schema, its export, editing, renaming, moving and deletion (see TS6 and TS7) | `GET /api/projects` (E13); writes in TS6 and TS7 | -- |
@@ -105,8 +105,8 @@ are listed regardless of `tracked`, by name; the badge is informational, marking
 that are excluded from the Dashboard's trend overview and listed last in machine pickers (see
 AR18). Hovering the badge explains that.
 
-Above the table, a `Search machines...` box searches the machines by name and searchable fields
-(see O4).
+Above the table, a `Search machines...` box searches the machines by name, display name and
+searchable fields (see O4).
 
 ## TS4: Commits tab
 

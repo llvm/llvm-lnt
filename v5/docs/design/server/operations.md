@@ -25,6 +25,7 @@ O2).
   "measured_at": "2026-08-25T14:02:17Z",
   "machine": {
     "name": "my-machine",
+    "display_name": "My machine / O3",
     "tracked": true,
     "fields": {
       "hardware": "x86_64",
@@ -69,6 +70,13 @@ O2).
   (see D5).
 - `machine`: required object identifying the machine this run was measured on.
   - `name`: required string, the machine's identity.
+  - `display_name`: optional string, a built-in attribute rather than a
+    `machine_field`: how the UI names the machine (see D5). Like `tracked`, it
+    only applies when the machine is created, and is ignored for a machine that
+    already exists, whether or not that machine has one. A machine created
+    before its submitter started sending it therefore gets one only through
+    `PATCH /api/projects/{project}/suites/{suite}/machines/{name}`, which is
+    also how it is changed or cleared afterwards.
   - `fields`: optional. Every key must be declared in the schema's
     `machine_fields`. See O2 for undeclared keys, and for how metadata is
     reconciled when the machine already exists.
@@ -134,12 +142,12 @@ O2).
     gzip-compressed and base64-encoded (see O7).
 
 **Null values.** An explicit `null` means "omitted" on `uuid`, `measured_at`,
-`machine.delete_after_inactive_days`, `commit.ordinal`, `commit.tag`,
-`commit.delete_after_inactive_days`, a test entry's `profile`, and each entry of
-`machine.fields` and `commit.fields`. Anywhere else, `null` is rejected with
-400. Unlike with `PATCH`, a `null` in `fields` never clears a stored value (see
-O2). This lets a client submit the `fields` dict a response returned, which has a
-`null` for every unset field (see I4).
+`machine.display_name`, `machine.delete_after_inactive_days`, `commit.ordinal`,
+`commit.tag`, `commit.delete_after_inactive_days`, a test entry's `profile`, and
+each entry of `machine.fields` and `commit.fields`. Anywhere else, `null` is
+rejected with 400. Unlike with `PATCH`, a `null` in `fields` never clears a
+stored value (see O2). This lets a client submit the `fields` dict a response
+returned, which has a `null` for every unset field (see I4).
 
 
 ## O2: Machine and Commit Metadata Population
@@ -191,9 +199,9 @@ Per-entity specifics:
 |---|---|---|
 | Identity attribute | `name` | `value` |
 | Declared metadata | `fields`, per `machine_fields` | `fields`, per `commit_fields` |
-| Built-in mutable attributes | `tracked`, `delete_after_inactive_days` | `ordinal`, `tag`, `delete_after_inactive_days` |
-| Settable during run submission | `tracked` (first-write-wins); `delete_after_inactive_days` (creation-only) | `ordinal`, `tag` (must match if already set); `delete_after_inactive_days` (creation-only) |
-| Settable at explicit creation | `tracked`, `delete_after_inactive_days` | `ordinal`, `tag`, `delete_after_inactive_days` |
+| Built-in mutable attributes | `display_name`, `tracked`, `delete_after_inactive_days` | `ordinal`, `tag`, `delete_after_inactive_days` |
+| Settable during run submission | `tracked` (first-write-wins); `display_name`, `delete_after_inactive_days` (creation-only) | `ordinal`, `tag` (must match if already set); `delete_after_inactive_days` (creation-only) |
+| Settable at explicit creation | `display_name`, `tracked`, `delete_after_inactive_days` | `ordinal`, `tag`, `delete_after_inactive_days` |
 | Renameable via PATCH | yes | no |
 
 Built-in mutable attributes sit beside the identity attribute rather than
@@ -202,6 +210,11 @@ inside `fields`:
 - `tracked` is not matched. It is a non-nullable policy flag that operators are
   expected to change, so re-submitting it for an existing machine is never a
   mismatch.
+- `display_name` is not matched either, and a submission never fills it in,
+  even when the stored value is null. It is how the UI names the machine, which
+  belongs to whoever edits it through `PATCH` (from the UI, say): a submission
+  that rejected a display name changed there, or filled in one cleared there,
+  would undo that choice.
 - `delete_after_inactive_days` is not matched either, on either entity, and a
   submission never fills it in, even when the stored value is null. It is a
   policy rather than a fact about the entity, like `tracked`. And since it
@@ -243,7 +256,7 @@ instead. An empty term matches every row.
 | Endpoint | Matches against |
 |----------|-----------------|
 | `GET /api/projects/{project}/suites/{suite}/commits?search=abc` | The `commit` column, the `tag` column, and any `searchable` commit field |
-| `GET /api/projects/{project}/suites/{suite}/machines?search=x86` | The `name` column and any `searchable` machine field |
+| `GET /api/projects/{project}/suites/{suite}/machines?search=x86` | The `name` column, the `display_name` column, and any `searchable` machine field |
 | `GET /api/projects/{project}/suites/{suite}/tests?search=bench` | The `name` column |
 | `GET /api/projects/{project}/suites/{suite}/runs?search=x86` | The run's machine, as the Machines `search=` above matches it; the run's commit, as the Commits `search=` above matches it; and the run's `uuid`, by prefix |
 | `GET /api/projects/{project}/suites/{suite}/regressions?search=slowdown` | The `title` column, and the `uuid` by prefix |

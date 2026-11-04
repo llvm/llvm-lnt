@@ -348,6 +348,20 @@ def _cleared_comment(op: Operations, suite: StoredSuite) -> None:
     op.execute(sa.text(f"COMMENT ON SCHEMA {quote(suite.namespace)} IS NULL"))
 
 
+def _machine_display_name(op: Operations, suite: StoredSuite) -> None:
+    """Version 9: `{suite}.machine.display_name`, how the web UI names a machine (D5).
+
+    Existing machines have none. A suite whose schema declares a machine field named
+    `display_name` cannot be migrated: like any entry named after a built-in column, it is refused
+    before any suite is migrated (D6).
+    """
+    op.add_column(
+        "machine",
+        sa.Column("display_name", sa.String(256), nullable=True),
+        schema=suite.namespace,
+    )
+
+
 STEPS: Sequence[Step] = (
     _run_uuid_collation,
     _regression_commit_set_null,
@@ -357,6 +371,7 @@ STEPS: Sequence[Step] = (
     _sample_repetition,
     _generated_namespace,
     _cleared_comment,
+    _machine_display_name,
 )
 
 
