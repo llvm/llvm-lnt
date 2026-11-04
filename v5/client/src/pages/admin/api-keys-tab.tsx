@@ -332,9 +332,9 @@ type SortColumn = (typeof KEY_SORT_COLUMNS)[number]
 const NOTHING_HOVER = `${RESTRICTED_TO_NOTHING}.`
 
 /**
- * Every column but the last, which holds each active key's Revoke button. `Covers` names what a key
- * covers by labels as `known` has them, in AR22's order, and sorts `All` first, then by the entries
- * shown, compared in turn, and `Nothing` last (AD1).
+ * The columns the keys can be sorted by, which come first. `Covers` names what a key covers by
+ * labels as `known` has them, in AR22's order, and sorts `All` first, then by the entries shown,
+ * compared in turn, and `Nothing` last (AD1).
  */
 function columns(known: Project[] | undefined): (Column<ApiKey> & { id: SortColumn })[] {
   // Once per key, rather than at each comparison of a sort.
@@ -400,14 +400,20 @@ function columns(known: Project[] | undefined): (Column<ApiKey> & { id: SortColu
       // A key never used sorts after every key that has been, in both directions (AD1).
       sortKey: (key) => (key.last_used_at === null ? null : Date.parse(key.last_used_at)),
     },
-    {
-      id: 'is_active',
-      header: 'Active',
-      cell: (key) => yesNo(key.is_active),
-      sortKey: (key) => Number(key.is_active),
-    },
   ]
 }
+
+/** Whether the key is active: no column to sort by, as revoked keys come last whatever the sort. */
+const ACTIVE: Column<ApiKey> = {
+  id: 'is_active',
+  header: 'Active',
+  cell: (key) => yesNo(key.is_active),
+}
+
+/** Revoked keys, listed after the others, whatever the sort (AD1). */
+const revoked = (key: ApiKey) => !key.is_active
+
+const rowProps = (key: ApiKey) => (key.is_active ? {} : { className: styles.revoked })
 
 function revokeColumn(
   gate: ScopeGate,
@@ -430,7 +436,10 @@ function revokeColumn(
   }
 }
 
-/** The keys, sortable by any column but the last, each active one with its Revoke button. */
+/**
+ * The keys, active ones first, sortable by any column but the last two: Active, and the Revoke
+ * button each active key has.
+ */
 function KeysTable({
   keys,
   ownPrefix,
@@ -457,7 +466,7 @@ function KeysTable({
     onSuccess: async (_, key) => {
       // A list on its way could land after the answer, and show the key as active again.
       await queryClient.cancelQueries({ queryKey: queryKeys.apiKeys })
-      // Revoked keys stay listed, as inactive (E11): the row changes in place.
+      // Revoked keys stay listed, as inactive (E11): the row goes among them.
       queryClient.setQueryData<ApiKeyList>(
         queryKeys.apiKeys,
         (list) =>
@@ -509,9 +518,11 @@ function KeysTable({
       <DataTable
         label="API keys"
         ref={tableRef}
-        columns={[...shown, revokeColumn(revokeGate, rowConfirm.open)]}
+        columns={[...shown, ACTIVE, revokeColumn(revokeGate, rowConfirm.open)]}
         rows={keys}
         rowKey={(key) => key.prefix}
+        rowProps={rowProps}
+        trailing={revoked}
         confirming={(key) => key.prefix === revoking?.prefix}
         empty="No API keys yet."
         sort={sort}

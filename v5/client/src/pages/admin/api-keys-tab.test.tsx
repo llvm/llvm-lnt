@@ -318,10 +318,17 @@ describe('the API Keys tab', () => {
     expect(rowsOf(await keysTable())).toEqual(ROWS)
   })
 
-  it('lists every key with the token, newest first, revoked ones without Revoke', async () => {
+  it('lists every key with the token, newest first, revoked ones last, muted, without Revoke', async () => {
     const { list, store } = await renderKeys()
 
     expect(rowsOf(list)).toEqual(ROWS)
+    const rows = within(list).getAllByRole('row').slice(1)
+    expect(rows.map((row) => row.classList.contains('revoked'))).toEqual([
+      false,
+      false,
+      false,
+      true,
+    ])
     expect(headersOf(list)).toEqual([
       'Prefix',
       'Name',
@@ -365,11 +372,11 @@ describe('the API Keys tab', () => {
 describe('sorting the keys', () => {
   const prefixes = (list: HTMLElement) => rowsOf(list).map((row) => row.split(' | ')[0])
 
-  it('sorts by Last Used, with the keys never used last in both directions', async () => {
+  it('sorts by Last Used, the keys never used last in both directions, bar the revoked', async () => {
     const { list } = await renderKeys()
 
     fireEvent.click(within(list).getByRole('button', { name: 'Last Used' }))
-    expect(prefixes(list)).toEqual(['3f0ac112', '135f502b', 'aaaaaaaa', '229d78c5'])
+    expect(prefixes(list)).toEqual(['135f502b', 'aaaaaaaa', '229d78c5', '3f0ac112'])
     expect(screen.getByRole('columnheader', { name: /Last Used/ })).toHaveAttribute(
       'aria-sort',
       'ascending',
@@ -377,35 +384,35 @@ describe('sorting the keys', () => {
     expect(screen.getByRole('columnheader', { name: 'Created' })).not.toHaveAttribute('aria-sort')
 
     fireEvent.click(within(list).getByRole('button', { name: /Last Used/ }))
-    expect(prefixes(list)).toEqual(['aaaaaaaa', '135f502b', '3f0ac112', '229d78c5'])
+    expect(prefixes(list)).toEqual(['aaaaaaaa', '135f502b', '229d78c5', '3f0ac112'])
   })
 
   it('sorts scopes from the lowest to the highest, and the other columns by value', async () => {
     const { list, store } = await renderKeys()
 
+    // The revoked key, old-bot, comes last whatever the sort.
     fireEvent.click(within(list).getByRole('button', { name: 'Scope' }))
-    expect(prefixes(list)).toEqual(['3f0ac112', '229d78c5', '135f502b', 'aaaaaaaa'])
+    expect(prefixes(list)).toEqual(['229d78c5', '135f502b', 'aaaaaaaa', '3f0ac112'])
 
-    // my-admin, old-bot, test-key, test-key2.
+    // my-admin, test-key, test-key2.
     fireEvent.click(within(list).getByRole('button', { name: 'Name' }))
-    expect(prefixes(list)).toEqual(['aaaaaaaa', '3f0ac112', '135f502b', '229d78c5'])
+    expect(prefixes(list)).toEqual(['aaaaaaaa', '135f502b', '229d78c5', '3f0ac112'])
 
     fireEvent.click(within(list).getByRole('button', { name: 'Prefix' }))
-    expect(prefixes(list)).toEqual(['135f502b', '229d78c5', '3f0ac112', 'aaaaaaaa'])
-
-    // The inactive key first, then the others in the order the API gave them.
-    fireEvent.click(within(list).getByRole('button', { name: 'Active' }))
-    expect(prefixes(list)).toEqual(['3f0ac112', '229d78c5', '135f502b', 'aaaaaaaa'])
+    expect(prefixes(list)).toEqual(['135f502b', '229d78c5', 'aaaaaaaa', '3f0ac112'])
 
     fireEvent.click(within(list).getByRole('button', { name: 'Created' }))
-    expect(prefixes(list)).toEqual(['3f0ac112', 'aaaaaaaa', '135f502b', '229d78c5'])
+    expect(prefixes(list)).toEqual(['aaaaaaaa', '135f502b', '229d78c5', '3f0ac112'])
 
     // All first, then by the suites' names in order.
     fireEvent.click(within(list).getByRole('button', { name: 'Covers' }))
     expect(prefixes(list)).toEqual(['229d78c5', 'aaaaaaaa', '135f502b', '3f0ac112'])
     await waitFor(() => expect(currentUrl()).toBe('/admin?sort=restricted_to'))
     fireEvent.click(within(list).getByRole('button', { name: /Covers/ }))
-    expect(prefixes(list)).toEqual(['3f0ac112', '135f502b', '229d78c5', 'aaaaaaaa'])
+    expect(prefixes(list)).toEqual(['135f502b', '229d78c5', 'aaaaaaaa', '3f0ac112'])
+
+    // Which would change nothing.
+    expect(within(list).queryByRole('button', { name: 'Active' })).not.toBeInTheDocument()
 
     // Sorting asks the API for nothing.
     expect(store.requests).toHaveLength(1)
@@ -429,9 +436,10 @@ describe('sorting the keys', () => {
     )
 
     fireEvent.click(within(list).getByRole('button', { name: 'Covers' }))
-    expect(prefixes(list)).toEqual(['229d78c5', 'aaaaaaaa', '135f502b', '3f0ac112', '7d1e40aa'])
+    // Among the active keys: it is not revoked, and still authenticates.
+    expect(prefixes(list)).toEqual(['229d78c5', 'aaaaaaaa', '135f502b', '7d1e40aa', '3f0ac112'])
     fireEvent.click(within(list).getByRole('button', { name: /Covers/ }))
-    expect(prefixes(list)).toEqual(['7d1e40aa', '3f0ac112', '135f502b', '229d78c5', 'aaaaaaaa'])
+    expect(prefixes(list)).toEqual(['7d1e40aa', '135f502b', '229d78c5', 'aaaaaaaa', '3f0ac112'])
   })
 
   it('names the suites of a key by their labels, sorted by them (AR22)', async () => {
@@ -511,15 +519,18 @@ describe('sorting the keys', () => {
   it('sorts as the URL says', async () => {
     const { list } = await renderKeys({ url: '/admin?sort=-last_used_at' })
 
-    expect(prefixes(list)).toEqual(['aaaaaaaa', '135f502b', '3f0ac112', '229d78c5'])
+    expect(prefixes(list)).toEqual(['aaaaaaaa', '135f502b', '229d78c5', '3f0ac112'])
   })
 
-  it.each(['created', '-nope', 'revoke'])('drops the sort %s, which it cannot use', async (sort) => {
-    const { list } = await renderKeys({ url: `/admin?sort=${sort}` })
+  it.each(['created', '-nope', 'revoke', 'is_active'])(
+    'drops the sort %s, which it cannot use',
+    async (sort) => {
+      const { list } = await renderKeys({ url: `/admin?sort=${sort}` })
 
-    expect(rowsOf(list)).toEqual(ROWS)
-    await waitFor(() => expect(currentUrl()).toBe('/admin'))
-  })
+      expect(rowsOf(list)).toEqual(ROWS)
+      await waitFor(() => expect(currentUrl()).toBe('/admin'))
+    },
+  )
 
   it('drops the sort on leaving the tab', async () => {
     renderPage('/admin?sort=name')
@@ -983,7 +994,7 @@ describe('creating a key', () => {
 })
 
 describe('revoking a key', () => {
-  it('asks first, then flips the row to inactive in place, without its Revoke button', async () => {
+  it('asks first, then moves the row among the revoked keys, without its Revoke button', async () => {
     const { list, store, checks } = await renderKeys()
     const prefixes = mockRevoke(store)
 
@@ -1000,13 +1011,15 @@ describe('revoking a key', () => {
 
     await waitFor(() => expect(prompt()).toBeNull())
     expect(prefixes).toEqual(['135f502b'])
-    expect(rowsOf(list)[1]).toBe(
+    // Below every active key, still newest first.
+    expect(rowsOf(list)[2]).toBe(
       '135f502b | test-key | manage | llvm › libcxx, llvm › nts | 2026-08-11, 1:04:23 PM | 2026-08-18, 3:49:26 AM | No | ',
     )
+    expect(within(list).getByText('135f502b').closest('tr')).toHaveClass('revoked')
     expect(list).toHaveFocus()
     // The keys are asked for again, but not the token, whose key is another.
     await waitFor(() => expect(store.requests).toHaveLength(2))
-    expect(rowsOf(list)[1]).toContain('| No |')
+    expect(rowsOf(list)[2]).toContain('| No |')
     expect(checks).toHaveLength(1)
   })
 
@@ -1073,7 +1086,7 @@ describe('revoking a key', () => {
     await act(async () => stale.open())
     await waitFor(() => expect(queryClient.isFetching()).toBe(0))
 
-    expect(rowsOf(list)[1]).toContain('| No |')
+    expect(rowsOf(list)[2]).toContain('| No |')
   })
 
   it('checks the token again once its own key is revoked, which denies permission', async () => {

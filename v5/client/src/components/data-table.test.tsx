@@ -22,6 +22,8 @@ function Table(props: {
   presorted?: boolean
   onSort?: (sort: TableSort) => void
   pinned?: string[]
+  sort?: TableSort | null
+  trailing?: (row: string) => boolean
 }) {
   return (
     <DataTable
@@ -30,18 +32,32 @@ function Table(props: {
       rows={['b', 'c', 'a']}
       rowKey={(row) => row}
       empty="None."
-      sort={BY_NAME}
+      sort={props.sort === null ? undefined : (props.sort ?? BY_NAME)}
       onSort={props.onSort ?? (() => {})}
       presorted={props.presorted}
       pinned={props.pinned}
+      trailing={props.trailing}
     />
   )
 }
+
+/** Rows `a` and `b`. */
+const beforeC = (row: string) => row < 'c'
 
 describe('DataTable', () => {
   it('sorts its rows, after the pinned ones', () => {
     render(<Table pinned={['z']} />)
     expect(shown()).toEqual(['z', 'a', 'b', 'c'])
+  })
+
+  it.each<[string, TableSort | null, string[], boolean]>([
+    ['ascending', BY_NAME, ['c', 'a', 'b'], false],
+    ['descending', { ...BY_NAME, direction: 'descending' }, ['c', 'b', 'a'], false],
+    ['presorted', BY_NAME, ['c', 'b', 'a'], true],
+    ['unsorted', null, ['c', 'b', 'a'], false],
+  ])('sorts the trailing rows after the others: %s', (_, sort, expected, presorted) => {
+    render(<Table sort={sort} presorted={presorted} trailing={beforeC} />)
+    expect(shown()).toEqual(expected)
   })
 
   it('shows presorted rows as they come, and still asks for another sort from a header', async () => {

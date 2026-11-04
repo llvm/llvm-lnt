@@ -131,6 +131,11 @@
   gap: var(--lnt-space-1) var(--lnt-space-2);
 }
 
+/* A revoked key's row (AD1). */
+.revoked {
+  color: var(--lnt-muted);
+}
+
 /* What a key restricted to nothing covers (AD1). */
 .nothing {
   color: var(--lnt-muted);
