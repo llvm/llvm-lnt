@@ -1005,12 +1005,34 @@ class TestEvolveRepository:
         assert body["metrics"][-1]["name"] == "code_size"
         assert body["repository"]["range_url"] == examples.REPOSITORY["range_url"]
 
+    def test_a_field_a_template_names_is_only_removed_with_the_template(
+        self, api_client: TestClient, create: Callable[..., Any], manage: dict[str, str]
+    ) -> None:
+        # D2: the whole resulting schema is validated, and the template names `git_sha`.
+        commit_url = "https://git.example.com/{commit.git_sha}"
+        create(repository={"commit_url": commit_url})
+        removal: dict[str, Any] = {"commit_fields": {"remove": ["git_sha"]}}
+
+        refused = patch_request(api_client, manage, removal, confirm=True)
+
+        assert code_of(refused) == "invalid_request"
+        assert "commit_url names 'git_sha'" in refused.json()["error"]["message"]
+        assert api_client.get(f"{SUITES}/nts").json()["repository"]["commit_url"] == commit_url
+
+        removal["repository"] = {"commit_url": None}
+        response = patch_request(api_client, manage, removal, confirm=True)
+
+        assert response.status_code == 200
+        assert response.json()["commit_fields"] == []
+        assert response.json()["repository"]["commit_url"] is None
+
     @pytest.mark.parametrize(
         "repository",
         [
             None,
             {"label": ""},
             {"commit_url": "https://{commit}.example.com/"},
+            {"commit_url": "https://git.example.com/{commit.author}"},
             {"url": examples.REPOSITORY["commit_url"]},
         ],
     )

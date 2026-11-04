@@ -256,7 +256,7 @@ function Actions({ schema, commit }: { schema: Suite; commit: CommitDetail }) {
     >
       {link(commit.previous, 'No commit comes before this one.', '← Previous commit')}
       {link(commit.next, 'No commit comes after this one.', 'Next commit →')}
-      <CommitRepositoryLink repository={schema.repository} commit={value} look="button" />
+      <CommitRepositoryLink schema={schema} commit={commit} look="button" />
     </DetailActionRow>
   )
 }

@@ -86,16 +86,23 @@ export function SchemaEditorTables({ draft, onChange, busy }: Props) {
       {LISTS.map((list) => (
         <ListTable key={list} list={list} entries={draft[list]} busy={busy} change={change} />
       ))}
-      <RepositoryInputs repository={draft.repository} busy={busy} change={change} />
+      <RepositoryInputs
+        repository={draft.repository}
+        commitFields={draft.commit_fields}
+        busy={busy}
+        change={change}
+      />
     </div>
   )
 }
 
 /** What each URL's input says of the placeholders it accepts (D4). */
 const URL_HINTS: Record<UrlKey, string> = {
-  commit_url: '{commit} is replaced by the commit.',
+  commit_url:
+    '{commit} is replaced by the commit, and {commit.<field>} by its value for a text field.',
   range_url:
-    '{from} and {to} are replaced by the commit the changes start after and the one they end at.',
+    '{from} and {to} are replaced by the commit the changes start after and the one they end at, ' +
+    '{from.<field>} and {to.<field>} by their values for a text field.',
 }
 
 /**
@@ -104,14 +111,17 @@ const URL_HINTS: Record<UrlKey, string> = {
  */
 const RepositoryInputs = memo(function RepositoryInputs({
   repository,
+  commitFields,
   busy,
   change,
 }: {
   repository: DraftRepository
+  /** The commit fields, whose names and types the URLs are checked against. */
+  commitFields: readonly DraftEntry[]
   busy: boolean
   change(update: Update): void
 }) {
-  const problems = repositoryProblems(repository)
+  const problems = repositoryProblems(repository, commitFields)
   const hintId = useId()
   return (
     <section aria-label="Repository">

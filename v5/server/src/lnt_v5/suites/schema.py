@@ -88,8 +88,8 @@ SUITE_DISPLAY_NAME = (
 )
 
 # D4: the URL templates of a suite's `repository`. The rules exist so that filling one in can only
-# ever give a link to the host the schema names, over http or https, whatever the commit strings it
-# is filled with -- and anyone with `submit` can choose those.
+# ever give a link to the host the schema names, over http or https, whatever the commit strings and
+# field values it is filled with -- and anyone with `submit` can choose those.
 #
 # - The scheme is literal, so no placeholder can turn the link into a `javascript:` one.
 # - So is the host: a commit string can hold a `.`, and `https://{commit}` would otherwise lead
@@ -101,28 +101,52 @@ SUITE_DISPLAY_NAME = (
 #   placeholders later.
 # ASCII only: Python folds case across Unicode, where `s` would also match U+017F (the long s),
 # and a browser reads `http` followed by that letter and `://` as a relative link.
+#
+# A placeholder is a commit's, `{commit}`, or one of its fields', `{commit.<field>}`. Whether the
+# field is one of the suite's text commit fields depends on the rest of the schema, so `SuiteSchema`
+# checks that, rather than the template on its own.
 _URL_SCHEME = re.compile(r"^https?://", re.IGNORECASE | re.ASCII)
 _URL_EXCLUDED = re.compile(r"[\x00-\x20\x7f]")
 _PLACEHOLDER = re.compile(r"\{([^{}]*)\}")
+_FIELD_PLACEHOLDER = re.compile(rf"([a-z]+)\.({ENTRY_NAME_PATTERN.strip('^$')})")
 
 
-def _url_template(*placeholders: str) -> Callable[[str], str]:
-    """A check that a template is a URL that accepts exactly `placeholders`, each of them at least
-    once."""
-    accepted = " and ".join(f"{{{name}}}" for name in placeholders)
+def _parse_placeholder(name: str) -> tuple[str, str | None]:
+    """The commit that the placeholder `{name}` is of, and the field it names, if it names one."""
+    field = _FIELD_PLACEHOLDER.fullmatch(name)
+    return (field[1], field[2]) if field else (name, None)
+
+
+def _template_fields(template: str) -> set[str]:
+    """The fields that `template` names, as in `{commit.<field>}`."""
+    fields = (_parse_placeholder(name)[1] for name in _PLACEHOLDER.findall(template))
+    return {field for field in fields if field is not None}
+
+
+def _url_template(*commits: str) -> Callable[[str], str]:
+    """A check that a template is a URL whose placeholders are only those of `commits`, with at
+    least one of each."""
+    *others, last = [f"{{{commit}}}" for commit in commits] + [
+        f"{{{commit}.<field>}}" for commit in commits
+    ]
+    accepted = f"{', '.join(others)} and {last}"
+    required = ", and ".join(f"{{{commit}}} or {{{commit}.<field>}}" for commit in commits)
 
     def check(template: str) -> str:
         if _URL_EXCLUDED.search(template):
             raise ValueError("must not contain spaces or ASCII control characters")
         if not (scheme := _URL_SCHEME.match(template)):
             raise ValueError("must start with http:// or https://")
+        named: set[str] = set()
         for name in _PLACEHOLDER.findall(template):
-            if name not in placeholders:
+            commit, _ = _parse_placeholder(name)
+            if commit not in commits:
                 raise ValueError(f"{{{name}}} is not a placeholder it accepts, only {accepted}")
+            named.add(commit)
         if re.search(r"[{}]", _PLACEHOLDER.sub("", template)):
-            raise ValueError(f"must not contain braces other than those of {accepted}")
-        if any(f"{{{name}}}" not in template for name in placeholders):
-            raise ValueError(f"must contain {accepted}")
+            raise ValueError("must not contain braces other than those of its placeholders")
+        if not named.issuperset(commits):
+            raise ValueError(f"must contain {required}")
         host = re.split(r"[/?#]", template[scheme.end() :], maxsplit=1)[0]
         if not host:
             raise ValueError("must name a host after the scheme")
@@ -367,20 +391,22 @@ class MachineField(_SearchableEntry):
 # Shared with the update model in `evolve.py`, which adds what null means there.
 TEMPLATE_RULES = (
     "It must start with `http://` or `https://`, name its host literally, and contain no spaces, "
-    "ASCII control characters, or braces other than its placeholders'. Clients replace every "
-    "placeholder, percent-encoding the value: every character but an ASCII letter, a digit or one "
-    "of `-_.!~*'()`."
+    "ASCII control characters, or braces other than its placeholders'. A field it names must be "
+    "one of the suite's `text` commit fields. Clients replace every placeholder, percent-encoding "
+    "the value: every character but an ASCII letter, a digit or one of `-_.!~*'()`. A commit whose "
+    "value for a field the template names is null, empty, `.` or `..` cannot fill it in."
 )
 COMMIT_URL = (
     "A template of the URL of a commit in the repository, in which `{commit}` stands for the "
-    f"commit's value, such as a Git SHA. It must contain `{{commit}}`. {TEMPLATE_RULES}"
+    "commit's value, such as a Git SHA, and `{commit.<field>}` for its value for a commit field. "
+    f"It must contain at least one of them. {TEMPLATE_RULES}"
 )
 RANGE_URL = (
     "A template of the URL of the changes between two commits, in which `{from}` stands for the "
     "commit the changes start after, whose own changes are excluded, and `{to}` for the commit "
-    "they end at, whose own changes are included, as in Git's `from..to`. It must contain both "
-    "`{from}` and `{to}`. "
-    f"{TEMPLATE_RULES}"
+    "they end at, whose own changes are included, as in Git's `from..to`. `{from.<field>}` and "
+    "`{to.<field>}` stand for their values for a commit field. It must contain at least one of "
+    f"`{{from}}` and `{{from.<field>}}`, and one of `{{to}}` and `{{to.<field>}}`. {TEMPLATE_RULES}"
 )
 REPOSITORY_LABEL = (
     'What the repository is called in links to it, such as `GitHub`, as in "View on GitHub".'
@@ -470,6 +496,21 @@ class SuiteSchema(BaseModel):
             raise ValueError(
                 "at most one commit field may set 'display', but these do: " + ", ".join(display)
             )
+
+        # D4: a template names text commit fields only, which stand in for a commit string.
+        types = {field.name: field.type for field in self.commit_fields}
+        for key in ("commit_url", "range_url"):
+            template = getattr(self.repository, key)
+            for name in sorted(_template_fields(template or "")):
+                if name not in types:
+                    raise ValueError(
+                        f"the repository's {key} names '{name}', which is not a commit field"
+                    )
+                if types[name] is not AttributeType.TEXT:
+                    raise ValueError(
+                        f"the repository's {key} names '{name}', which is "
+                        f"'{types[name].value}', and only a 'text' commit field can be named"
+                    )
         return self
 
     @property

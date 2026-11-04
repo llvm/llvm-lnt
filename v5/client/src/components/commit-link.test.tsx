@@ -593,6 +593,24 @@ describe('the content', () => {
     await renderLink({ schema: { ...SUITE, repository: NO_REPOSITORY } })
     expect(within(await open()).queryByRole('link', { name: /^View/ })).toBeNull()
   })
+
+  describe('with a template naming a field', () => {
+    const commit_url = 'https://example.com/{commit.svn_revision}'
+    const schema = { ...SUITE, repository: { ...SUITE.repository, commit_url } }
+
+    it('links the commit by its value for the field', async () => {
+      await renderLink({ schema })
+      expect(within(await open()).getByRole('link', { name: 'View on GitHub' })).toHaveAttribute(
+        'href',
+        'https://example.com/r593922',
+      )
+    })
+
+    it('does not when the commit has no value for it', async () => {
+      await renderLink({ schema, given: commit(HASH) })
+      expect(within(await open()).queryByRole('link', { name: /^View/ })).toBeNull()
+    })
+  })
 })
 
 describe('the data', () => {

@@ -453,7 +453,7 @@ describe('copyOf and draftOf, for the repository', () => {
       repository: { ...SUITE.repository, commit_url: 'https://{commit}' },
     })
     expect(copy.repository.original).toBeNull()
-    expect(repositoryProblems(copy.repository).get('commit_url')).toBe(
+    expect(repositoryProblems(copy.repository, copy.commit_fields).get('commit_url')).toBe(
       'A URL names its host as it is, without a placeholder.',
     )
   })
@@ -465,19 +465,52 @@ describe('copyOf and draftOf, for the repository', () => {
       repository: { ...SUITE.repository, commit_url: 'https://{commit}' },
     })
     expect(draft.repository.original?.commit_url).toBe('https://{commit}')
-    expect(repositoryProblems(draft.repository).size).toBe(0)
+    expect(repositoryProblems(draft.repository, draft.commit_fields).size).toBe(0)
     expect(draftProblem(draft)).toBeUndefined()
 
     const changed = changeRepository(draft, 'commit_url', 'https://{commit}/')
-    expect(repositoryProblems(changed.repository).get('commit_url')).toBeDefined()
+    const problems = repositoryProblems(changed.repository, changed.commit_fields)
+    expect(problems.get('commit_url')).toBeDefined()
     expect(draftProblem(changed)).toBe('Correct the repository URLs marked in red first.')
   })
 })
 
 describe('repositoryProblems', () => {
+  /** Why each URL of `draft` cannot be sent, by its key. */
+  const problems = (draft: Draft) => repositoryProblems(draft.repository, draft.commit_fields)
+
   it('leaves an empty URL alone, which is sent as null', () => {
-    expect(repositoryProblems(changeRepository(EMPTY_DRAFT, 'commit_url', ' ').repository).size).toBe(
-      0,
+    expect(problems(changeRepository(EMPTY_DRAFT, 'commit_url', ' ')).size).toBe(0)
+  })
+
+  it('checks the fields a URL names against the commit fields as they would be sent', () => {
+    const url = 'https://example.com/{commit.sha}'
+    const repository = changeRepository(EMPTY_DRAFT, 'commit_url', url)
+    const { draft, entry } = withEntry(repository, 'commit_fields', 'sha')
+    expect(problems(draft).size).toBe(0)
+    const integer = changeEntry(draft, 'commit_fields', entry.id, { type: 'integer' })
+    expect(problems(integer).get('commit_url')).toBe(
+      'This URL names sha, which is not a text field.',
     )
+    expect(problems(removeEntry(draft, 'commit_fields', entry.id)).get('commit_url')).toBe(
+      'This URL names sha, which is not a commit field.',
+    )
+  })
+
+  it('checks the fields a stored URL names, although it does not check it otherwise', () => {
+    // Stored by a server that accepted it, which this editor would not.
+    const draft = draftOf({
+      ...SUITE,
+      repository: { ...SUITE.repository, commit_url: 'https://{commit.svn_revision}' },
+    })
+    const { id } = draft.commit_fields[0]
+    expect(problems(draft).size).toBe(0)
+
+    const removed = removeEntry(draft, 'commit_fields', id)
+    expect(problems(removed).get('commit_url')).toBe(
+      'This URL names svn_revision, which is not a commit field.',
+    )
+    expect(draftProblem(removed)).toBe('Correct the repository URLs marked in red first.')
+    expect(problems(restoreEntry(removed, 'commit_fields', id)).size).toBe(0)
   })
 })

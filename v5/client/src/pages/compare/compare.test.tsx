@@ -393,6 +393,70 @@ describe('the ways to the sides’ commits (CP1, AR20, AR21)', () => {
     expect(diff()).not.toBeInTheDocument()
   })
 
+  /** Keep the lookup of the commit c2 pending, as long as the test runs. */
+  const pendingLookupOfC2 = () =>
+    server.use(
+      mockApi('get', '/api/projects/{project}/suites/{suite}/commits', ({ request }) => {
+        const query = new URL(request.url).searchParams
+        return query.get('commit') === 'c2' ? new Promise<never>(() => {}) : undefined
+      }),
+    )
+
+  it('link the changes by commit strings, before the pickers have looked them up', async () => {
+    mockWorld({ revisions: { c1: 'r1', c2: 'r2' } })
+    pendingLookupOfC2()
+    renderPage(COMPARED)
+
+    // A template naming no field needs only the commit strings.
+    const range = await main().findByRole('link', { name: 'Diff on GitHub: r1 → c2' })
+    expect(range).toHaveAttribute('href', `${GITHUB}/compare/c1...c2`)
+  })
+
+  describe('with a template naming fields', () => {
+    const range_url = 'https://example.com/{from.svn_revision}...{to.svn_revision}'
+    const suites = [{ ...SUITE, repository: { ...SUITE.repository, range_url } }]
+
+    it('link the changes by the commits’ values for the fields', async () => {
+      mockWorld({ suites, revisions: { c1: 'r1', c2: 'r2' } })
+      renderPage(COMPARED)
+      await comparison()
+
+      const range = await main().findByRole('link', { name: 'Diff on GitHub: r1 → r2' })
+      expect(range).toHaveAttribute('href', 'https://example.com/r1...r2')
+    })
+
+    it('link no changes when a commit has no value for a field', async () => {
+      mockWorld({ suites, revisions: { c1: 'r1' } })
+      renderPage(COMPARED)
+      await comparison()
+
+      expect(await findCommitButton('A', 'r1')).toBeInTheDocument()
+      expect(await findCommitButton('B', 'c2')).toBeInTheDocument()
+      expect(diff()).not.toBeInTheDocument()
+    })
+
+    it('link the changes only once the pickers have looked the commits up', async () => {
+      mockWorld({ suites, revisions: { c1: 'r1', c2: 'r2' } })
+      pendingLookupOfC2()
+      renderPage(COMPARED)
+
+      // Side A's commit is looked up, but not side B's, whose values are not known yet.
+      expect(await findCommitButton('A', 'r1')).toBeInTheDocument()
+      expect(commitButton('B', 'c2')).toBeInTheDocument()
+      expect(diff()).not.toBeInTheDocument()
+    })
+
+    it('link no changes from a commit the side’s machine has no runs at', async () => {
+      // Its lookup, under the side's machine, finds nothing, which clears its picker (AR15).
+      mockWorld({ suites, revisions: { c1: 'r1', c2: 'r2' } })
+      renderPage(COMPARED.replace('machine_b=m1&commit_b=c2', 'machine_b=m2&commit_b=c1'))
+
+      expect(await findCommitButton('A', 'r1')).toBeInTheDocument()
+      await waitFor(() => expect(commitButton('B', 'c1')).not.toBeInTheDocument())
+      expect(diff()).not.toBeInTheDocument()
+    })
+  })
+
   it('link no changes when the suite has no template of their URL', async () => {
     mockWorld({ suites: [{ ...SUITE, repository: NO_REPOSITORY }] })
     renderPage(COMPARED)

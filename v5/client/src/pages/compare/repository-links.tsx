@@ -4,10 +4,16 @@
  */
 
 import type { Suite } from '../../api/suites'
-import { usePickedCommit, usePickedCommitText } from '../../components/commit-lookup'
+import { usePickedCommit } from '../../components/commit-lookup'
 import { CommitCardButton } from '../../components/commit-link'
 import { InfoIcon } from '../../components/icons'
-import { NEW_TAB, rangeUrl, repositoryLinkText } from '../../repository'
+import {
+  NEW_TAB,
+  rangeUrl,
+  repositoryLinkText,
+  usableTemplate,
+  type LinkedCommit,
+} from '../../repository'
 import type { Side } from './use-side'
 import styles from './compare.module.css'
 
@@ -24,9 +30,15 @@ function named({ schema, settings }: Side): Named | null {
   return schema === undefined || commit === '' ? null : { schema, machine, commit }
 }
 
-/** The side's commit as its picker shows it, whose filters are its machine (see `SideFields`). */
-function useShownCommit({ schema, machine, commit }: Named): string {
-  return usePickedCommitText(schema, { machine }, commit)
+/**
+ * The side's commit as its picker knows it, whose filters are its machine (see `SideFields`): by its
+ * display value, and with its values for its fields, once the picker has looked it up, and by its
+ * commit string, and with no values, until then, so that a template naming fields waits (CP6).
+ */
+function useShownCommit({ schema, machine, commit }: Named) {
+  const picked = usePickedCommit(schema, { machine }, commit)
+  const linked: LinkedCommit = picked?.commit ?? { value: commit, fields: {} }
+  return { text: picked?.text ?? commit, linked }
 }
 
 /**
@@ -58,24 +70,27 @@ function NamedCommitCard({ target }: { target: Named }) {
 /**
  * "Diff on {label}" from side A's commit to side B's, always in that order, even when B's
  * is the older, below the sides (CP1): while both have a commit in the same suite, which has a
- * template of a range's URL.
+ * template of a range's URL that they can fill in.
  */
 export function RangeLink({ a, b }: { a: Side; b: Side }) {
   const from = named(a)
   const to = named(b)
   if (from === null || to === null || a.settings.suite !== b.settings.suite) return null
-  const url = rangeUrl(from.schema.repository, from.commit, to.commit)
-  return url && <NamedRangeLink from={from} to={to} url={url} />
+  if (usableTemplate(from.schema, 'range_url') === null) return null
+  return <NamedRangeLink from={from} to={to} />
 }
 
-function NamedRangeLink({ from, to, url }: { from: Named; to: Named; url: string }) {
+function NamedRangeLink({ from, to }: { from: Named; to: Named }) {
   const shownFrom = useShownCommit(from)
   const shownTo = useShownCommit(to)
+  const url = rangeUrl(from.schema, shownFrom.linked, shownTo.linked)
   return (
-    <p className={styles.range}>
-      <a href={url} {...NEW_TAB}>
-        {repositoryLinkText(from.schema.repository, 'Diff')}: {shownFrom} → {shownTo}
-      </a>
-    </p>
+    url && (
+      <p className={styles.range}>
+        <a href={url} {...NEW_TAB}>
+          {repositoryLinkText(from.schema.repository, 'Diff')}: {shownFrom.text} → {shownTo.text}
+        </a>
+      </p>
+    )
   )
 }

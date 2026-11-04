@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
 from typing import Any
 
@@ -394,12 +395,32 @@ class TestRepository:
 
     @pytest.mark.parametrize(("key", "template", "valid"), TEMPLATE_CASES)
     def test_checks_a_url_template(self, key: str, template: str, valid: bool) -> None:
-        document = schema(repository={key: template})
+        document = schema(commit_fields=URL_TEMPLATES["commit_fields"], repository={key: template})
         if valid:
             assert SuiteSchema.model_validate(document).repository.model_dump()[key] == template
         else:
             with pytest.raises(ValidationError):
                 SuiteSchema.model_validate(document)
+
+    @pytest.mark.parametrize(
+        ("fields", "problem"),
+        [
+            ([], "the repository's commit_url names 'sha', which is not a commit field"),
+            (
+                [{"name": "sha", "type": "integer"}],
+                "the repository's commit_url names 'sha', which is 'integer', and only a 'text' "
+                "commit field can be named",
+            ),
+        ],
+    )
+    def test_says_which_field_a_template_cannot_name(
+        self, fields: list[dict[str, str]], problem: str
+    ) -> None:
+        document = schema(
+            commit_fields=fields, repository={"commit_url": "https://example.com/{commit.sha}"}
+        )
+        with pytest.raises(ValidationError, match=re.escape(problem)):
+            SuiteSchema.model_validate(document)
 
     @pytest.mark.parametrize("value", ["", "Git\x00Hub"])
     def test_a_label_is_refused_when_empty_or_holding_a_nul(self, value: str) -> None:
