@@ -52,6 +52,7 @@ import {
   listed,
   mockWorld,
   pointOf,
+  testPage,
   testTable,
   type Sample,
   type World,
@@ -2120,5 +2121,91 @@ describe('the panels of several metrics (GR1)', () => {
       'Compile Time×',
       'Execution Time×',
     ])
+  })
+
+  it('resets the zoom of every panel on a double-click (GR5)', async () => {
+    mockWorld(BOTH)
+    renderPage(`${BOTH_METRICS}&test=a`)
+    await waitFor(() => expect(panelTraces()).toHaveLength(2))
+
+    // Plotly resets the panel double-clicked itself, and the chart then every panel's y-axis.
+    expect(chart().doubleClickReset).toEqual({
+      'yaxis.autorange': true,
+      'yaxis3.autorange': true,
+    })
+  })
+
+  it('closes the details of a point once a metric is added or removed (GR11)', async () => {
+    mockWorld(BOTH)
+    renderPage(`${ONE_MACHINE}&test=a`)
+    await waitFor(() => expect(panelTraces()).toHaveLength(1))
+    draw(TWO_PANELS)
+
+    click('a - m1', 1)
+    expect(screen.getByRole('dialog')).toBeInTheDocument()
+    await addMetric('Compile Time')
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+
+    await waitFor(() => expect(panelTraces()).toHaveLength(2))
+    act(() => chart().onClick?.(eventIn('a - m1', 'y', 1)))
+    expect(screen.getByRole('dialog')).toBeInTheDocument()
+    await removeMetric('Compile Time')
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+  })
+
+  it("stops loading a metric's data once it is removed, not the others' (GR2)", async () => {
+    const held = gate()
+    const recorded = mockWorld(BOTH)
+    const wait = (query: URLSearchParams) =>
+      query.get('metric') === 'compile_time' ? held.promise : Promise.resolve()
+    answerSeries(recorded, (query) => ndjsonResponse([], { wait: () => wait(query) }))
+    renderPage(`${BOTH_METRICS}&test=a`)
+    await waitFor(() => expect(recorded.series).toHaveLength(2))
+    const signalOf = (metric: string) =>
+      recorded.series.find(({ query }) => query.get('metric') === metric)!.signal
+
+    await removeMetric('Compile Time')
+
+    await waitFor(() => expect(signalOf('compile_time').aborted).toBe(true))
+    expect(signalOf('execution_time').aborted).toBe(false)
+    act(() => held.open())
+  })
+
+  it('asks for the regressions of a metric added only (GR8, GR15)', async () => {
+    mockWorld(BOTH)
+    const { lookups, lists } = mockRegressionWorld()
+    renderPage(`${ONE_MACHINE}&test=a&regressions=all`)
+    await waitFor(() => expect(lookups).toHaveLength(1))
+    await waitFor(() => expect(lists).toHaveLength(1))
+
+    await addMetric('Compile Time')
+
+    await waitFor(() => expect(lookups).toHaveLength(2))
+    await waitFor(() => expect(lists).toHaveLength(2))
+    await settle()
+    expect(lookups.map((body) => body.metric)).toEqual(['execution_time', 'compile_time'])
+    expect(lists.map((list) => list.get('metric'))).toEqual(['execution_time', 'compile_time'])
+  })
+
+  it("says a panel has nothing to plot whatever another metric's tests lists do (GR12)", async () => {
+    // a has no execution time, and compile time's lists are held, then fail.
+    const held = gate()
+    mockWorld({ samples: {}, samplesOf: BOTH.samplesOf })
+    server.use(
+      mockApi('get', '/api/projects/{project}/suites/{suite}/tests', async ({ request }) => {
+        const query = new URL(request.url).searchParams
+        if (query.get('metric') !== 'compile_time') return HttpResponse.json(testPage(['a']))
+        await held.promise
+        return errorResponse(500, 'internal_error', 'Down')
+      }),
+    )
+    renderPage(`${BOTH_METRICS}&test=a`)
+
+    const said = () => (layout().annotations ?? []).map((annotation) => Number(annotation.y) > 0.5)
+    // In the top panel only, while the bottom one's lists load.
+    await waitFor(() => expect(said()).toEqual([true]))
+    act(() => held.open())
+    await main().findByText('The tests could not be listed', { exact: false })
+    expect(said()).toEqual([true])
   })
 })

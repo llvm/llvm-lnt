@@ -16,6 +16,7 @@ import {
   clickSuggestion,
   openSelect,
   optionGroup,
+  pickOption,
   pickSuggestion,
   pickSuite,
 } from './select.ts'
@@ -626,4 +627,31 @@ test('plots each metric in a panel of its own, with a line across them at a poin
 
   await plotOf(page).hover({ position: { x: 5, y: 5 } })
   await expect(line).toHaveCount(0)
+})
+
+test('resets the zoom of every panel on a double-click in any of them (GR5)', async ({ page }) => {
+  await page.goto(`${LINUX_TEST}&metric=cycles`)
+  await expect(tracesOf(page)).toHaveCount(2)
+  const axis = (name: string) =>
+    plotOf(page).evaluate((element, name) => {
+      const { range, autorange, _offset, _length } = (element as PlotDiv)._fullLayout[name]!
+      return { range: [...range], autorange, _offset, _length }
+    }, name)
+  const full = (await axis('yaxis')).range
+  const index = await plotOf(page).evaluate(
+    (element) => Math.floor((element as PlotDiv)._fullData[0].x.length / 2),
+  )
+
+  await zoomAround(page, await pointOf(page, 0, index), 'y')
+  await expect.poll(async () => (await axis('yaxis')).range).not.toEqual(full)
+
+  // A double-click near the bottom of the bottom panel, away from its points, resets the top one.
+  const { x } = await pointOf(page, 0, index)
+  const bottom = await axis('yaxis3')
+  const plot = (await plotOf(page).boundingBox())!
+  await page.mouse.dblclick(plot.x + x, plot.y + bottom._offset + bottom._length - 4)
+  await expect.poll(async () => (await axis('yaxis')).range).toEqual(full)
+  // And stays reset as the chart is drawn again.
+  await pickOption(page, 'Sample aggregation', 'max')
+  await expect.poll(async () => (await axis('yaxis')).autorange).toBe(true)
 })

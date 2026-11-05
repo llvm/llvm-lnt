@@ -3,7 +3,7 @@
  * apart from the chart that draws it.
  */
 
-import type { Data, DTickValue, Layout, LayoutAxis, PlotData, Shape } from 'plotly.js'
+import type { Data, DTickValue, Layout, LayoutAxis, PlotData, Shape, YAxisName } from 'plotly.js'
 import { markerOf } from '../../chart-markers'
 import type { PlotGeometry } from '../../components/chart'
 import { noDataAnnotations } from '../../components/plot-annotations'
@@ -16,8 +16,8 @@ import type { Point } from './points'
  * An axis over `axis` spanning its part of the plot from 0 to 1 whatever its zoom, which is not
  * shown.
  */
-function overlayAxis(axis: string): Partial<LayoutAxis> {
-  return { overlaying: axis as 'x' | 'y', range: [0, 1], fixedrange: true, visible: false }
+function overlayAxis(axis: LayoutAxis['overlaying']): Partial<LayoutAxis> {
+  return { overlaying: axis, range: [0, 1], fixedrange: true, visible: false }
 }
 
 /**
@@ -25,8 +25,10 @@ function overlayAxis(axis: string): Partial<LayoutAxis> {
  * and the one its regressions' markers are placed on (GR15), which spans the panel from 0 to 1. The
  * first panel's are `y` and `y2`, the second's `y3` and `y4`, and so on.
  */
-export function panelAxes(panel: number): { values: string; markers: string } {
-  return { values: panel === 0 ? 'y' : `y${2 * panel + 1}`, markers: `y${2 * panel + 2}` }
+export function panelAxes(panel: number): { values: YAxisName; markers: YAxisName } {
+  // Plotly's types name at most 99 axes, which is beyond what a template of a number can tell.
+  const axis = (n: number) => (n === 1 ? 'y' : `y${n}`) as YAxisName
+  return { values: axis(2 * panel + 1), markers: axis(2 * panel + 2) }
 }
 
 /** The name of the y-axis `axis` (`y3`, say) in a layout, and in a plot's geometry: `yaxis3`. */
@@ -91,9 +93,10 @@ export function traceMode(points: number, markers: boolean): 'lines' | 'lines+ma
 /**
  * A trace as Plotly draws it, but for its `mode` (see `traceMode`), which changes with the zoom,
  * and its panel's y-axis (see `panelAxes`), which changes with the metrics before it: a line
- * through its points, placed on the x-axis by commit, its markers in the symbol of its machine, and a tooltip naming the test, the machine and the commit, giving the value,
- * labelled with the metric, and how many runs it combines, and saying that a click shows the
- * point's details (GR10). Text from the API is escaped and passed as data rather than written into
+ * through its points, placed on the x-axis by commit, its markers in the symbol of its machine,
+ * and a tooltip naming the test, the machine and the commit, giving the value, labelled with the
+ * metric, and how many runs it combines, and saying that a click shows the point's details
+ * (GR10). Text from the API is escaped and passed as data rather than written into
  * the template (see chart.tsx).
  */
 export function plotlyTrace(
@@ -382,7 +385,7 @@ const PANEL_GAP = 0.04
 function panelDomain(panel: number, count: number): [number, number] {
   const height = (1 - PANEL_GAP * (count - 1)) / count
   const top = 1 - panel * (height + PANEL_GAP)
-  // Rounded, so that the bottom panel ends at 0 exactly.
+  // Clamped, so that the bottom panel ends at 0 exactly, whatever the rounding errors.
   return [Math.max(0, top - height), top]
 }
 
@@ -432,7 +435,7 @@ export function graphLayout({
       tickangle: -45,
       automargin: true,
       // Under the bottom panel.
-      anchor: panelAxes(panels.length - 1).values as LayoutAxis['anchor'],
+      anchor: panelAxes(panels.length - 1).values,
     },
     ...axes,
     // The axis of the baselines' lines, which span the plot whatever its zoom, and is not shown.
@@ -447,6 +450,16 @@ export function graphLayout({
       return noDataAnnotations(empty, (bottom + top) / 2)
     }),
   }
+}
+
+/**
+ * What a double-click on a chart of `count` panels resets, besides the axes of the panel
+ * double-clicked, which Plotly resets itself: the y-axis of every panel, as a relayout (GR5).
+ */
+export function panelsReset(count: number): Record<string, unknown> {
+  return Object.fromEntries(
+    Array.from({ length: count }, (_, i) => [`${layoutAxis(panelAxes(i).values)}.autorange`, true]),
+  )
 }
 
 /**

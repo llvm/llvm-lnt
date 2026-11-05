@@ -20,7 +20,7 @@ export interface PlotGeometry {
   x(value: number): number
   y(value: number): number
   /**
-   * Each y-axis of the plot, by its name in the layout (`yaxis`, `yaxis2`, ...): the part of the
+   * Each y-axis the plot shows, by its name in the layout (`yaxis`, `yaxis3`, ...): the part of the
    * plotting area it spans, from its top, and the position of a value on it. A plot of panels
    * stacked one above the other has a y-axis per panel, `y` above being the first's.
    */
@@ -47,6 +47,7 @@ interface DrawnAxis {
   l2p(value: number): number
   _offset: number
   _length: number
+  visible?: boolean
 }
 
 /**
@@ -61,8 +62,9 @@ function geometryOf(div: HTMLElement): PlotGeometry | null {
   const { _size: size, xaxis, yaxis } = layout
   const yAxes = new Map<string, YAxisGeometry>()
   for (const [name, axis] of Object.entries(layout)) {
-    if (!/^yaxis\d*$/.test(name)) continue
     const drawn = axis as DrawnAxis
+    // A hidden axis, such as one over a panel to place markers on, places nothing of its own.
+    if (!/^yaxis\d*$/.test(name) || drawn.visible === false) continue
     const { _offset: top, _length: height } = drawn
     yAxes.set(name, { top, height, y: (value) => drawn.l2p(value) + top })
   }
@@ -131,6 +133,12 @@ export interface ChartProps {
   onDraw?(geometry: PlotGeometry): void
   /** The user zoomed or panned the plot, or reset its zoom. */
   onRelayout?(event: PlotRelayoutEvent): void
+  /**
+   * What a double-click on the plot resets besides what Plotly resets itself -- the axes of the
+   * part of the plot double-clicked -- as a relayout, such as the y-axes of the other panels of a
+   * plot of several.
+   */
+  doubleClickReset?: Record<string, unknown>
 }
 
 /**
@@ -146,6 +154,7 @@ export function Chart({
   layout,
   config,
   className,
+  doubleClickReset,
   ...events
 }: ChartProps) {
   const container = useRef<HTMLDivElement>(null)
@@ -169,6 +178,11 @@ export function Chart({
     if (at === drawnAt.current) return
     drawnAt.current = at
     events.onDraw?.(geometry)
+  })
+  const onDoubleClick = useEffectEvent((div: HTMLElement) => {
+    if (doubleClickReset === undefined) return
+    // Rejected once the plot is freed, which leaves nothing to reset.
+    library?.relayout(div, doubleClickReset as Partial<Layout>).catch(() => {})
   })
   const onRelayout = useEffectEvent((event: PlotRelayoutEvent) => {
     // A resize relayouts the plot too, with nothing but its new size.
@@ -232,6 +246,7 @@ export function Chart({
           if (state.live) onDraw(div)
         })
         plot.on('plotly_relayout', (event) => onRelayout(event))
+        plot.on('plotly_doubleclick', () => onDoubleClick(div))
       },
       () => {
         if (!state.live) return

@@ -33,6 +33,7 @@ import {
   markerHeight,
   MARKED_COMMITS,
   panelAxes,
+  panelsReset,
   panelTitle,
   plotlyTrace,
   regressionMarkers,
@@ -67,10 +68,12 @@ interface Props {
   sampleAgg: Aggregation
   runAgg: Aggregation
   /**
-   * Whether nothing the chart draws is loading or failed to load, but for the measurements of each
-   * metric (see `Series.unsettled`): an empty panel is empty.
+   * Whether nothing the chart draws is loading or failed to load, but for each metric's test lists
+   * (`unlisted`) and measurements (`Series.unsettled`): an empty panel is empty.
    */
   settled: boolean
+  /** The metrics whose test lists are still loading on some machine, or could not be loaded. */
+  unlisted: ReadonlySet<string>
   baselines: BaselineState[]
   /** The regressions to mark (GR15). */
   regressions: MarkedRegression[]
@@ -255,11 +258,11 @@ function runsOf(samples: readonly Measurement[]) {
 
 /**
  * Where the `panel`th panel of a plot drawn as `geometry` says draws: its part of the plotting
- * area, and the position of a value on its y-axis.
+ * area, and the position of a value on its y-axis; or null until a plot with that panel is drawn.
  */
-function panelGeometry(geometry: PlotGeometry, panel: number): PlotGeometry {
+function panelGeometry(geometry: PlotGeometry, panel: number): PlotGeometry | null {
   const axis = geometry.yAxes.get(layoutAxis(panelAxes(panel).values))
-  if (axis === undefined) return geometry
+  if (axis === undefined) return null
   const { top, height, y } = axis
   return { ...geometry, area: { ...geometry.area, top, height }, y }
 }
@@ -283,6 +286,7 @@ export function GraphChart({
   sampleAgg,
   runAgg,
   settled,
+  unlisted,
   baselines,
   regressions,
   highlights,
@@ -474,11 +478,11 @@ export function GraphChart({
   }, [drawn, emphasized])
 
   // The panels, or a single one without a metric before any is chosen (GR1), each empty when it has
-  // no point to draw, and nothing it would draw is loading or failed to load. Baselines,
-  // regressions and the highlighted commits are no points of their own (GR12).
-  // The metrics still loading by name rather than as the set, which is new whenever a query's
-  // state changes, so that the layout, and so the chart, is not drawn again each time.
-  const unsettled = [...latest.unsettled].join('\0')
+  // no point to draw, and none of its metric's test lists or measurements is loading or failed to
+  // load -- the measurements drawn, throttled as they are (GR12). Baselines, regressions and the
+  // highlighted commits are no points of their own. The metrics loading are compared by name, so
+  // that a new set of the same ones does not draw the chart again.
+  const unsettled = [...new Set([...unlisted, ...series.unsettled])].sort().join('\0')
   const panels = useMemo(() => {
     const loading = new Set(unsettled.split('\0'))
     const emptyIn = (panel: number) => settled && !traces.some((trace) => trace.panel === panel)
@@ -500,6 +504,7 @@ export function GraphChart({
       shapes: [...highlights.map(highlightShape), ...regressionShapes(placed)],
     })
   }, [commits, displayValue, revision, panels, placed, highlights])
+  const doubleClickReset = useMemo(() => panelsReset(panels.length), [panels.length])
 
   const [hoveredPoint, setHoveredPoint] = useState<PointKey | null>(null)
   const [open, setOpen] = useState<Opened | null>(null)
@@ -566,13 +571,14 @@ export function GraphChart({
       )
     // The samples of a point, if it has several (GR10), in its panel.
     const cloud = (at: PointAt, samples: Measurement[], pinned?: Pinned) => {
-      if (samples.length < 2) return
       const { trace, index } = at
+      const inPanel = panelGeometry(geometry, trace.panel)
+      if (samples.length < 2 || inPanel === null) return
       clouds.push(
         <SampleCloud
           key={keyOf(at)}
           samples={samples}
-          geometry={panelGeometry(geometry, trace.panel)}
+          geometry={inPanel}
           position={trace.points[index].position}
           color={trace.color}
           pinned={pinned}
@@ -594,7 +600,10 @@ export function GraphChart({
         />
       )
     }
-    if (schema !== undefined) {
+    // The panel of the details open, which are placed in it.
+    const openIn = openPoint ? openPoint.trace.panel : openMark?.panel
+    const inPanel = openIn === undefined ? null : panelGeometry(geometry, openIn)
+    if (schema !== undefined && inPanel !== null) {
       if (openPoint) {
         const { trace, index } = openPoint
         const { metric } = trace
@@ -623,18 +632,18 @@ export function GraphChart({
             onHighlight={() => onHighlight(point.commit)}
             baselined={isBaseline(trace.machine, point.commit)}
             onBaseline={() => onBaseline(trace.machine, point.commit)}
-            at={{ x, y: panelGeometry(geometry, trace.panel).y(point.value), side }}
+            at={{ x, y: inPanel.y(point.value), side }}
             companion={pinnedCloud}
             onClose={close}
           />
         )
       } else if (openMark !== undefined) {
-        const { panel, uuid, metric, commit, stack, tests } = openMark
+        const { uuid, metric, commit, stack, tests } = openMark
         const position = positions.get(commit)!
         const x = geometry.x(position)
         // On the axis of the markers, which spans the panel from 0 at the bottom to 1 at the top.
-        const { area: inPanel } = panelGeometry(geometry, panel)
-        const y = inPanel.top + (1 - markerHeight(stack)) * inPanel.height
+        const { top, height } = inPanel.area
+        const y = top + (1 - markerHeight(stack)) * height
         details = (
           <RegressionDetails
             key={`${uuid}\0${metric}`}
@@ -673,6 +682,8 @@ export function GraphChart({
         onClick={onClick}
         onDraw={(where) => setDrawnAt({ geometry: where, revision })}
         onRelayout={close}
+        // Plotly resets the panel double-clicked, which is all of a single one.
+        doubleClickReset={panels.length > 1 ? doubleClickReset : undefined}
       />
       {hoverLine}
       {clouds}

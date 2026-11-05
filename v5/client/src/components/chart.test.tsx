@@ -18,6 +18,7 @@ const plotly = vi.hoisted(() => {
       }),
     ),
     purge: vi.fn(),
+    relayout: vi.fn(async () => {}),
     Plots: { resize: vi.fn(async () => {}) },
     Fx: { unhover: vi.fn() },
   }
@@ -117,7 +118,9 @@ describe('Chart', () => {
         _fullLayout: {
           _size: { l: 70, t: 10, w: 600, h: 400 },
           xaxis: { l2p: (value: number) => 10 * value, _offset: 70 },
-          yaxis: { l2p: (value: number) => 400 - value, _offset: 10 },
+          yaxis: { l2p: (value: number) => 400 - value, _offset: 10, _length: 190 },
+          yaxis2: { l2p: (value: number) => value, _offset: 10, _length: 190, visible: false },
+          yaxis3: { l2p: (value: number) => 610 - value, _offset: 220, _length: 190 },
         },
       }),
     )
@@ -128,6 +131,10 @@ describe('Chart', () => {
     expect(geometry.area).toEqual({ left: 70, top: 10, width: 600, height: 400 })
     expect(geometry.x(2)).toBe(90)
     expect(geometry.y(100)).toBe(310)
+    // Each y-axis shown, such as those of panels stacked, but not a hidden one.
+    expect([...geometry.yAxes.keys()]).toEqual(['yaxis', 'yaxis3'])
+    const panel = geometry.yAxes.get('yaxis3')
+    expect([panel.top, panel.height, panel.y(10)]).toEqual([220, 190, 820])
     // A draw that moves nothing reports nothing; a zoom or a resize, which moves the plot, does.
     plotly.listeners.get('plotly_afterplot')!(undefined)
     expect(onDraw).toHaveBeenCalledTimes(1)
@@ -160,6 +167,16 @@ describe('Chart', () => {
     const zoom = { 'xaxis.range[0]': 1, 'xaxis.range[1]': 4 }
     plotly.listeners.get('plotly_relayout')!(zoom)
     expect(onRelayout).toHaveBeenCalledWith(zoom)
+  })
+
+  it('resets what it is told to on a double-click, besides what Plotly resets', async () => {
+    const reset = { 'yaxis.autorange': true, 'yaxis3.autorange': true }
+    render(chart({ doubleClickReset: reset }))
+    await waitFor(() => expect(plotly.listeners.has('plotly_doubleclick')).toBe(true))
+
+    plotly.listeners.get('plotly_doubleclick')!(null)
+
+    expect(plotly.relayout).toHaveBeenCalledWith(screen.getByRole('img'), reset)
   })
 
   it('says so when Plotly fails to draw, and frees the plot', async () => {

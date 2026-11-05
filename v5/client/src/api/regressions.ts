@@ -291,6 +291,8 @@ export function useMarkedRegressions(
           ),
         ),
       enabled,
+      // Not `keepPreviousData`, which `useQueries` cannot honour: a query whose key changes gets an
+      // observer of its own, which has no previous data.
       placeholderData: () => latestIndicators(queryClient, suite, metric),
     })),
     combine: combineResults,

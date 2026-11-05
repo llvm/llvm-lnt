@@ -10,8 +10,8 @@ import type { Locator, Page } from '@playwright/test'
  */
 export interface PlotDiv extends HTMLElement {
   _fullLayout: {
-    xaxis: PlotAxis & { range: number[] }
-    yaxis: PlotAxis & { range: number[] }
+    xaxis: PlotAxis
+    yaxis: PlotAxis
   } & Record<string, PlotAxis | undefined>
   _fullData: { name: string; x: (number | string)[]; y: number[]; yaxis: string }[]
 }
@@ -19,8 +19,11 @@ export interface PlotDiv extends HTMLElement {
 interface PlotAxis {
   /** Where a value of the axis is drawn, from the start of the axis. */
   d2p(value: number | string): number
-  /** Where the axis starts, in the plot. */
+  /** Where the axis starts, in the plot, and how long it is. */
   _offset: number
+  _length: number
+  range: number[]
+  autorange: boolean
 }
 
 /**
@@ -57,14 +60,19 @@ export function tracesOf(scope: Page | Locator): Locator {
 
 /**
  * Zoom the x-axis of the chart on `page` in around `position` of its plot (as `pointOf` gives it),
- * by dragging across 120 pixels.
+ * by dragging across 120 pixels -- or its y-axis there, by dragging down rather than across.
  */
-export async function zoomAround(page: Page, { x, y }: { x: number; y: number }) {
+export async function zoomAround(
+  page: Page,
+  { x, y }: { x: number; y: number },
+  axis: 'x' | 'y' = 'x',
+) {
   // The mouse acts where the page shows the plot, which must be on screen.
   await plotOf(page).scrollIntoViewIfNeeded()
   const plot = (await plotOf(page).boundingBox())!
-  await page.mouse.move(plot.x + x - 60, plot.y + y)
+  const [dx, dy] = axis === 'x' ? [60, 0] : [0, 60]
+  await page.mouse.move(plot.x + x - dx, plot.y + y - dy)
   await page.mouse.down()
-  await page.mouse.move(plot.x + x + 60, plot.y + y, { steps: 5 })
+  await page.mouse.move(plot.x + x + dx, plot.y + y + dy, { steps: 5 })
   await page.mouse.up()
 }

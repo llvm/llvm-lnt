@@ -261,8 +261,15 @@ function GraphPage() {
     suites.isPending ||
     (schema !== undefined && settings.machine.length > 0 && listed === undefined)
   const listing = !tests.complete && tests.error === null
-  // The measurements' loading and failures are each metric's (see GraphChart).
-  const failed = tests.error !== null || scaffold.failures.length > 0
+  // The metrics whose tests some machine has not listed yet, or could not: their panels are not
+  // empty yet (GR12).
+  const unlisted = useMemo(
+    () =>
+      new Set(
+        metricNames.filter((name) => (tests.byMetric.get(name)?.size ?? 0) < machines.length),
+      ),
+    [metricNames, tests.byMetric, machines.length],
+  )
 
   // Nothing chosen in a suite applies to another (GR1). The selection is cleared at once, so that
   // writing it to the URL does not put back the tests of the suite left.
@@ -460,7 +467,8 @@ function GraphPage() {
         series={series}
         sampleAgg={settings.sample_agg}
         runAgg={settings.run_agg}
-        settled={!checking && !listing && !scaffold.pending && !failed}
+        settled={!checking && !scaffold.pending && scaffold.failures.length === 0}
+        unlisted={unlisted}
         baselines={baselines.states}
         regressions={regressions.regressions}
         highlights={drawnHighlights}

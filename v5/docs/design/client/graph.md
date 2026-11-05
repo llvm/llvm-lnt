@@ -111,12 +111,12 @@ several metrics at once, each in a panel of its own.
 - **Aggregation controls**: a point is the value of one test on one machine at
   one commit, in one panel. Its samples are the samples of that test on that
   machine at that commit that have a value for the panel's metric (a run with N
-  such samples contributes N of them), and its runs are the runs they belong
-  to. Its value is computed from its samples as Compare computes a side's value (see CP2
-  "Aggregation pipeline"): the sample aggregation combines the samples within
-  each run into a per-run value, and the run aggregation combines the per-run
-  values of the point's runs. Each is median, mean, min or max, and defaults to
-  median.
+  such samples contributes N of them), and its runs are the runs they belong to.
+  Its value is computed from its samples as Compare computes a side's value (see
+  CP2 "Aggregation pipeline"): the sample aggregation combines the samples
+  within each run into a per-run value, and the run aggregation combines the
+  per-run values of the point's runs. Each is median, mean, min or max, and
+  defaults to median.
 
 
 ### GR2: Lazy Loading with Progressive Rendering
@@ -186,21 +186,20 @@ resets the zoom of every panel to the full range as usual.
 Below the chart, a table lists ALL tests matching the current filter, sorted
 alphabetically by test name. One row per test name (not per test x machine
 combination -- selecting a test plots it in every panel, on every active
-machine). The table is
-part of the normal page flow (no scrollable container). A message line above the
-rows says how many of the table's rows are selected, e.g. "3 of 1200 tests
-selected". When the test filter is set, it counts the rows the filter keeps and
-also gives the unfiltered total: "3 of 42 matching tests selected · 1200 tests
-in total". When some selected tests do not match the filter, it also says how
-many: "2 of 42 matching tests selected · 1200 tests in total · 5 more hidden by
-the filter". When the URL does not reflect the selection (see GR14), it then
-says so, and why on hover and to assistive technology: "11 of 11 tests
-selected · too many to reflect in the URL". Last, while selected tests' data is
-loading, it says so: "3 of 1200 tests selected · loading...". The message
-follows the filter as it changes. Each row has: a checkbox cell (checked =
-selected/plotted), a color cell (a swatch of the test's color, only when
-selected, empty otherwise; it has no shape, since shapes stand for machines),
-and the test name.
+machine). The table is part of the normal page flow (no scrollable container). A
+message line above the rows says how many of the table's rows are selected, e.g.
+"3 of 1200 tests selected". When the test filter is set, it counts the rows the
+filter keeps and also gives the unfiltered total: "3 of 42 matching tests
+selected · 1200 tests in total". When some selected tests do not match the
+filter, it also says how many: "2 of 42 matching tests selected · 1200 tests in
+total · 5 more hidden by the filter". When the URL does not reflect the
+selection (see GR14), it then says so, and why on hover and to assistive
+technology: "11 of 11 tests selected · too many to reflect in the URL". Last,
+while selected tests' data is loading, it says so: "3 of 1200 tests selected ·
+loading...". The message follows the filter as it changes. Each row has: a
+checkbox cell (checked = selected/plotted), a color cell (a swatch of the test's
+color, only when selected, empty otherwise; it has no shape, since shapes stand
+for machines), and the test name.
 
 
 ### GR7: Selection Interactions
@@ -256,21 +255,24 @@ its machine's test names and its data per metric and test. In particular:
   traces stay displayed.
 - Adding a metric fetches only that metric's test lists, data and regression
   annotations (GR15), while the other panels stay displayed. Removing a metric,
-  adding it back or changing the order of the metrics fetches nothing.
+  adding it back or changing the order of the metrics fetches no test list and
+  no data. The regression annotations are fetched as GR15 says: removing a
+  metric may deselect tests (GR1), which asks again for the other metrics'
+  annotations.
 
 
 ### GR9: Baselines
 
 Users can overlay one or more baselines as horizontal dashed lines on the chart.
 Each baseline is a (suite, machine, commit) tuple, allowing cross-suite
-comparisons. The selector is a panel, opened by a "+" button beside the
-"Baselines" label, with cascading selectors: Suite (a dropdown over the test
+comparisons. The selector is the baseline panel, opened by a "+" button beside
+the "Baselines" label, with cascading selectors: Suite (a dropdown over the test
 suites defined on the instance, grouped by project; see AR22) -> Machine
 (populated from the selected suite's machines endpoint, see AR18) -> Commit
 (populated from the selected machine's commits via
 `GET commits?machine={name}&sort=-ordinal`; see AR15). Picking a commit adds the
-baseline and closes the panel; "+" closes it too. Added baselines appear as
-removable chips labeled `{suite} › {machine} › {display_value}`, where
+baseline and closes the baseline panel; "+" closes it too. Added baselines
+appear as removable chips labeled `{suite} › {machine} › {display_value}`, where
 `{suite}` is the suite's full label (see AR22) and `display_value` the commit's
 display value (see AR6), or the commit string until the display value is known.
 A baseline loaded from the URL is looked up like a commit given to the commit
@@ -279,19 +281,18 @@ baseline's suite, which returns the commit, with its display value, only if the
 machine has runs at it. If that lookup succeeds without returning it, the
 baseline is unusable, and is dropped (see AR2 "State"). A baseline can also be
 added from a point's details (GR11): the point's suite, machine and commit. Like
-a commit picked in the baseline panel, it is not looked up (AR15): its point shows that
-the machine has runs at the commit.
+a commit picked in the baseline panel, it is not looked up (AR15): its point
+shows that the machine has runs at the commit.
 
-A baseline has no metric of its own: it is drawn in every panel, for the
-panel's metric, provided that its suite declares that metric as a numeric
-metric with the same `unit` (an unset unit matching only an unset one), as CP1
-requires of a metric compared across suites. A baseline may therefore be drawn
-in some panels and not in others. Its data is fetched from its suite, for each
-selected metric so declared -- no other metric is asked for, which the suite
-may not declare at all -- and each selected test that the baseline's machine
-lists for that metric there
-(`GET tests?machine={machine}&metric={metric}`, which never misses a test with
-data), via
+A baseline has no metric of its own: it is drawn in every panel, for the panel's
+metric, provided that its suite declares that metric as a numeric metric with
+the same `unit` (an unset unit matching only an unset one), as CP1 requires of a
+metric compared across suites. A baseline may therefore be drawn in some panels
+and not in others. Its data is fetched from its suite, for each selected metric
+so declared -- no other metric is asked for, which the suite may not declare at
+all -- and each selected test that the baseline's machine lists for that metric
+there (`GET tests?machine={machine}&metric={metric}`, which never misses a test
+with data), via
 `GET /api/projects/{project}/suites/{suite}/series?machine={machine}&metric={metric}&test={test}&commit={commit}`.
 A test that the list does not hold, such as one the baseline's suite does not
 have, is not asked for, and has no line. As for the traces (GR2), deselecting a
@@ -363,11 +364,11 @@ hidden until the pointer moves again. It shows:
   time, its shortened UUID linking to its Run Detail page, and the values of its
   samples (GR1), in ascending order and on one line. The list scrolls when it is
   long or wide;
-- two links about the previous point of the
-  same trace, the one at the nearest lower commit on the x-axis where this
-  trace has a value in this panel, so that unlike the previous commit of Run Detail's
-  "Compare with previous commit" (DT2), it always has data for the test. Both
-  links are disabled (see AR8) at the first point of a trace. The links are:
+- two links about the previous point of the same trace, the one at the nearest
+  lower commit on the x-axis where this trace has a value in this panel, so that
+  unlike the previous commit of Run Detail's "Compare with previous commit"
+  (DT2), it always has data for the test. Both links are disabled (see AR8) at
+  the first point of a trace. The links are:
   - "Compare prev", which leads to the Compare page set up to compare this point
     with the previous point. Side A is the previous point's commit, side B this
     point's commit, both in this suite and on this machine with all their runs,
@@ -415,8 +416,8 @@ commit's card is open, which Escape then closes alone (see AR21), or Escape is
 pressed in its "Create regression" form, which closes alone; on its close
 button; on a click anywhere but on it, a marker of its point's scatter or its
 commit's card; and on any change to the chart other than data arriving, such as
-a zoom or pan, or a change to the selected tests, machines, metrics,
-aggregation or regression annotation mode, and once its point is no longer drawn. A change
+a zoom or pan, or a change to the selected tests, machines, metrics, aggregation
+or regression annotation mode, and once its point is no longer drawn. A change
 to the baselines (GR9) or the highlighted commits (GR16) does not close it:
 neither changes which point it is about.
 Moving the focus out of it does not close it. A click on another point opens
@@ -427,13 +428,14 @@ nothing.
 
 ### GR12: Empty State
 
-When a panel has no point to draw, while no scaffold or data of the selected
-tests for its metric is loading or has failed to load -- before a machine and a
-metric are chosen, when no test is selected, or when the selected tests have no
-data for its metric on the selected machines -- the panel displays an overlay
-"No data to plot" centered on it, preserving the x-axis scaffold, if there is
-one, so the user can see the commit range. Baseline lines (GR9), regression
-annotations (GR15) and the highlighted commits (GR16) are not points.
+When a panel has no point to draw, while no scaffold, nor any of its metric's
+test lists or of the data of the selected tests for it, is loading or has failed
+to load -- before a machine and a metric are chosen, when no test is selected,
+or when the selected tests have no data for its metric on the selected machines
+-- the panel displays an overlay "No data to plot" centered on it, preserving
+the x-axis scaffold, if there is one, so the user can see the commit range.
+Baseline lines (GR9), regression annotations (GR15) and the highlighted commits
+(GR16) are not points.
 
 
 ### GR13: API Calls
@@ -469,8 +471,8 @@ and if the URL names a metric twice, it is added once.
 holds no `test` at all, and the page says that the URL does not reflect the
 selection. `test_filter_regex=true` turns on the test filter's regex mode (see
 AR9). On load, `test_filter` filters the test table as if it had been typed, and
-a `test` that none of the test lists for the selected machines and metrics
-holds is dropped. A `test` that does not match the filter stays selected (see GR1). Of
+a `test` that none of the test lists for the selected machines and metrics holds
+is dropped. A `test` that does not match the filter stays selected (see GR1). Of
 a URL naming more than 100 tests, which the page never writes, only the first
 100 are selected (see GR7), before any of them is dropped.
 
@@ -483,30 +485,35 @@ controls panel. "Active" covers the regressions still being worked on
 vertical dashed line is drawn in each panel at the commit of each regression
 with an indicator naming one of the plotted machines, the panel's metric, and
 one of the selected tests. A regression with indicators on several of the
-selected metrics is therefore drawn in each of their panels. Lines are color-coded by state: red for `active`, yellow
-for `detected`, and gray for the resolved states (`not_to_be_fixed`, `fixed`
-and `false_positive`). The line itself is not hovered, so that the points along
-it can be: each line has a marker of its color at the top of its panel,
-stacked downwards when several regressions share a commit. A regression
-affects a selected test in a panel when one of its indicators names the test,
-a plotted machine and the panel's metric. Hovering a marker shows the
-regression title and which of the selected tests it affects in that panel (the
-first ten, and how many others), and a last line saying that clicking the
-marker shows the regression's details. Clicking it opens a popover beside it, which behaves as a point's does
-(GR11): it shows the regression's title, its UUID (shortened, see AR6, and
-linking to its Regression Detail page), its state (as a colored badge), its
-commit (linking to its Commit Detail page, with its card; see AR21), its bug
-(see AR6), or `--` when it has none, when it was created, and the selected tests
-it affects in that panel. One popover is open at a time, a point's or a regression's.
-A regression with no commit, or whose commit is not on the x-axis scaffold
-(GR3), has no position on the chart and is not drawn. The selected mode is
-persisted in the URL as `regressions={off|active|all}`.
+selected metrics is therefore drawn in each of their panels. Lines are
+color-coded by state: red for `active`, yellow for `detected`, and gray for the
+resolved states (`not_to_be_fixed`, `fixed` and `false_positive`). The line
+itself is not hovered, so that the points along it can be: each line has a
+marker of its color at the top of its panel, stacked downwards when several
+regressions share a commit. A regression affects a selected test in a panel when
+one of its indicators names the test, a plotted machine and the panel's metric.
+Hovering a marker shows the regression title and which of the selected tests it
+affects in that panel (the first ten, and how many others), and a last line
+saying that clicking the marker shows the regression's details. Clicking it
+opens a popover beside it, which behaves as a point's does (GR11): it shows the
+regression's title, its UUID (shortened, see AR6, and linking to its Regression
+Detail page), its state (as a colored badge), its commit (linking to its Commit
+Detail page, with its card; see AR21), its bug (see AR6), or `--` when it has
+none, when it was created, and the selected tests it affects in that panel. One
+popover is open at a time, a point's or a regression's. A regression with no
+commit, or whose commit is not on the x-axis scaffold (GR3), has no position on
+the chart and is not drawn. The selected mode is persisted in the URL as
+`regressions={off|active|all}`.
 
 The matching indicators come from the indicator lookup
 (`POST /regressions/indicators/query`; see E8), given the plotted machines, a
-metric, the selected tests and the mode's states, once for each selected
-metric. That lookup names each regression by UUID only; their title, state and
-commit come from the regression list (`GET /regressions`), joined on the UUID.
+metric, the selected tests and the mode's states, once for each selected metric.
+That lookup names each regression by UUID only; their title, state and commit
+come from the regression list (`GET /regressions`) in the mode's states with an
+indicator naming the metric, joined on the UUID, once for each selected metric
+too. Adding a metric asks only about that metric, whereas a change to the
+machines or the selected tests asks the indicator lookup again about every
+metric.
 
 
 ### GR16: Highlighted Commits
