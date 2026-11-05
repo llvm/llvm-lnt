@@ -233,9 +233,9 @@ spec only needs to list its keys.
   and commits, `metrics` on samples and on the lines of a series -- never
   flattened onto the entity.
 - A `fields` dict contains every field the suite's schema declares, with `null`
-  where the entity has no value. A `metrics` dict is different: it holds only
-  the metrics that have a value. On a line of a series (E9), it also holds only
-  the metrics the request names.
+  where the entity has no value. A `metrics` dict is the exception: it holds
+  only the metrics that have a value, and never `null`. On a line of a series
+  (E9), it also holds only the metrics the request names.
 - Values in `fields` and `metrics` use the JSON representation of their
   declared type (see D3) and are never converted to strings. Built-in
   timestamps follow the same convention (see D5).
