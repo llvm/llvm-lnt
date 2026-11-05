@@ -60,11 +60,11 @@ export interface BaselineState {
    */
   unusable: boolean
   /**
-   * Its samples, by test, of the selected tests whose samples have all arrived, or undefined
-   * while it is not known to be drawable: it draws nothing when its suite does not declare the
-   * metric plotted as one with the same meaning (GR9).
+   * Its samples, by metric, then by test, of the selected tests whose samples have all arrived,
+   * for each metric plotted it is known to be drawn for: it draws nothing in the panel of a metric
+   * its suite does not declare as one with the same meaning (GR9).
    */
-  samples: ReadonlyMap<string, Measurement[]> | undefined
+  samples: ReadonlyMap<string, ReadonlyMap<string, Measurement[]>>
 }
 
 /** What is known of the baselines (see `useBaselines`). */
@@ -96,89 +96,103 @@ function fetchSamples(
   return fetchMeasurements(suite, { metric, machine, test: [test], commit }, signal)
 }
 
+const NO_METRICS: string[] = []
+
 /** A baseline's machine, as a key. */
 const machineKey = ({ suite, machine }: Baseline) => `${fullName(suite)}/${machine}`
 
-/** A selected test of a baseline whose machine lists it, whose samples a query loads. */
+/** The list of the tests of a baseline's machine for `metric`, as a key. */
+const listKey = (baseline: Baseline, metric: string) => `${machineKey(baseline)}\0${metric}`
+
+/**
+ * A selected test of a baseline whose machine lists it for a metric it is drawn for, whose samples
+ * a query loads.
+ */
 interface Line {
   /** The baseline's position among the baselines. */
   at: number
+  metric: string
   test: string
 }
 
 /**
- * What is known of `baselines` (GR9), given the suites, once they are listed, the metric plotted
+ * What is known of `baselines` (GR9), given the suites, once they are listed, the metrics plotted
  * and the tests selected: whether each is usable, its commit's display value, and its samples.
  * The states are the same array from one render to the next until one of them changes.
  *
  * A baseline is checked as a commit given to a commit picker is (AR15; see `useCheckedCommits`).
- * Once its machine is known to exist, the tests that machine lists for the metric are listed, as
- * for the traces (see api/tests.ts), and the samples of each selected test listed are fetched on
- * their own, since the API refuses a test that does not exist (E9). Everything is kept for as long
- * as the page is open (GR8; see `forgetBaselines`).
+ * Once its machine is known to exist, the tests that machine lists for each metric the baseline is
+ * drawn for are listed, as for the traces (see api/tests.ts), and the samples of each selected test
+ * listed are fetched on their own, since the API refuses a test that does not exist (E9).
+ * Everything is kept for as long as the page is open (GR8; see `forgetBaselines`).
  */
 export function useBaselines(
   baselines: readonly Baseline[],
   suites: readonly Suite[] | undefined,
-  metric: Metric | undefined,
+  metrics: readonly Metric[],
   selected: ReadonlySet<string>,
 ): Baselines {
   const checked = useCheckedCommits(baselines, suites)
-  const name = metric?.name ?? ''
 
+  // The names of the metrics each baseline is drawn for: none until its machine is known to exist.
   // Without waiting for the commit to be looked up: a commit the machine has no run at gives no
   // samples rather than an error (E9), and its baseline is then dropped (AR2 "State").
-  const drawable = useMemo(
+  const drawnFor = useMemo(
     () =>
-      checked.states.map(
-        ({ schema, machineKnown, found }) =>
-          metric !== undefined &&
-          schema !== undefined &&
-          machineKnown === true &&
-          found !== false &&
-          declares(schema, metric),
+      checked.states.map(({ schema, machineKnown, found }) =>
+        schema !== undefined && machineKnown === true && found !== false
+          ? metrics.filter((metric) => declares(schema, metric)).map((metric) => metric.name)
+          : NO_METRICS,
       ),
-    [checked.states, metric],
+    [checked.states, metrics],
   )
 
-  // The tests of each machine of a baseline drawn, listed once however many baselines it has.
+  // The tests of each machine of a baseline drawn, for each metric it is drawn for, listed once
+  // however many baselines it has.
   const machines = useMemo(() => {
-    const drawn = new Map<string, Baseline>()
+    const drawn = new Map<string, { baseline: Baseline; metric: string }>()
     baselines.forEach((baseline, i) => {
-      if (drawable[i]) drawn.set(machineKey(baseline), baseline)
+      for (const metric of drawnFor[i]) {
+        drawn.set(listKey(baseline, metric), { baseline, metric })
+      }
     })
     return [...drawn.values()]
-  }, [baselines, drawable])
+  }, [baselines, drawnFor])
   const lists = useQueries({
-    queries: machines.map(({ suite, machine }) => keptTestNamesQuery(suite, machine, name)),
+    queries: machines.map(({ baseline, metric }) =>
+      keptTestNamesQuery(baseline.suite, baseline.machine, metric),
+    ),
     combine: combineResults,
   })
   const listed = useMemo(() => {
     const held = new Map<string, ReadonlySet<string>>()
-    machines.forEach((baseline, i) => {
+    machines.forEach(({ baseline, metric }, i) => {
       const list = lists.data[i]
-      if (list !== undefined) held.set(machineKey(baseline), new Set(list.names))
+      if (list !== undefined) held.set(listKey(baseline, metric), new Set(list.names))
     })
     return held
   }, [machines, lists.data])
 
   const lines = useMemo(
     () =>
-      baselines.flatMap((baseline, at): Line[] => {
-        const held = drawable[at] ? listed.get(machineKey(baseline)) : undefined
-        if (held === undefined) return []
-        return [...selected].filter((test) => held.has(test)).map((test) => ({ at, test }))
-      }),
-    [baselines, drawable, listed, selected],
+      baselines.flatMap((baseline, at): Line[] =>
+        drawnFor[at].flatMap((metric) => {
+          const held = listed.get(listKey(baseline, metric))
+          if (held === undefined) return []
+          const tests = [...selected].filter((test) => held.has(test))
+          return tests.map((test) => ({ at, metric, test }))
+        }),
+      ),
+    [baselines, drawnFor, listed, selected],
   )
   const samples = useQueries({
-    queries: lines.map(({ at, test }) => {
+    queries: lines.map(({ at, metric, test }) => {
       const baseline = baselines[at]
       const { suite, machine, commit } = baseline
       return {
-        queryKey: [...queryKeys.baselines(suite), machine, commit, name, test],
+        queryKey: [...queryKeys.baselines(suite), machine, commit, metric, test],
         queryFn: ({ signal }: { signal: AbortSignal }) =>
-          fetchSamples(baseline, name, test, signal),
+          fetchSamples(baseline, metric, test, signal),
         staleTime: Infinity,
         gcTime: Infinity,
         // Samples are read whole, never compared with previous ones.
@@ -187,16 +201,18 @@ export function useBaselines(
     }),
     combine: combineResults,
   })
-  // The samples of each baseline, by test: those of the tests that have some, the only ones a
-  // baseline draws a line for (GR9).
+  // The samples of each baseline, by metric it is drawn for, then by test: those of the tests that
+  // have some, the only ones a baseline draws a line for (GR9).
   const byBaseline = useMemo(() => {
-    const maps = baselines.map(() => new Map<string, Measurement[]>())
+    const maps = drawnFor.map(
+      (names) => new Map(names.map((metric) => [metric, new Map<string, Measurement[]>()])),
+    )
     samples.data.forEach((data, i) => {
-      const { at, test } = lines[i]
-      if (data !== undefined && data.length > 0) maps[at].set(test, data)
+      const { at, metric, test } = lines[i]
+      if (data !== undefined && data.length > 0) maps[at].get(metric)!.set(test, data)
     })
     return maps
-  }, [baselines, lines, samples.data])
+  }, [drawnFor, lines, samples.data])
 
   const states = useMemo(
     () =>
@@ -210,10 +226,10 @@ export function useBaselines(
           display,
           label: joinLabels(suiteLabel, machineLabel, display),
           unusable,
-          samples: drawable[i] ? byBaseline[i] : undefined,
+          samples: byBaseline[i],
         }
       }),
-    [baselines, suites, checked.states, drawable, byBaseline],
+    [baselines, suites, checked.states, byBaseline],
   )
   return {
     states,

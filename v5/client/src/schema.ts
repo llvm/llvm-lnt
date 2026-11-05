@@ -55,6 +55,25 @@ export function formatMetricValue(value: FieldValue, metric: Metric): string {
   return formatFieldValue(value, metric.type)
 }
 
+/**
+ * A metric's unit where space is short: its unit abbreviation, or its unit when it has no
+ * abbreviation, or null when it has neither (DA2, GR1, GR10).
+ */
+export function shortUnit({ unit, unit_abbrev }: Metric): string | null {
+  return unit_abbrev ?? unit
+}
+
+/** `shown`, a value of `metric` as shown, followed by the metric's short unit (see `shortUnit`). */
+export function withUnit(shown: string, metric: Metric): string {
+  const unit = shortUnit(metric)
+  return unit === null ? shown : `${shown} ${unit}`
+}
+
+/** A metric's value with its unit, as the Graph page shows it (GR10; see `withUnit`). */
+export function formatMeasuredValue(value: FieldValue, metric: Metric): string {
+  return withUnit(formatMetricValue(value, metric), metric)
+}
+
 /** The suite's metrics, in schema order and by label, as the options of a `Select`. */
 export function metricOptions(schema: SuiteSchema): { value: string; label: string }[] {
   return schema.metrics.map((entry) => ({ value: entry.name, label: labelOf(entry) }))

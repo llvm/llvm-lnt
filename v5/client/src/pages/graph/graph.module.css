@@ -1,7 +1,8 @@
 /* The Graph page (GR1-GR16). */
 
+/* The chart, the taller for each panel past the first (GR1), whose number the page sets. */
 .chart {
-  height: 520px;
+  height: calc(520px + (var(--panels, 1) - 1) * 300px);
 }
 
 /*
@@ -136,6 +137,18 @@
 /* The chart, and what is placed over it: the hovered point's runs, the point details. */
 .chartArea {
   margin: var(--lnt-space-3) 0;
+}
+
+/*
+ * The line across every panel at the commit of the point hovered (GR10), in a neutral colour no
+ * other mark uses, which the pointer goes through to the chart.
+ */
+.hoverLine {
+  position: absolute;
+  width: 1px;
+  background: rgb(17 24 39 / 45%);
+  transform: translateX(-50%);
+  pointer-events: none;
 }
 
 /* The samples of the point hovered (GR10), which the pointer goes through to the chart. */

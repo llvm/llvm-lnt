@@ -22,7 +22,7 @@ import { comparePath, machinePath, regressionPath } from '../../paths'
 import { fillTemplate, NEW_TAB, repositoryLinkText, usableTemplate } from '../../repository'
 import {
   commitDisplayValue,
-  formatMetricValue,
+  formatMeasuredValue,
   labelOf,
   type Commit,
   type Metric,
@@ -165,9 +165,10 @@ export function PointDetails({
         <dd>
           <ListedCommitLink schema={schema} value={commit.value} commit={commit} />
         </dd>
-        <dt>Value</dt>
+        {/* The value, labelled with its panel's metric (GR10). */}
+        <dt>{labelOf(metric)}</dt>
         <dd>
-          {formatMetricValue(point.value, metric)} ({plural(point.runs, 'run')})
+          {formatMeasuredValue(point.value, metric)} ({plural(point.runs, 'run')})
         </dd>
       </dl>
       <div>

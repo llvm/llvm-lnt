@@ -1,13 +1,14 @@
 /**
  * The measurements the Graph page plots (GR2), loaded from `GET /series` (E9) as they are needed:
- * one request per selected test and machine, whose measurements are drawn once they have all
- * arrived. Tests are not batched into one request, so that each is drawn as soon as its own data
- * has arrived, and the tests' requests run side by side, a few at a time, taking turns with the
- * baselines' (see `fetchMeasurements`).
+ * one request per selected test, metric and machine, whose measurements are drawn once they have
+ * all arrived. Tests are not batched into one request, so that each is drawn as soon as its own
+ * data has arrived, and the tests' requests run side by side, a few at a time, taking turns with
+ * the baselines' (see `fetchMeasurements`).
  *
  * Once loaded, a test's measurements are kept as they are, fresh for good (GR8), and never fetched
- * again while the page shows them. A request cancelled because its test was deselected or its machine removed keeps
- * none of what had arrived, and is sent again once its test is shown again.
+ * again while the page shows them. A request cancelled because its test was deselected, or its
+ * machine or metric removed, keeps none of what had arrived, and is sent again once its test is
+ * shown again.
  *
  * What a page has fetched is kept for as long as it shows the suite, even what it no longer shows
  * (GR8), and forgotten once it leaves it (see `forgetGraphData`).
@@ -60,10 +61,15 @@ export async function fetchSeries(
 }
 
 export interface Series {
-  /** The measurements of `test` on `machine`, in no particular order, once they have arrived. */
-  measurementsOf(machine: string, test: string): readonly Measurement[]
-  /** The selected tests whose measurements are still loading on some machine. */
+  /**
+   * The measurements of `test` for `metric` on `machine`, in no particular order, once they have
+   * arrived.
+   */
+  measurementsOf(metric: string, machine: string, test: string): readonly Measurement[]
+  /** The selected tests whose measurements are still loading on some machine, for some metric. */
   loading: ReadonlySet<string>
+  /** The metrics some of whose measurements are still loading, or could not be loaded. */
+  unsettled: ReadonlySet<string>
   /** Why some test's measurements could not be loaded, if they could not. */
   error: Error | null
   /** Load again the tests whose measurements could not be. */
@@ -90,8 +96,12 @@ export async function fetchMeasurements(
   return points.map(measurementOf)
 }
 
-/** A selected test on a machine whose list holds it: a trace, whose measurements a query loads. */
+/**
+ * A selected test on a machine whose list for a metric holds it: a trace, whose measurements a
+ * query loads.
+ */
 interface Trace {
+  metric: string
   machine: string
   test: string
 }
@@ -102,8 +112,7 @@ interface Trace {
  */
 function fetchTrace(
   suite: SuiteRef,
-  metric: string,
-  { machine, test }: Trace,
+  { metric, machine, test }: Trace,
   signal: AbortSignal,
 ): Promise<Measurement[]> {
   return fetchMeasurements(suite, { metric, machine, test: [test], has_ordinal: true }, signal)
@@ -112,28 +121,31 @@ function fetchTrace(
 const NO_MEASUREMENTS: Measurement[] = []
 
 /**
- * The measurements of the `selected` tests for `metric`, on each machine of `testsOf`, which gives
- * the tests each machine's list holds: a test it does not hold is not asked for, since the API
- * refuses a request naming a test that does not exist (E9).
+ * The measurements of the `selected` tests for each of `metrics`, on each machine of `testsOf`,
+ * which gives the tests each machine's list holds for each metric: a test it does not hold is not
+ * asked for, since it has no value for the metric there, and the API refuses a request naming a
+ * test that does not exist (E9).
  */
 export function useSeries(
   suite: SuiteRef,
-  metric: string,
+  metrics: readonly string[],
   selected: ReadonlySet<string>,
-  testsOf: ReadonlyMap<string, ReadonlySet<string>>,
+  testsOf: ReadonlyMap<string, ReadonlyMap<string, ReadonlySet<string>>>,
 ): Series {
   const traces = useMemo(() => {
     const wanted: Trace[] = []
-    for (const [machine, held] of testsOf) {
-      for (const test of selected) if (held.has(test)) wanted.push({ machine, test })
+    for (const metric of metrics) {
+      for (const [machine, held] of testsOf.get(metric) ?? []) {
+        for (const test of selected) if (held.has(test)) wanted.push({ metric, machine, test })
+      }
     }
     return wanted
-  }, [testsOf, selected])
+  }, [metrics, testsOf, selected])
   const combine = useCallback((results: TraceResult[]) => combineTraces(traces, results), [traces])
   return useQueries({
     queries: traces.map((trace) => ({
-      queryKey: [...queryKeys.series(suite), { metric, ...trace }],
-      queryFn: ({ signal }) => fetchTrace(suite, metric, trace, signal),
+      queryKey: [...queryKeys.series(suite), trace],
+      queryFn: ({ signal }) => fetchTrace(suite, trace, signal),
       staleTime: Infinity,
       // Kept for as long as the page shows the suite, whose leaving forgets them (GR8; see
       // `forgetGraphData`).
@@ -153,22 +165,27 @@ interface TraceResult {
   refetch: () => unknown
 }
 
-const traceKey = (machine: string, test: string) => `${machine}\0${test}`
+const traceKey = (metric: string, machine: string, test: string) =>
+  `${metric}\0${machine}\0${test}`
 
 /** The series of `traces`, from the results of their queries, in order. */
 function combineTraces(traces: Trace[], results: TraceResult[]): Series {
   const measurements = new Map<string, readonly Measurement[]>()
   const loading = new Set<string>()
+  const unsettled = new Set<string>()
   results.forEach(({ data, error, isFetching }, i) => {
-    const { machine, test } = traces[i]
-    if (data !== undefined) measurements.set(traceKey(machine, test), data)
+    const { metric, machine, test } = traces[i]
+    if (data !== undefined) measurements.set(traceKey(metric, machine, test), data)
     // Until its measurements have arrived, or it has failed and is not being fetched again.
-    if (isFetching || (data === undefined && error === null)) loading.add(test)
+    const pending = isFetching || (data === undefined && error === null)
+    if (pending) loading.add(test)
+    if (pending || error !== null) unsettled.add(metric)
   })
   return {
-    measurementsOf: (machine, test) =>
-      measurements.get(traceKey(machine, test)) ?? NO_MEASUREMENTS,
+    measurementsOf: (metric, machine, test) =>
+      measurements.get(traceKey(metric, machine, test)) ?? NO_MEASUREMENTS,
     loading,
+    unsettled,
     ...failuresOf(results),
   }
 }

@@ -2,7 +2,7 @@ import { useLayoutEffect, useRef, useState, type MouseEvent, type RefObject } fr
 import type { Measurement } from '../../api/series'
 import type { PlotGeometry } from '../../components/chart'
 import { formatTimestamp, shortUuid } from '../../format'
-import { formatMetricValue, type Metric } from '../../schema'
+import { formatMeasuredValue, labelOf, type Metric } from '../../schema'
 import styles from './graph.module.css'
 
 /** What the markers of the samples of a point whose details are open need (GR10). */
@@ -90,7 +90,9 @@ export function SampleCloud({ samples, geometry, position, color, pinned }: Prop
         >
           <span>{formatTimestamp(shown.measured)}</span>
           <span>{shortUuid(shown.run)}</span>
-          <span>Value: {formatMetricValue(shown.value, pinned.metric)}</span>
+          <span>
+            {labelOf(pinned.metric)}: {formatMeasuredValue(shown.value, pinned.metric)}
+          </span>
         </div>
       )}
     </>

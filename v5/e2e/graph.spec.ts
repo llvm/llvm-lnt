@@ -19,6 +19,7 @@ import {
   pickOption,
   pickSuggestion,
   pickSuite,
+  selectButton,
 } from './select.ts'
 import { table } from './tables.ts'
 
@@ -104,7 +105,9 @@ test('plots a test chosen from scratch', async ({ page }) => {
 
   await pickSuite(page, 'Suite', 'libc++', 'Microbenchmarks')
   await pickSuggestion(page, 'Machines', LINUX)
-  await pickOption(page, 'Metric', 'Execution Time')
+  // The metric selector stays open while its metrics are checked.
+  await pickOption(page, 'Metrics', 'Execution Time')
+  await page.keyboard.press('Escape')
   // Found with the filter, which then only narrows the table: the test stays drawn under a filter
   // that hides it, and comes back selected once the filter is cleared (GR1).
   const filter = page.getByRole('searchbox', { name: 'Filter tests' })
@@ -271,7 +274,7 @@ test("shows a point's samples on hover, and keeps them with its details (GR10, G
   await median.hover()
   const tip = page.getByRole('tooltip')
   const run = items[0].run_uuid.slice(0, 8)
-  await expect(tip.locator('span')).toHaveText([/^\d{4}-\d\d-\d\d, /, `${run}…`, /^Value: \d/])
+  await expect(tip.locator('span')).toHaveText([/^\d{4}-\d\d-\d\d, /, `${run}…`, /^Execution Time: \d.* s$/])
   await expect(plotLabel).not.toContainText('Click for details')
 
   // Pressing it leaves the details open, with the focus for Escape to close them, and their links.
@@ -595,4 +598,106 @@ test('highlights a commit with a band of fixed width, circling its point (GR16)'
   await expect(band).toHaveCount(0)
   await expect.poll(() => draws(page, circle)).toBe(false)
   expect(new URL(page.url()).searchParams.has('highlight')).toBe(false)
+})
+
+test('plots each metric in a panel of its own, with a line across them at a point hovered (GR1, GR10)', async ({
+  page,
+}) => {
+  await page.goto(`${LINUX_TEST}&metric=cycles`)
+  await expect(tracesOf(page)).toHaveCount(2)
+  // The metric selector counts the metrics, and lists them from the top panel on hover.
+  await expect(selectButton(page, 'Metrics')).toHaveText(/^2 selected/)
+  await expect(selectButton(page, 'Metrics')).toHaveAccessibleDescription(
+    'Execution Time, Cycles Elapsed',
+  )
+  // Each panel's y-axis is titled with its metric and unit.
+  await expect(plotOf(page).locator('text.ytitle')).toHaveText('Execution Time (s)')
+  await expect(plotOf(page).locator('text.y3title')).toHaveText('Cycles Elapsed (cycles)')
+
+  // A point of the bottom panel, in the middle of the history, and the same commit's above it.
+  const index = await plotOf(page).evaluate(
+    (element) => Math.floor((element as PlotDiv)._fullData[1].x.length / 2),
+  )
+  const below = await pointOf(page, 1, index)
+  const above = await pointOf(page, 0, index)
+  expect(below.y).toBeGreaterThan(above.y)
+  const line = page.locator('[class*="hoverLine"]')
+  await expect(line).toHaveCount(0)
+
+  await plotOf(page).hover({ position: below })
+  await expect(page.locator('.hoverlayer')).toContainText('Cycles Elapsed: ')
+  // From the top panel to the bottom one, at the commit hovered.
+  const plot = (await plotOf(page).boundingBox())!
+  const box = (await line.boundingBox())!
+  expect(Math.abs(box.x + box.width / 2 - plot.x - below.x)).toBeLessThan(1)
+  expect(box.y - plot.y).toBeLessThan(above.y)
+  expect(box.y + box.height - plot.y).toBeGreaterThan(below.y)
+
+  await plotOf(page).hover({ position: { x: 5, y: 5 } })
+  await expect(line).toHaveCount(0)
+})
+
+test('resets the zoom of every panel on a double-click in any of them (GR5)', async ({ page }) => {
+  await page.goto(`${LINUX_TEST}&metric=cycles`)
+  await expect(tracesOf(page)).toHaveCount(2)
+  const axis = (name: string) =>
+    plotOf(page).evaluate((element, name) => {
+      const { range, autorange, _offset, _length } = (element as PlotDiv)._fullLayout[name]!
+      return { range: [...range], autorange, _offset, _length }
+    }, name)
+  const full = (await axis('yaxis')).range
+  const index = await plotOf(page).evaluate(
+    (element) => Math.floor((element as PlotDiv)._fullData[0].x.length / 2),
+  )
+
+  await zoomAround(page, await pointOf(page, 0, index), 'y')
+  await expect.poll(async () => (await axis('yaxis')).range).not.toEqual(full)
+
+  // A double-click near the bottom of the bottom panel, away from its points, resets the top one.
+  const { x } = await pointOf(page, 0, index)
+  const bottom = await axis('yaxis3')
+  const plot = (await plotOf(page).boundingBox())!
+  await page.mouse.dblclick(plot.x + x, plot.y + bottom._offset + bottom._length - 4)
+  await expect.poll(async () => (await axis('yaxis')).range).toEqual(full)
+  // And stays reset as the chart is drawn again.
+  await pickOption(page, 'Sample aggregation', 'max')
+  await expect.poll(async () => (await axis('yaxis')).autorange).toBe(true)
+})
+
+test('leaves no bar to drag an axis by over a panel once a metric is added (GR1, GR5)', async ({
+  page,
+}) => {
+  await page.goto(LINUX_TEST)
+  await expect(tracesOf(page)).toHaveCount(1)
+  await pickOption(page, 'Metrics', 'Cycles Elapsed')
+  await page.keyboard.press('Escape')
+  await expect(tracesOf(page)).toHaveCount(2)
+
+  // Every element Plotly lets the pointer drag, but for each panel's own, that sits over a panel.
+  const over = () =>
+    plotOf(page).evaluate((element) => {
+      const { xaxis, yaxis, yaxis3 } = (element as PlotDiv)._fullLayout
+      const plot = element.getBoundingClientRect()
+      const panels = [yaxis, yaxis3!].map((axis) => ({
+        left: plot.x + xaxis._offset,
+        right: plot.x + xaxis._offset + xaxis._length,
+        top: plot.y + axis._offset,
+        bottom: plot.y + axis._offset + axis._length,
+      }))
+      return [...element.querySelectorAll<SVGElement>('.draglayer .drag')]
+        .filter((drag) => getComputedStyle(drag).pointerEvents !== 'none')
+        .filter((drag) => !drag.classList.contains('nsewdrag'))
+        .filter((drag) => {
+          const box = drag.getBoundingClientRect()
+          return panels.some(
+            (panel) =>
+              box.left < panel.right &&
+              box.right > panel.left &&
+              box.top < panel.bottom - 1 &&
+              box.bottom > panel.top + 1,
+          )
+        })
+        .map((drag) => drag.getAttribute('class'))
+    })
+  await expect.poll(over).toEqual([])
 })

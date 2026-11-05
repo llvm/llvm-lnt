@@ -28,6 +28,7 @@ import {
   TEXT_SUITE,
   TESTS,
   addMachine,
+  toggleMetric,
   box,
   chart,
   commitAt,
@@ -46,6 +47,11 @@ import {
 
 // The tests check what the page hands Plotly to draw (see test/chart.tsx).
 vi.mock('../../components/chart', () => import('../../test/chart'))
+
+/** What a hover over the metric selector says (GR1). */
+function metricsTitle() {
+  return selectButton('Metrics').closest('[title]')?.getAttribute('title')
+}
 
 /** Click the row of `test` with Shift held (AR10). */
 async function shiftClick(user: ReturnType<typeof userEvent.setup>, test: string) {
@@ -85,22 +91,61 @@ describe('the Graph page (GR1)', () => {
     expect(await main().findByText('Select a suite first.')).toBeInTheDocument()
     expect(selectButton('Suite')).toHaveTextContent('-- Select suite --')
     expect(screen.getByRole('combobox', { name: 'Machines' })).toBeDisabled()
-    expect(selectButton('Metric')).toBeDisabled()
+    expect(selectButton('Metrics')).toBeDisabled()
     expect(screen.getByRole('searchbox', { name: 'Filter tests' })).toBeDisabled()
     // GR12: the overlay, with no axis to keep.
     expect(layout().annotations?.[0]?.text).toBe('No data to plot')
   })
 
-  it('offers only the numeric metrics of the suite selected', async () => {
+  it('offers only the numeric metrics of the suite selected, checking none', async () => {
     mockWorld()
     renderPage('/graph')
 
     await pickSuite('Suite', 'llvm', 'libcxx')
     expect(currentUrl()).toBe('/graph?project=llvm&suite=libcxx')
-    expect(selectButton('Metric')).toHaveTextContent('-- Select metric --')
-    await userEvent.setup().click(selectButton('Metric'))
+    expect(selectButton('Metrics')).toHaveTextContent('-- Select metrics --')
+    await userEvent.setup().click(selectButton('Metrics'))
     const options = screen.getAllByRole('option').map((option) => option.textContent)
     expect(options).toEqual(['Execution Time', 'Compile Time'])
+    expect(screen.getAllByRole('option').map((option) => option.ariaSelected)).toEqual([
+      'false',
+      'false',
+    ])
+  })
+
+  it('plots the metrics in the order they are checked, which its hover lists', async () => {
+    mockWorld()
+    renderPage('/graph?project=llvm&suite=libcxx&machine=m1')
+    const user = userEvent.setup()
+
+    // The list stays open while metrics are checked, each going after those checked before.
+    await user.click(selectButton('Metrics'))
+    await user.click(screen.getByRole('option', { name: 'Compile Time' }))
+    await user.click(screen.getByRole('option', { name: 'Execution Time' }))
+    expect(screen.getByRole('listbox')).toBeVisible()
+    await waitFor(() =>
+      expect(query()).toMatchObject({ metric: ['compile_time', 'execution_time'] }),
+    )
+    await user.keyboard('{Escape}')
+    // The button counts several metrics, which a hover lists, from the top panel.
+    expect(selectButton('Metrics')).toHaveTextContent(/^2 selected/)
+    expect(metricsTitle()).toBe('Compile Time, Execution Time')
+    expect(selectButton('Metrics')).toHaveAccessibleDescription('Compile Time, Execution Time')
+
+    // Unchecking one moves those after it up; checking it again puts it last.
+    await user.click(selectButton('Metrics'))
+    await user.click(screen.getByRole('option', { name: 'Compile Time' }))
+    await waitFor(() => expect(query()).toMatchObject({ metric: ['execution_time'] }))
+    await user.keyboard('{Escape}')
+    // A single metric is named.
+    expect(selectButton('Metrics')).toHaveTextContent(/^Execution Time/)
+    await user.click(selectButton('Metrics'))
+    await user.click(screen.getByRole('option', { name: 'Compile Time' }))
+    await waitFor(() =>
+      expect(query()).toMatchObject({ metric: ['execution_time', 'compile_time'] }),
+    )
+    await user.keyboard('{Escape}')
+    expect(metricsTitle()).toBe('Execution Time, Compile Time')
   })
 
   it('says so when the suite has no numeric metric', async () => {
@@ -735,21 +780,50 @@ describe('the selection (GR6, GR7, GR14)', () => {
     expect(recorded.series.flatMap(({ query }) => query.getAll('test'))).not.toContain('zzz')
   })
 
-  it('keeps the selection as the metric changes, then drops what the new lists lack', async () => {
+  it('keeps the selection as a metric is added, and drops what only one removed lists', async () => {
     const lists = gate()
     mockWorld()
     renderPage(`${GRAPHED}&test=a&test=b`)
     await waitFor(() => expect(box('a')).toBeChecked())
-    // compile_time's lists, held: a stays selected meanwhile.
+    // compile_time's lists, held: a stays selected meanwhile, and once they have arrived, since
+    // execution_time's list it.
+    const asked: string[] = []
     mockTests(async (query) => {
+      asked.push(`${query.get('machine')}/${query.get('metric')}`)
       await lists.promise
       return testPage(query.get('machine') === 'm1' ? ['b'] : ['b', 'd'])
     })
 
-    await pickOption('Metric', 'Compile Time')
+    await toggleMetric('Compile Time')
     expect(currentUrl()).toContain('test=a&test=b')
     act(() => lists.open())
+    await waitFor(() =>
+      expect(query()).toMatchObject({
+        metric: ['execution_time', 'compile_time'],
+        test: ['a', 'b'],
+      }),
+    )
+    // Only the lists of the metric added (GR8).
+    expect(asked.sort()).toEqual(['m1/compile_time', 'm2/compile_time'])
 
+    await toggleMetric('Execution Time')
+    await waitFor(() => expect(query()).toMatchObject({ metric: ['compile_time'], test: ['b'] }))
+  })
+
+  it('keeps the selection once the last metric is removed, until one is added', async () => {
+    mockWorld()
+    renderPage(`${GRAPHED}&test=a&test=b`)
+    await waitFor(() => expect(box('a')).toBeChecked())
+    mockTests(() => testPage(['b']))
+
+    await toggleMetric('Execution Time')
+    expect(await main().findByText('Select a metric to list the tests that have it.')).toBeVisible()
+    expect(currentUrl()).toBe(
+      '/graph?project=llvm&suite=libcxx&machine=m1&machine=m2&test=a&test=b',
+    )
+    expect(drawn()).toEqual([])
+
+    await toggleMetric('Compile Time')
     await waitFor(() => expect(query()).toMatchObject({ metric: ['compile_time'], test: ['b'] }))
   })
 

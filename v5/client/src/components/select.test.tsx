@@ -3,7 +3,7 @@ import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 import { optionsIn, pickOption, selectButton } from '../test/select'
-import { Select, type Option } from './select'
+import { Select, TreeSelect, type Option } from './select'
 
 const OPTIONS = [
   { value: '', label: 'Any metric' },
@@ -444,5 +444,59 @@ describe('Select with options in groups', () => {
     await user.click(option)
     expect(onChange).not.toHaveBeenCalled()
     expect(screen.getByRole('listbox')).toBeInTheDocument()
+  })
+})
+
+describe('TreeSelect with a flat list', () => {
+  const FLAT = OPTIONS.slice(1).concat({ value: 'cycles', label: 'Cycles' })
+
+  it('checks options without children, naming them, or counting them', async () => {
+    const onChange = vi.fn()
+    const metrics = (value: string[]) => (
+      <TreeSelect
+        label="Metrics"
+        options={FLAT}
+        value={value}
+        placeholder="None"
+        onChange={onChange}
+      />
+    )
+    const { rerender } = render(metrics([]))
+    expect(selectButton('Metrics')).toHaveTextContent('None')
+
+    const user = userEvent.setup()
+    await user.click(selectButton('Metrics'))
+    await user.click(screen.getByRole('option', { name: 'Code Size' }))
+    expect(onChange).toHaveBeenLastCalledWith(['code_size'])
+    await user.keyboard('{Escape}')
+
+    rerender(metrics(['execution_time', 'code_size']))
+    expect(selectButton('Metrics')).toHaveTextContent('Execution Time, Code Size')
+    rerender(metrics(['execution_time', 'code_size', 'cycles']))
+    expect(selectButton('Metrics')).toHaveTextContent('3 selected')
+  })
+
+  it('names as many options as it is told to, and says what it is told to on hover', () => {
+    const metrics = (value: string[]) => (
+      <TreeSelect
+        label="Metrics"
+        options={FLAT}
+        value={value}
+        placeholder="None"
+        onChange={() => {}}
+        named={1}
+        title={value.length === 0 ? undefined : 'Checked'}
+      />
+    )
+    const { rerender } = render(metrics(['code_size']))
+    expect(selectButton('Metrics')).toHaveTextContent('Code Size')
+    expect(selectButton('Metrics')).toHaveAccessibleDescription('Checked')
+    expect(selectButton('Metrics').closest('[title]')).toHaveAttribute('title', 'Checked')
+
+    rerender(metrics(['code_size', 'execution_time']))
+    expect(selectButton('Metrics')).toHaveTextContent('2 selected')
+    rerender(metrics([]))
+    expect(selectButton('Metrics')).toHaveTextContent('None')
+    expect(selectButton('Metrics')).not.toHaveAccessibleDescription()
   })
 })

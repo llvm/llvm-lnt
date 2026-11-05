@@ -10,19 +10,20 @@ import type { Locator, Page } from '@playwright/test'
  */
 export interface PlotDiv extends HTMLElement {
   _fullLayout: {
-    xaxis: PlotAxis & { range: number[] }
-    yaxis: PlotAxis & { range: number[] }
-    /** The axis of what a chart draws over its plot, such as the Graph's regressions. */
-    yaxis2?: PlotAxis
-  }
+    xaxis: PlotAxis
+    yaxis: PlotAxis
+  } & Record<string, PlotAxis | undefined>
   _fullData: { name: string; x: (number | string)[]; y: number[]; yaxis: string }[]
 }
 
 interface PlotAxis {
   /** Where a value of the axis is drawn, from the start of the axis. */
   d2p(value: number | string): number
-  /** Where the axis starts, in the plot. */
+  /** Where the axis starts, in the plot, and how long it is. */
   _offset: number
+  _length: number
+  range: number[]
+  autorange: boolean
 }
 
 /**
@@ -36,7 +37,8 @@ export function pointOf(scope: Page | Locator, trace: number | string, index: nu
       const { _fullLayout: layout, _fullData: drawn } = element as PlotDiv
       const data = typeof trace === 'number' ? drawn[trace] : drawn.find((d) => d.name === trace)
       if (data === undefined) throw new Error(`No trace ${trace}`)
-      const yaxis = (data.yaxis === 'y2' && layout.yaxis2) || layout.yaxis
+      // A y-axis of its own, such as one of the Graph's panels, as `yaxis3` names `y3`.
+      const yaxis = layout[`yaxis${data.yaxis.slice(1)}`] ?? layout.yaxis
       return {
         x: layout.xaxis._offset + layout.xaxis.d2p(data.x[index]),
         y: yaxis._offset + yaxis.d2p(data.y[index]),
@@ -58,14 +60,19 @@ export function tracesOf(scope: Page | Locator): Locator {
 
 /**
  * Zoom the x-axis of the chart on `page` in around `position` of its plot (as `pointOf` gives it),
- * by dragging across 120 pixels.
+ * by dragging across 120 pixels -- or its y-axis there, by dragging down rather than across.
  */
-export async function zoomAround(page: Page, { x, y }: { x: number; y: number }) {
+export async function zoomAround(
+  page: Page,
+  { x, y }: { x: number; y: number },
+  axis: 'x' | 'y' = 'x',
+) {
   // The mouse acts where the page shows the plot, which must be on screen.
   await plotOf(page).scrollIntoViewIfNeeded()
   const plot = (await plotOf(page).boundingBox())!
-  await page.mouse.move(plot.x + x - 60, plot.y + y)
+  const [dx, dy] = axis === 'x' ? [60, 0] : [0, 60]
+  await page.mouse.move(plot.x + x - dx, plot.y + y - dy)
   await page.mouse.down()
-  await page.mouse.move(plot.x + x + 60, plot.y + y, { steps: 5 })
+  await page.mouse.move(plot.x + x + dx, plot.y + y + dy, { steps: 5 })
   await page.mouse.up()
 }
