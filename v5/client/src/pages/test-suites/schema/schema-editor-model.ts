@@ -11,6 +11,7 @@
 import type { Schemas } from '../../../api/client'
 import type { SuiteSchema } from '../../../api/suites'
 import { templateFieldProblem, templateProblem, type Repository } from '../../../repository'
+import { moveTo } from '../../../order'
 import { sameElements } from '../../../same-elements'
 import {
   flagAllowed,
@@ -168,19 +169,15 @@ export function removeEntry(draft: Draft, list: ListName, id: number): Draft {
 }
 
 /**
- * `draft` with the entry `id` of `list` moved to the place of the entry `target`: just before it if
- * it came from after it, and just after it otherwise. Neither can be a removed entry (TS7).
+ * `draft` with the entry `id` of `list` moved to the place of the entry `target` (see `moveTo`).
+ * Neither can be a removed entry (TS7).
  */
 export function moveEntryTo(draft: Draft, list: ListName, id: number, target: number): Draft {
   const entries = draft[list]
-  const from = entries.findIndex((entry) => entry.id === id)
-  const to = entries.findIndex((entry) => entry.id === target)
-  if (from < 0 || to < 0 || from === to || entries[from].removed || entries[to].removed) {
-    return draft
-  }
-  const moved = entries.filter((entry) => entry.id !== id)
-  moved.splice(moved.indexOf(entries[to]) + (from < to ? 1 : 0), 0, entries[from])
-  return { ...draft, [list]: moved }
+  const from = entries.find((entry) => entry.id === id)
+  const to = entries.find((entry) => entry.id === target)
+  if (!from || !to || from === to || from.removed || to.removed) return draft
+  return { ...draft, [list]: moveTo(entries, from, to) }
 }
 
 export function restoreEntry(draft: Draft, list: ListName, id: number): Draft {

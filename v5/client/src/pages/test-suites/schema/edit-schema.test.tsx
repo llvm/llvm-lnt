@@ -461,6 +461,20 @@ describe('editing', () => {
     )
   })
 
+  it('leaves the focus on the grip of an entry dropped in its own place (AR24)', async () => {
+    await openEditor()
+    const grip = 'Drag machine field core_count'
+
+    await dragByKeyboard(grip, 'Leave machine field core_count where it is')
+
+    await waitFor(() => expect(screen.getByRole('button', { name: grip })).toHaveFocus())
+    expect(rowsOf(await table('Machine fields')).map((row) => row.split(' | ')[1])).toEqual([
+      'hardware',
+      'os',
+      'core_count',
+    ])
+  })
+
   it('moves entries past a removed one, which cannot move, and is undone in its place', async () => {
     await openEditor()
     fireEvent.click(screen.getByRole('button', { name: 'Remove machine field os' }))

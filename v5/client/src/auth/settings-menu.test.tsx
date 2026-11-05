@@ -137,6 +137,7 @@ describe('Settings panel', () => {
     renderMenu()
     openPanel()
 
+    // By name, as the API lists them, while the projects are not listed.
     await waitFor(() =>
       expect(status()).toHaveTextContent(
         'Using key triage-key (aaaaaaaa), with triage scope, covering llvm › libcxx, llvm › nts.',
@@ -154,18 +155,19 @@ describe('Settings panel', () => {
     signIn('triage', [entry('libcxx'), entry('nts')])
     const { queryClient } = renderMenu()
     const project = { ...PROJECT, display_name: 'LLVM' }
+    // Listed in an order of their own, rather than by name or label (AR22).
     queryClient.setQueryData(
       queryKeys.projects,
       projectList([
-        { ...SUITE, project, display_name: 'Microbenchmarks' },
         { ...BARE_SUITE, project, display_name: 'Test suite' },
+        { ...SUITE, project, display_name: 'Microbenchmarks' },
       ]),
     )
     openPanel()
 
     await waitFor(() =>
       expect(status()).toHaveTextContent(
-        /with triage scope, covering LLVM › Microbenchmarks, LLVM › Test suite\.$/,
+        /with triage scope, covering LLVM › Test suite, LLVM › Microbenchmarks\.$/,
       ),
     )
   })

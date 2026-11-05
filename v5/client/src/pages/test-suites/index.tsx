@@ -20,7 +20,7 @@ import { Alert, Loaded } from '../../components/feedback'
 import { Tabs } from '../../components/tabs'
 import { focusLost } from '../../components/use-focus-once-checked'
 import { useMounted } from '../../components/use-mounted'
-import { projectLabel, suiteLabel } from '../../labels'
+import { projectLabel } from '../../labels'
 import { projectPath } from '../../paths'
 import { readParam, useUrlState } from '../../url-state'
 import { ChipLinks } from './chip-links'
@@ -29,6 +29,7 @@ import { MachinesTab } from './machines-tab'
 import { RegressionsTab } from './regressions-tab'
 import { RunsTab } from './runs-tab'
 import { SchemaTab } from './schema-tab'
+import { SuiteChips } from './suite-chips'
 import {
   PARAMS,
   TABS,
@@ -99,15 +100,7 @@ export default function Projects() {
         {shown.suites.length === 0 ? (
           <p className={styles.note}>No test suites.</p>
         ) : (
-          <ChipLinks
-            label="Test suites"
-            chips={shown.suites.map((entry) => ({
-              key: entry.name,
-              text: suiteLabel(entry),
-              to: suiteTabPath(refOf(entry), tab),
-            }))}
-            selected={schema?.name}
-          />
+          <SuiteChips key={shown.name} project={shown} selected={schema?.name} tab={tab} />
         )}
         {named === undefined ? null : schema === undefined ? (
           <Alert ref={notFound} tabIndex={-1}>

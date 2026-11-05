@@ -562,11 +562,10 @@ otherwise as its entries, each as it is: a whole project by its label followed
 by `(all)`, and a single suite by its full label, even when its project is
 listed too (see I5). A key whose every entry has been deleted shows `Nothing`.
 
-**Order.** Wherever the UI lists projects or suites, it orders projects by
-label, and the suites of each project by label, after the project itself when
-both are listed (as in what a key covers). Labels are compared
-case-insensitively and in the order of the browser's language, and ties are
-broken by name.
+**Order.** Wherever the UI lists projects or suites, it lists them in the
+order the API does: the instance's order of projects, and each project's order
+of its suites (see D7). What a key covers follows the same order, with a
+project's suites after the project itself.
 
 **Grouping.** A dropdown or a combobox that picks a suite lists the suites under
 a heading for each project (see AR5), and leaves out the projects without
@@ -596,8 +595,8 @@ how the bots submitting runs, command lines and URLs know the machine, and
 display names are not unique: two machines may share one.
 
 **Order.** Wherever the UI lists machines in no other order, it orders them by
-label, as AR22 orders suites: case-insensitively, in the order of the browser's
-language, with ties broken by name.
+label, compared case-insensitively and in the order of the browser's language,
+with ties broken by name.
 
 **Filtering.** A client-side filter over machines (AR9) matches a machine's
 label or its name.
@@ -626,5 +625,12 @@ supports native dragging. From the keyboard:
 - Escape ends the drag and leaves the order unchanged.
 
 A screen reader announces each step. After a drop, the focus is on the grip of
-the item that moved. Each page says which items can be moved, and when the new
+the item dropped. Each page says which items can be moved, and when the new
 order is saved.
+
+A page may save the new order on each drop. The list then shows the new order
+straight away, unlike a control that saves on change (AR13). Until the order is
+saved, the item that moved is faded, and no item can be dragged, though the grips
+can still be focused. If the save fails, the item goes back to its place, and the
+page says why. If the save fails because the list changed elsewhere, or because
+it no longer exists, the page fetches it again.

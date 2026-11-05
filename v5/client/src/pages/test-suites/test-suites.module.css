@@ -1,8 +1,10 @@
 /* A row of chips of projects or suites (TS1). */
 .chips {
+  /* Where a chip dragged in the reordering mode would go shows in the middle of it (TS1). */
+  --reorder-gap: 0.75rem;
   display: flex;
   flex-wrap: wrap;
-  gap: 0.75rem;
+  gap: var(--reorder-gap);
   margin: 0 0 var(--lnt-space-3);
   padding: 0;
   list-style: none;
@@ -28,17 +30,70 @@
     background 0.15s;
 }
 
-.chip:hover {
+.chip:any-link:hover {
   border-color: var(--lnt-accent);
   color: var(--lnt-accent);
 }
 
 /* After the hover, which would otherwise set the label in the accent colour, on the accent. The
-   project of a suite's page is the current one of its row rather than the page. */
-.chip[aria-current] {
+   project of a suite's page is the current one of its row rather than the page. In the reordering
+   mode, the chip's list item says that it is the current one. */
+.chip[aria-current],
+[aria-current] > .chip {
   border-color: var(--lnt-accent);
   background: var(--lnt-accent);
   color: var(--lnt-bg);
+}
+
+/* The row of a project's suites, and the button putting it in its reordering mode (TS1). */
+.suiteRow {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin: 0 0 var(--lnt-space-3);
+}
+
+/* Its row of chips, in either mode: `.suiteRow` has the margin. */
+.suiteRow .chips {
+  margin: 0;
+}
+
+/* The button putting the row of suites in its reordering mode: a small icon, out of the way. */
+.reorderToggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 28px;
+  min-height: 28px;
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--lnt-muted);
+}
+
+.reorderToggle:hover:not(:disabled) {
+  background: var(--lnt-panel);
+  color: var(--lnt-accent);
+}
+
+/* Disabled, the same icon, only fainter (AR5): unlike a button with a border, it has no box. */
+.reorderToggle:disabled {
+  background: none;
+  opacity: 0.35;
+}
+
+/*
+ * A suite's chip in the reordering mode: not a link, with the grip dragging it (TS1), in the chip's
+ * text colour, which is the background's on the selected one.
+ */
+.reorderChip {
+  --reorder-grip-color: currentColor;
+  --reorder-grip-active-color: currentColor;
+  --reorder-grip-active-background: color-mix(in srgb, currentColor 15%, transparent);
+  display: inline-flex;
+  align-items: center;
+  gap: var(--lnt-space-1);
+  padding-inline-start: var(--lnt-space-1);
 }
 
 /* What the page says when there is nothing to show. */

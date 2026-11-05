@@ -207,9 +207,10 @@ describe('useScopeGate', () => {
     )
 
     await waitFor(() => expect(result.current.auth.status.state).toBe('valid'))
+    // A suite not listed comes after its project's listed suites.
     expect(result.current.project.title).toBe(
       "Needs an API token with the 'manage' scope covering project 'LLVM' in full. The token in " +
-        "Settings has the 'manage' scope, covering only 'LLVM › gone', 'LLVM › libcxx', 'Swift (all)'.",
+        "Settings has the 'manage' scope, covering only 'LLVM › libcxx', 'LLVM › gone', 'Swift (all)'.",
     )
   })
 

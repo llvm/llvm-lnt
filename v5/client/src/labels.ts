@@ -1,10 +1,11 @@
 /**
- * How the UI names and orders projects, test suites (AR22) and machines (AR23): by their label,
- * which is the display name a project, a suite or a machine has (D4, D5, D7), or else its name. A
- * suite's full label is its project's label and its own, separated by ` › `: it names the suite
- * wherever its project is not named beside it. Every label shown for a project, a suite or a
- * machine comes from here, whereas links, URLs, API requests and the text typed to confirm a
- * deletion use the names.
+ * How the UI names projects, test suites (AR22) and machines (AR23): by their label, which is the
+ * display name a project, a suite or a machine has (D4, D5, D7), or else its name. A suite's full
+ * label is its project's label and its own, separated by ` › `: it names the suite wherever its
+ * project is not named beside it. Every label shown for a project, a suite or a machine comes from
+ * here, whereas links, URLs, API requests and the text typed to confirm a deletion use the names.
+ * Machines are ordered by label too (AR23), whereas projects and suites are in the order the API
+ * lists them (AR22).
  */
 
 import type { Schemas } from './api/client'
@@ -60,10 +61,10 @@ export function fullLabelOf(suites: readonly Labelled[] | undefined, ref: SuiteR
   return fullLabel(suiteNamed(suites, ref))
 }
 
-// Case-insensitive, in the order of the browser's language (AR22).
+// Case-insensitive, in the order of the browser's language (AR23).
 const collator = new Intl.Collator(undefined, { sensitivity: 'accent' })
 
-/** AR22's and AR23's order of two labels, with their names to break ties. */
+/** AR23's order of two labels, with their names to break ties. */
 export function compareLabels(
   aLabel: string,
   aName: string,
@@ -73,14 +74,6 @@ export function compareLabels(
   return collator.compare(aLabel, bLabel) || compareStrings(aName, bName)
 }
 
-/** AR22's order of two entities, by label, with their names to break ties. */
-function compareLabelled(
-  a: { name: string; display_name: string | null },
-  b: { name: string; display_name: string | null },
-): number {
-  return compareLabels(labelOf(a), a.name, labelOf(b), b.name)
-}
-
 /** What a machine's label is made of: its name and its display name (AR23). */
 export type MachineNames = Pick<Schemas['Machine'], 'name' | 'display_name'>
 
@@ -88,7 +81,9 @@ export type MachineNames = Pick<Schemas['Machine'], 'name' | 'display_name'>
 export const machineLabel: (machine: MachineNames) => string = labelOf
 
 /** AR23's order of machines: by label, then by name. */
-export const compareMachines: (a: MachineNames, b: MachineNames) => number = compareLabelled
+export function compareMachines(a: MachineNames, b: MachineNames): number {
+  return compareLabels(machineLabel(a), a.name, machineLabel(b), b.name)
+}
 
 /**
  * What a client-side filter over machines matches (AR23): a machine's label and its name, with a
@@ -104,18 +99,6 @@ export function machineFilterText(name: string, label: string): string {
  */
 export function labelAndName(name: string, label: string): string {
   return label === name ? name : `${label}, ${name}`
-}
-
-/** AR22's order of projects: by label, then by name. */
-export const compareProjects: (a: ProjectName, b: ProjectName) => number = compareLabelled
-
-/**
- * AR22's order of suites, a level at a time: by their projects' order, then by their own labels,
- * then by their names -- rather than by their full labels, which could interleave the suites of two
- * projects whose labels start alike.
- */
-export function compareSuites(a: Labelled, b: Labelled): number {
-  return compareProjects(a.project, b.project) || compareLabelled(a, b)
 }
 
 /**
@@ -140,26 +123,40 @@ export interface NamedEntry {
   project: ProjectName
   /** Null for the whole project. */
   suite: Labelled | null
+  /**
+   * Where the entry's project stands among the projects listed, and where its suite stands among
+   * the project's, -1 for the whole project: `Infinity` for one not listed.
+   */
+  place: readonly [project: number, suite: number]
 }
 
 /**
  * The entries `refs` list, named as `projects` has them, or by their names alone while `projects`
  * does not hold them, in AR22's order: by project, a whole project before the suites of that
- * project, then by suite.
+ * project, then by suite, each in the order of `projects`. A project not listed comes after those
+ * listed, and a suite not listed after its project's listed suites, by name.
  */
 export function entriesNamed(
   projects: readonly (ProjectName & { suites: readonly Labelled[] })[] | undefined,
   refs: readonly EntryRef[],
 ): NamedEntry[] {
-  const suites = projects?.flatMap((project) => project.suites)
   return refs
-    .map((ref) => {
+    .map((ref): NamedEntry => {
+      const index = projects?.findIndex((project) => project.name === ref.project) ?? -1
+      const listed = projects?.[index]
       // What names the project, without its suites.
-      const { name, display_name } = projectNamed(projects, ref.project)
-      const project = { name, display_name }
-      if (ref.suite === null) return { project, suite: null }
-      const listed = findSuite(suites, { project: ref.project, suite: ref.suite })
-      return { project, suite: listed ?? { name: ref.suite, display_name: null, project } }
+      const project = listed
+        ? { name: listed.name, display_name: listed.display_name }
+        : { name: ref.project, display_name: null }
+      const projectPlace = listed ? index : Infinity
+      if (ref.suite === null) return { project, suite: null, place: [projectPlace, -1] }
+      const suiteIndex = listed?.suites.findIndex((suite) => suite.name === ref.suite) ?? -1
+      const suite = listed?.suites[suiteIndex]
+      return {
+        project,
+        suite: suite ?? { name: ref.suite, display_name: null, project },
+        place: [projectPlace, suite ? suiteIndex : Infinity],
+      }
     })
     .sort(compareEntries)
 }
@@ -168,18 +165,25 @@ export function entriesNamed(
  * How `entry` is shown (AR22): a whole project by its label followed by `(all)`, and a single suite
  * by its full label.
  */
-export function entryLabel(entry: NamedEntry): string {
+export function entryLabel(entry: Pick<NamedEntry, 'project' | 'suite'>): string {
   return entry.suite === null ? `${projectLabel(entry.project)} (all)` : fullLabel(entry.suite)
 }
 
-/** AR22's order of two entries: by project, the whole project first, then by suite. */
+/**
+ * The order of two entries (AR22): by project, the whole project first, then by suite. Those not
+ * listed come after those listed, by name, which AR22 leaves to the UI.
+ */
 function compareEntries(a: NamedEntry, b: NamedEntry): number {
   return (
-    compareProjects(a.project, b.project) ||
-    (a.suite === null || b.suite === null
-      ? Number(b.suite === null) - Number(a.suite === null)
-      : compareLabelled(a.suite, b.suite))
+    comparePlaces(a.place[0], a.project.name, b.place[0], b.project.name) ||
+    comparePlaces(a.place[1], a.suite?.name ?? '', b.place[1], b.suite?.name ?? '')
   )
+}
+
+/** Two places in a list, `Infinity` for what it does not hold, which is then ordered by name. */
+function comparePlaces(aPlace: number, aName: string, bPlace: number, bName: string): number {
+  if (aPlace !== bPlace) return aPlace < bPlace ? -1 : 1
+  return aPlace === Infinity ? compareStrings(aName, bName) : 0
 }
 
 /** Two lists of entries, each in AR22's order, compared entry by entry in that order. */

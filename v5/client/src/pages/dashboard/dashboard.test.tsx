@@ -138,20 +138,23 @@ function hoverEvent(curveNumber: number) {
 describe('the Dashboard', () => {
   it('heads projects by their labels, and suites by their own, in AR22 order', async () => {
     const extra = { name: 'extra', display_name: 'LLVM Extra' }
-    mockSuites([
-      DASH_SUITE,
-      { ...TEXT_SUITE, display_name: 'A text suite' },
-      inProject({ ...UNCHOSEN_SUITE, name: 'alpha' }, extra),
-    ])
+    // Listed in an order of their own, rather than by label (AR22).
+    mockSuites(
+      [
+        DASH_SUITE,
+        { ...TEXT_SUITE, display_name: 'A text suite' },
+        inProject({ ...UNCHOSEN_SUITE, name: 'alpha' }, extra),
+      ],
+      { projects: [extra, PROJECT] },
+    )
     mockMachineNames(['m1'])
     mockTrends(() => POINTS)
     mockResolve()
     renderPage('/')
 
     await chartOf('compile_status')
-    // The project 'llvm' before 'LLVM Extra', whatever its suites are called.
     const projects = main().getAllByRole('heading', { level: 2 })
-    expect(projects.map((h) => h.textContent)).toEqual(['llvm', 'LLVM Extra'])
+    expect(projects.map((h) => h.textContent)).toEqual(['LLVM Extra', 'llvm'])
     // Each heading leads to the project's suites on the Projects page (TS1).
     const extraLink = projectSection('LLVM Extra').getByRole('link', { name: 'LLVM Extra' })
     expect(extraLink).toHaveAttribute('href', '/projects/extra')
@@ -159,7 +162,7 @@ describe('the Dashboard', () => {
       projectSection(project)
         .getAllByRole('heading', { level: 3 })
         .map((h) => h.textContent)
-    expect(suitesOf('llvm')).toEqual(['A text suite', 'libcxx'])
+    expect(suitesOf('llvm')).toEqual(['libcxx', 'A text suite'])
     expect(suitesOf('LLVM Extra')).toEqual(['alpha'])
   })
 
@@ -365,7 +368,7 @@ describe('the Dashboard', () => {
         .getAllByRole('heading', { level: 2 })
         .map((h) => h.textContent)
 
-    it('offers every project, by label in AR22 order, and all of them by default', async () => {
+    it('offers every project, each by its label, and all of them by default', async () => {
       mockProjects()
       renderPage('/')
 

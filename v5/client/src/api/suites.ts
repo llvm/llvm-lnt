@@ -1,6 +1,7 @@
 import { queryOptions, useQuery, type QueryClient } from '@tanstack/react-query'
-import { api, ApiError, unwrap, type Schemas } from './client'
-import { compareProjects, compareSuites, fullLabelOf } from '../labels'
+import { api, ApiError, authedApi, unwrap, type Schemas } from './client'
+import { fullLabelOf } from '../labels'
+import { arrangeBy } from '../order'
 import { forgetSuite, queryKeys } from './keys'
 import { suiteRef, type SuiteRef } from './suite-ref'
 
@@ -39,31 +40,28 @@ export function schemaOf(suite: Suite): SuiteSchema {
   return schema
 }
 
-// What the list of projects the API returned is put in order as, once per list rather than once
-// per component reading it, so that every reader shares the same objects.
-const ordered = new WeakMap<Schemas['ProjectList'], { projects: Project[]; suites: Suite[] }>()
+// What the list of projects the API returned becomes, once per list rather than once per component
+// reading it, so that every reader shares the same objects.
+const derived = new WeakMap<Schemas['ProjectList'], { projects: Project[]; suites: Suite[] }>()
 
-function inOrder(list: Schemas['ProjectList']) {
-  let result = ordered.get(list)
+function derive(list: Schemas['ProjectList']) {
+  let result = derived.get(list)
   if (result === undefined) {
-    const projects = list.items
-      .map(({ name, display_name, suites }) => {
-        const project = { name, display_name }
-        const held = suites.map((schema) => ({ ...schema, project }))
-        return { ...project, suites: held.sort(compareSuites) }
-      })
-      .sort(compareProjects)
+    const projects = list.items.map(({ name, display_name, suites }) => {
+      const project = { name, display_name }
+      return { ...project, suites: suites.map((schema) => ({ ...schema, project })) }
+    })
     result = { projects, suites: projects.flatMap((project) => project.suites) }
-    ordered.set(list, result)
+    derived.set(list, result)
   }
   return result
 }
 
-/** The projects of the list the API returned, and their suites, in AR22's order. */
-const projectsInOrder = (list: Schemas['ProjectList']): Project[] => inOrder(list).projects
+/** The projects of the list the API returned, and their suites, in its order, AR22's. */
+const projectsOf = (list: Schemas['ProjectList']): Project[] => derive(list).projects
 
 /** Every suite of the list the API returned, in AR22's order. */
-const suitesInOrder = (list: Schemas['ProjectList']): Suite[] => inOrder(list).suites
+const suitesOf = (list: Schemas['ProjectList']): Suite[] => derive(list).suites
 
 const projectsQuery = queryOptions({
   queryKey: queryKeys.projects,
@@ -76,12 +74,12 @@ const projectsQuery = queryOptions({
  * a suite's schema from it rather than fetching it on its own.
  */
 export function useProjects() {
-  return useQuery({ ...projectsQuery, select: projectsInOrder })
+  return useQuery({ ...projectsQuery, select: projectsOf })
 }
 
 /** Every suite of the instance, with its schema and its project, in AR22's order. */
 export function useSuites() {
-  return useQuery({ ...projectsQuery, select: suitesInOrder })
+  return useQuery({ ...projectsQuery, select: suitesOf })
 }
 
 /**
@@ -92,7 +90,7 @@ export function useSuites() {
  * own.
  */
 export function useKnownProjects(): Project[] | undefined {
-  return useQuery({ ...projectsQuery, select: projectsInOrder, enabled: false }).data
+  return useQuery({ ...projectsQuery, select: projectsOf, enabled: false }).data
 }
 
 /**
@@ -100,7 +98,7 @@ export function useKnownProjects(): Project[] | undefined {
  * this does not do (see `useKnownProjects`).
  */
 export function useSuiteLabel(ref: SuiteRef): string {
-  return fullLabelOf(useQuery({ ...projectsQuery, select: suitesInOrder, enabled: false }).data, ref)
+  return fullLabelOf(useQuery({ ...projectsQuery, select: suitesOf, enabled: false }).data, ref)
 }
 
 /** Fetch the list of projects again, after a write that found it out of date. */
@@ -138,16 +136,39 @@ async function editProjects(
  * shows it gone, or the name check says so.
  */
 export function refetchProjectsIfOutdated(queryClient: QueryClient, error: unknown): void {
-  if (error instanceof ApiError && (error.code === 'not_found' || error.code === 'duplicate')) {
+  refetchProjectsOn(queryClient, error, ['not_found', 'duplicate'])
+}
+
+/** Fetch the list of projects again if `error` is a failure of the API with one of `codes`. */
+function refetchProjectsOn(queryClient: QueryClient, error: unknown, codes: string[]): void {
+  if (error instanceof ApiError && error.code !== null && codes.includes(error.code)) {
     refetchProjects(queryClient)
   }
 }
 
 /**
+ * `items` with `item` in place of the entry named `replaced`, if they hold it, and otherwise last,
+ * along with whether it took that place. An entry already under its name, deleted elsewhere, goes.
+ */
+function putInPlace<Item extends { name: string }>(
+  items: readonly Item[],
+  item: Item,
+  replaced: string | undefined,
+): { items: Item[]; placed: boolean } {
+  const placed = replaced !== undefined && items.some((entry) => entry.name === replaced)
+  const put = items.flatMap((entry) =>
+    entry.name === replaced ? [item] : entry.name === item.name ? [] : [entry],
+  )
+  return { items: placed ? put : [...put, item], placed }
+}
+
+/**
  * Put `schema`, as the API returned it after a write, in the list of projects, as a suite of the
- * project `project`: in place of the suite's schema, or as a new suite of the project, once the
- * suite `from`, if given, is taken out of its project (see `editProjects`). A list that does not
- * hold the project, created elsewhere since it was fetched, is asked for again.
+ * project `project` (see `editProjects`). `from` is the suite as it was named before the write, if
+ * it existed: within the same project, the suite keeps its place, under its new name if renamed.
+ * Otherwise, created or moved there, it goes last in the project (D7), once taken out of its old
+ * project, and once an entry already under its name, deleted elsewhere, goes. A list that does not
+ * hold the project, created elsewhere since it was fetched, or the suite, is asked for again.
  */
 async function putSuite(
   queryClient: QueryClient,
@@ -155,20 +176,25 @@ async function putSuite(
   schema: SuiteSchema,
   from?: SuiteRef,
 ): Promise<void> {
+  // The name of the entry the suite takes the place of.
+  const replaced = from?.project === project ? from.suite : undefined
   await editProjects(queryClient, (list) => {
     let found = false
+    let outdated = false
     const items = list.map((entry) => {
       let suites = entry.suites
-      if (entry.name === from?.project) {
+      if (entry.name === from?.project && replaced === undefined) {
         suites = suites.filter((suite) => suite.name !== from.suite)
       }
       if (entry.name === project) {
         found = true
-        suites = [...suites.filter((suite) => suite.name !== schema.name), schema]
+        const put = putInPlace(suites, schema, replaced)
+        outdated = replaced !== undefined && !put.placed
+        suites = put.items
       }
       return suites === entry.suites ? entry : { ...entry, suites }
     })
-    return { items, outdated: !found }
+    return { items, outdated: outdated || !found }
   })
 }
 
@@ -204,13 +230,15 @@ export async function updateSuite(
   project: string,
   schema: SuiteSchema,
 ): Promise<void> {
-  await putSuite(queryClient, project, schema)
-  await forgetSuite(queryClient, { project, suite: schema.name }, { leaving: false })
+  const suite = suiteRef(project, schema.name)
+  await putSuite(queryClient, project, schema, suite)
+  await forgetSuite(queryClient, suite, { leaving: false })
 }
 
 /**
  * Put the suite `from`, renamed or moved to `to` (D7), in the list of projects, with the `schema` the
- * API returned: out of its old project, and into its new one (see `putSuite`). Everything read from
+ * API returned: in its place when renamed within its project, and otherwise out of its old project,
+ * and last in its new one (see `putSuite`). Everything read from
  * inside an earlier suite of the new names, deleted elsewhere, is dropped, so that the suite starts
  * afresh there, and what was read under the old names is forgotten, so that it is never shown for
  * whatever later takes them: see `forgetSuite`, and `forgetUnobserved` once the page has left
@@ -257,19 +285,19 @@ type ProjectSchema = Schemas['Project']
 
 /**
  * Put `project`, as the API returned it after a write, in the list of projects: in place of the
- * project `from`, its old name, or as a new project without `from` (see `editProjects`). An entry
- * already under its name, a project deleted elsewhere since the list was fetched, goes. A list that
- * does not hold `from`, deleted elsewhere since it was fetched, is asked for again.
+ * project `from`, its old name, or last, as a new project without `from` (D7; see `editProjects`).
+ * An entry already under its name, a project deleted elsewhere since the list was fetched, goes. A
+ * list that does not hold `from`, deleted elsewhere since it was fetched, is asked for again.
  */
 async function putProject(
   queryClient: QueryClient,
   project: ProjectSchema,
   from?: string,
 ): Promise<void> {
-  await editProjects(queryClient, (list) => ({
-    items: [...list.filter((entry) => entry.name !== project.name && entry.name !== from), project],
-    outdated: from !== undefined && !list.some((entry) => entry.name === from),
-  }))
+  await editProjects(queryClient, (list) => {
+    const { items, placed } = putInPlace(list, project, from)
+    return { items, outdated: from !== undefined && !placed }
+  })
 }
 
 /**
@@ -321,4 +349,65 @@ export async function removeProject(queryClient: QueryClient, name: string): Pro
     outdated: false,
   }))
   forgetApiKeys(queryClient)
+}
+
+/**
+ * Send the new order `saving` sends (E10, E13), and return what the API returned. A failure that
+ * says that the order was out of date (AR24), as it did not name what the API holds, or as the
+ * project was deleted elsewhere, has the list of projects fetched again. Any other, such as one to
+ * retry, leaves the list as it is.
+ */
+async function saveOrder<T>(queryClient: QueryClient, saving: Promise<T>): Promise<T> {
+  try {
+    return await saving
+  } catch (failure) {
+    refetchProjectsOn(queryClient, failure, ['invalid_request', 'not_found'])
+    throw failure
+  }
+}
+
+const nameOf = (entry: { name: string }) => entry.name
+
+/**
+ * Put the projects in the order `order`, the name of every project (E13), and the cached projects
+ * in the order the API returned, once a list on its way, which may still have the old order, is
+ * cancelled (see `editProjects`). The cached entries are kept, rather than replaced by the
+ * response, which may be older than a write that landed in the cache before it, such as a rename:
+ * a list that holds other names than the response is asked for again.
+ */
+export async function reorderProjects(queryClient: QueryClient, order: string[]): Promise<void> {
+  const reordered = await saveOrder(
+    queryClient,
+    unwrap(authedApi.PATCH('/api/projects', { body: { order } })),
+  )
+  const names = reordered.items.map(nameOf)
+  await editProjects(queryClient, (list) => arrangeBy(list, names, nameOf))
+}
+
+/**
+ * Put the suites of the project `project` in the order `order`, the name of each of them (E10), and
+ * its cached suites in the order the API returned (see `reorderProjects`). A list that does not
+ * hold the project, created elsewhere since it was fetched, is asked for again.
+ */
+export async function reorderSuites(
+  queryClient: QueryClient,
+  project: string,
+  order: string[],
+): Promise<void> {
+  const params = { path: { project } }
+  const reordered = await saveOrder(
+    queryClient,
+    unwrap(authedApi.PATCH('/api/projects/{project}/suites', { params, body: { order } })),
+  )
+  const names = reordered.items.map(nameOf)
+  await editProjects(queryClient, (list) => {
+    let outdated = !list.some((entry) => entry.name === project)
+    const items = list.map((entry) => {
+      if (entry.name !== project) return entry
+      const arranged = arrangeBy(entry.suites, names, nameOf)
+      outdated = arranged.outdated
+      return { ...entry, suites: arranged.items }
+    })
+    return { items, outdated }
+  })
 }
