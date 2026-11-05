@@ -120,7 +120,7 @@ TAGS: list[dict[str, str]] = [
     },
     {
         "name": "Time Series",
-        "description": "A metric's values over time, and trends across machines.",
+        "description": "Measured values over time, and trends across machines.",
     },
     {
         "name": "Regressions",

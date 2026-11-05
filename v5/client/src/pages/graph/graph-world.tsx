@@ -70,16 +70,17 @@ export const SAMPLES: Record<string, Sample[]> = {
 export const commitAt = (ordinal: number) =>
   commit(`c${ordinal}`, { ordinal, fields: { svn_revision: `r${ordinal}`, commit_info: null } })
 
+/** A line of `GET /series` for `metric`, the one metric the Graph page asks for at a time. */
 export const pointOf = (
   machineName: string,
   test: string,
   [commit, run, value, measuredAt = '2026-08-25T14:22:41Z']: Sample,
+  metric = 'execution_time',
 ) =>
   ({
     test,
     machine: machineName,
-    metric: 'execution_time',
-    value,
+    metrics: { [metric]: value },
     commit,
     ordinal: Number(commit.slice(1)),
     run_uuid: run,
@@ -135,11 +136,12 @@ export function mockWorld({
   answerSeries(recorded, (query) => {
     const machineName = query.get('machine')!
     const commit = query.get('commit')
-    const measured = samplesOf[query.get('metric')!] ?? samples
+    const metric = query.get('metric')!
+    const measured = samplesOf[metric] ?? samples
     const points = query.getAll('test').flatMap((test) =>
       (measured[`${machineName}/${test}`] ?? [])
         .filter(([at]) => commit === null || at === commit)
-        .map((s) => pointOf(machineName, test, s)),
+        .map((s) => pointOf(machineName, test, s, metric)),
     )
     return ndjsonResponse([points])
   })

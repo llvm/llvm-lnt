@@ -113,7 +113,7 @@ GET    /api/projects/{project}/suites/{suite}/runs/{uuid}/profiles           rea
 
 GET    /api/projects/{project}/suites/{suite}/tests                          read    List tests (search=, machine=, metric=)
 
-GET    /api/projects/{project}/suites/{suite}/series                         read    A machine's series for one metric, as NDJSON
+GET    /api/projects/{project}/suites/{suite}/series                         read    A machine's samples of some metrics, as NDJSON
 GET    /api/projects/{project}/suites/{suite}/trends                         read    Per-commit geomeans, per machine
 
 GET    /api/projects/{project}/suites/{suite}/profiles/{uuid}                read    A profile's top-level counters
@@ -278,13 +278,16 @@ lists it after the machines LNT monitors wherever a machine is picked, so that
 experiments don't crowd them.
 
 **Read a machine's history** with
-`GET /series?machine=linux-x86_64&metric=execution_time`. It streams every value
-of the metric on that machine as newline-delimited JSON, unpaginated, one
-sample per line:
+`GET /series?machine=linux-x86_64&metric=execution_time`. It streams every
+sample of that machine that has a value for the metric, as newline-delimited
+JSON, unpaginated, one sample per line. Repeat `metric=` for several
+(`&metric=compile_time`): a sample's `metrics` holds those of them it has a
+value for, measured together.
 
 ```json
-{"test": "bench/foo", "machine": "linux-x86_64", "metric": "execution_time",
- "value": 1.23, "commit": "abc123", "ordinal": 593922, "tag": null,
+{"test": "bench/foo", "machine": "linux-x86_64",
+ "metrics": {"execution_time": 1.23, "compile_time": 0.45},
+ "commit": "abc123", "ordinal": 593922, "tag": null,
  "run_uuid": "573af861-8303-4a5b-a643-b8321e0142c4",
  "submitted_at": "2026-08-25T14:22:41Z", "measured_at": "2026-08-25T14:02:17Z"}
 ```
@@ -308,7 +311,7 @@ ordinal that have data. Each test's samples in a run are reduced by
 the runs at a commit are combined by another geomean. The metric must be
 numeric.
 
-**Follow up on a data point** through its `run_uuid`: `GET /runs/{uuid}`,
+**Follow up on a sample of a series** through its `run_uuid`: `GET /runs/{uuid}`,
 `GET /runs/{uuid}/samples?test=bench/foo`, and `GET /runs/{uuid}/profiles`. A
 profile is then read through its own UUID; every counter is a raw count.
 `GET /profiles/{uuid}/document` returns it whole, as plain JSON: gzip-compressed

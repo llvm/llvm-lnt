@@ -1321,7 +1321,15 @@ class TestCaseSensitiveNames:
             series = api_client.get(
                 f"{SUITES}/nts/series", params={"machine": "m", "metric": metric}
             )
-            assert [point["value"] for point in ndjson_lines(series)] == values
+            assert [point["metrics"][metric] for point in ndjson_lines(series)] == values
+
+        both = api_client.get(
+            f"{SUITES}/nts/series", params={"machine": "m", "metric": ["IPC", "ipc"]}
+        )
+        assert [point["metrics"] for point in ndjson_lines(both)] == [
+            {"IPC": 1.5, "ipc": 2.5},
+            {"IPC": 3.5},
+        ]
 
     def test_a_field_is_updated_without_its_twin(
         self, api_client: TestClient, manage: dict[str, str], run: str

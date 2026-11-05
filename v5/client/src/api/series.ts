@@ -35,14 +35,17 @@ export interface Measurement {
   value: number
 }
 
-/** A line of `GET /series` (E9), as the Graph page keeps it. */
-function measurementOf(point: Schemas['DataPoint']): Measurement {
-  // The Graph page plots numeric metrics only (GR1).
-  const { commit, run_uuid: run, measured_at: measured, value } = point
-  return { commit, run, measured, value: value as number }
+/** A line of `GET /series` (E9) asked for `metric` alone, as the Graph page keeps it. */
+function measurementOf(point: Schemas['DataPoint'], metric: string): Measurement {
+  const { commit, run_uuid: run, measured_at: measured, metrics } = point
+  // The Graph page plots numeric metrics only (GR1), and a line has a value for the one asked for.
+  return { commit, run, measured, value: metrics[metric] as number }
 }
 
 type SeriesQuery = operations['get_series']['parameters']['query']
+
+/** A query of `GET /series` for a single metric, the only kind the Graph page sends. */
+type MeasurementQuery = Omit<SeriesQuery, 'metric'> & { metric: string }
 
 /** Every line of `GET /series` in `suite` for `query`, once the whole response has arrived. */
 export async function fetchSeries(
@@ -89,11 +92,14 @@ const slots = new RequestSlots(6)
  */
 export async function fetchMeasurements(
   suite: SuiteRef,
-  query: SeriesQuery,
+  query: MeasurementQuery,
   signal: AbortSignal,
 ): Promise<Measurement[]> {
-  const points = await slots.run(signal, () => fetchSeries(suite, query, signal))
-  return points.map(measurementOf)
+  const { metric } = query
+  const points = await slots.run(signal, () =>
+    fetchSeries(suite, { ...query, metric: [metric] }, signal),
+  )
+  return points.map((point) => measurementOf(point, metric))
 }
 
 /**

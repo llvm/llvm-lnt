@@ -341,8 +341,7 @@ class TestTimeSeries:
                 {
                     "test": test,
                     "machine": machine,
-                    "metric": "execution_time",
-                    "value": sample["metrics"]["execution_time"],
+                    "metrics": {"execution_time": sample["metrics"]["execution_time"]},
                     "commit": run["commit"]["value"],
                     "ordinal": run["commit"]["ordinal"],
                     "run_uuid": run["uuid"],
@@ -359,6 +358,32 @@ class TestTimeSeries:
             # `submitted_at` is the server's clock, which nothing submitted can predict.
             stripped = [{k: v for k, v in point.items() if k != "submitted_at"} for point in served]
             assert canonical(stripped) == canonical(expected)
+
+    def test_a_series_of_every_metric_holds_the_samples_a_run_reads_back_with(
+        self, api_client: TestClient, dataset: Dataset, submitted: list[Any]
+    ) -> None:
+        # E9 and E6: asked for every metric, each line carries a sample's `metrics` as the run's
+        # sample list does, and the lines of one run are its samples, those with no value aside.
+        test = dataset.series_test
+        metrics = [metric["name"] for metric in dataset.schema["metrics"]]
+        for machine in dataset.machine_names:
+            served = series(
+                api_client, dataset, {"metric": metrics, "machine": machine, "test": test}
+            )
+
+            by_run: dict[str, list[dict[str, Any]]] = {}
+            for point in served:
+                by_run.setdefault(point["run_uuid"], []).append(point["metrics"])
+            runs = [run for run in dataset.submissions if run["machine"]["name"] == machine]
+            assert set(by_run) <= {run["uuid"] for run in runs}
+            for run in runs:
+                read_back = walk_pages(
+                    api_client,
+                    dataset.url(SAMPLES_PATH, uuid=run["uuid"]),
+                    urlencode({"test": test}),
+                )
+                expected = [sample["metrics"] for sample in read_back if sample["metrics"]]
+                assert canonical(by_run.get(run["uuid"], [])) == canonical(expected)
 
     def test_trends_are_the_geomean_of_the_run_geomeans(
         self, api_client: TestClient, dataset: Dataset, submitted: list[Any]

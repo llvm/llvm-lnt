@@ -1167,7 +1167,7 @@ class TestMetricsNamedLikeTheKeysOfATestEntry:
         for metric, values in (("name", [1.5, 3.5]), ("profile", [2.5])):
             series = api_client.get(f"{base}/series", params={"machine": "linux", "metric": metric})
             points = ndjson_lines(series)
-            assert sorted((point["test"], point["value"]) for point in points) == [
+            assert sorted((point["test"], point["metrics"][metric]) for point in points) == [
                 ("bench", value) for value in values
             ]
         for metric in ("name", "profile"):

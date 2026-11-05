@@ -15,12 +15,12 @@ carries it in a query parameter. `test_id` below is what resolves it, here rathe
 
 from __future__ import annotations
 
-from collections.abc import Sequence
+from collections.abc import Collection, Sequence
 from typing import Annotated, Any
 
 from fastapi import APIRouter, Query
 from pydantic import BaseModel, Field
-from sqlalchemy import ColumnElement, Connection, Row, Select, Table, select
+from sqlalchemy import ColumnElement, Connection, Row, Select, Table, or_, select
 
 from lnt_v5 import examples
 from lnt_v5.auth import require_scope
@@ -77,8 +77,9 @@ class Tests:
     def search(self, term: str) -> ColumnElement[bool]:
         return search_condition(term, self.table, ["name"])
 
-    def has_sample(self, machine: int | None, metric: Metric | None) -> ColumnElement[bool]:
-        """Whether this test has a sample -- on that machine, carrying that metric, if asked.
+    def has_sample(self, machine: int | None, metrics: Collection[Metric]) -> ColumnElement[bool]:
+        """Whether this test has a sample -- on that machine, if asked, carrying one of `metrics`.
+        No metric at all means no condition on metrics, rather than one no sample meets.
 
         One predicate for both filters rather than two independent ones, the same choice
         `Commits.has_run` makes: `?machine=m&metric=execution_time` asks which tests have an
@@ -89,8 +90,8 @@ class Tests:
         conditions: list[ColumnElement[bool]] = [self._coverage.c.test_id == self.table.c.id]
         if machine is not None:
             conditions.append(self._coverage.c.machine_id == machine)
-        if metric is not None:
-            conditions.append(self._coverage.c[metric.name].is_(True))
+        if metrics:
+            conditions.append(or_(*(self._coverage.c[metric.name].is_(True) for metric in metrics)))
         return select(1).select_from(self._coverage).where(*conditions).exists()
 
     def read(self, row: Row[Any]) -> Test:
@@ -180,7 +181,7 @@ def list_tests(
             conditions.append(
                 tests.has_sample(
                     None if machine is None else machine_id(connection, suite, machine),
-                    None if metric is None else declared_entry(suite.schema, Metric, metric),
+                    () if metric is None else [declared_entry(suite.schema, Metric, metric)],
                 )
             )
 
