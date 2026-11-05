@@ -463,10 +463,11 @@ Baseline lines (GR9), regression annotations (GR15) and the highlighted commits
 
 `?project={p}&suite={s}&machine={name}&machine={name2}&metric={name}&metric={name2}&test_filter={text}&test_filter_regex=true&test={name}&test={name2}&run_agg={fn}&sample_agg={fn}&regressions={mode}&baseline={project}/{suite}/{machine}/{commit}&baseline={project2}/{suite2}/{machine2}/{commit2}&highlight={commit}&highlight={commit2}`
 
-`metric` is repeated once per metric, in the order the metrics were selected in
-(GR1), so that a URL naming a single metric, as the links of other pages do,
-plots it in a single panel. A `metric` that the suite does not declare as
-numeric is dropped, and if the URL names a metric twice, it is added once.
+`metric` is repeated once per metric, in the order of the panels (GR1), from the
+top, and a page loaded from the URL stacks its panels in that order. A URL
+naming a single metric, as the links of other pages do, plots it in a single
+panel. A `metric` that the suite does not declare as numeric is dropped, and if
+the URL names a metric twice, it is added once.
 
 `test` is present only while at most 10 tests are selected: with more, the URL
 holds no `test` at all, and the page says that the URL does not reflect the

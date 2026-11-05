@@ -1934,7 +1934,7 @@ describe('the panels of several metrics (GR1)', () => {
   /** The line across the panels at the commit of the point hovered (GR10), if any. */
   const hoverLine = () => screen.getByRole('main').querySelector('[class*="hoverLine"]')
 
-  it('plots each metric in a panel of its own, in the order of the chips, titled', async () => {
+  it('plots each metric in a panel of its own, in the order of the URL, titled', async () => {
     const recorded = mockWorld(BOTH)
     renderPage(`${BOTH_METRICS}&test=a`)
 

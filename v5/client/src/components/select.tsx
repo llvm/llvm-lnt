@@ -329,8 +329,12 @@ export function TreeSelect<Value extends string>({
       isDisabled={isDisabled}
     >
       <FieldLabel label={label} hidden={hideLabel} />
-      <Button className={styles.button}>
-        <SelectValue>{summary}</SelectValue>
+      <Button className={clsx(styles.button, styles.treeButton)}>
+        {/* Cut short when too long for the button, but whole on hover, and to assistive
+            technology, which reads the button's text. */}
+        <SelectValue className={styles.summary}>
+          <span title={summary}>{summary}</span>
+        </SelectValue>
         <span aria-hidden="true">▾</span>
       </Button>
       <Popover className={shared.popover} maxHeight={320}>

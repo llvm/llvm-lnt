@@ -55,7 +55,7 @@ import styles from './graph.module.css'
 
 interface Props {
   schema: Suite | undefined
-  /** The metrics plotted, a panel each, in the order of their chips (GR1). */
+  /** The metrics plotted, a panel each, from the top (GR1). */
   metrics: readonly Metric[]
   /** The machines plotted, in the order of their chips. */
   machines: readonly string[]

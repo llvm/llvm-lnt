@@ -796,11 +796,13 @@ describe('creating a key', () => {
     const sent = mockCreate(store)
     await pickOption('Scope', 'submit', createForm())
     fireEvent.click(within(createForm()).getByRole('radio', { name: 'Only these:' }))
+    // Checked out of order, but named in the order of the tree.
     await toggleOptions(
       'Projects and suites to restrict to',
-      ['llvm › libcxx', 'llvm › nts'],
+      ['llvm › nts', 'llvm › libcxx'],
       createForm(),
     )
+    expect(suitesButton()).toHaveTextContent('llvm › libcxx, llvm › nts')
 
     // nts is deleted meanwhile.
     const suites = mockSuites([SUITE])

@@ -95,7 +95,7 @@ const PARAMS = {
   suite: stringParam(),
   /** The machines, in the order of their chips. */
   machine: listParam(),
-  /** The metrics, in the order of their chips, which is that of the chart's panels. */
+  /** The metrics, in the order of the chart's panels (GR1). */
   metric: listParam(),
   test_filter: trimmedStringParam(),
   test_filter_regex: booleanParam(false),
@@ -535,7 +535,7 @@ function emptyTable({ checking, schema, numeric, machines, metrics }: Chosen): s
   if (schema === undefined) return 'Select a suite first.'
   if (numeric.length === 0) return 'This suite has no numeric metric to plot.'
   if (machines.length === 0) return 'Add a machine to list its tests.'
-  if (metrics.length === 0) return 'Add a metric to list the tests that have it.'
+  if (metrics.length === 0) return 'Select a metric to list the tests that have it.'
   if (metrics.length === 1) return 'No test has a value for this metric on the machines added.'
   return 'No test has a value for these metrics on the machines added.'
 }

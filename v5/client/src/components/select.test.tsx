@@ -472,6 +472,11 @@ describe('TreeSelect with a flat list', () => {
 
     rerender(metrics(['code_size', 'execution_time']))
     expect(selectButton('Metrics')).toHaveTextContent('Code Size, Execution Time')
+    // What it checks is in the order of the options, whatever that of its value.
+    await user.click(selectButton('Metrics'))
+    await user.click(screen.getByRole('option', { name: 'Cycles' }))
+    expect(onChange).toHaveBeenLastCalledWith(['execution_time', 'code_size', 'cycles'])
+    await user.keyboard('{Escape}')
     rerender(metrics(['cycles', 'code_size', 'execution_time']))
     expect(selectButton('Metrics')).toHaveTextContent('3 selected')
   })

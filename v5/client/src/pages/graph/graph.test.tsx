@@ -805,7 +805,7 @@ describe('the selection (GR6, GR7, GR14)', () => {
     mockTests(() => testPage(['b']))
 
     await toggleMetric('Execution Time')
-    expect(await main().findByText('Add a metric to list the tests that have it.')).toBeVisible()
+    expect(await main().findByText('Select a metric to list the tests that have it.')).toBeVisible()
     expect(currentUrl()).toBe(
       '/graph?project=llvm&suite=libcxx&machine=m1&machine=m2&test=a&test=b',
     )
