@@ -1199,7 +1199,7 @@ class TestRegressionOperations:
 
         assert set(schemas["RegressionStateName"]["enum"]) == {
             "detected",
-            "active",
+            "confirmed",
             "not_to_be_fixed",
             "fixed",
             "false_positive",

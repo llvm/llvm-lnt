@@ -798,7 +798,7 @@ describe('the Commit Detail page', () => {
         regressions: () =>
           HttpResponse.json(
             cursorPage([
-              regression('a', { state: 'active', test_count: 3 }),
+              regression('a', { state: 'confirmed', test_count: 3 }),
               regression('b', { title: null }),
             ]),
           ),
@@ -806,7 +806,7 @@ describe('the Commit Detail page', () => {
 
       const list = await table('Regressions')
       expect(rowsOf(list)).toEqual([
-        'aaaaaaaa… | find_if slowdown | active | 3',
+        'aaaaaaaa… | find_if slowdown | confirmed | 3',
         'bbbbbbbb… | (untitled) | detected | 0',
       ])
       expect(within(list).getByRole('link', { name: 'bbbbbbbb…' })).toHaveAttribute(

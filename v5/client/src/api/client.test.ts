@@ -149,11 +149,11 @@ describe('query parameters', () => {
       api.GET('/api/projects/{project}/suites/{suite}/regressions', {
         params: {
           path: { project: 'llvm', suite: 'nts' },
-          query: { state: ['detected', 'active'], sort: '-created_at' },
+          query: { state: ['detected', 'confirmed'], sort: '-created_at' },
         },
       }),
     )
-    expect(query).toBe('?state=detected&state=active&sort=-created_at')
+    expect(query).toBe('?state=detected&state=confirmed&sort=-created_at')
   })
 
   it('leaves out a parameter that is null or undefined', async () => {

@@ -484,13 +484,13 @@ a URL naming more than 100 tests, which the page never writes, only the first
 
 A dropdown toggle "Regressions: Off | Active | All" (default Off) in the
 controls panel. "Active" covers the regressions still being worked on
-(`detected` and `active`), and "All" covers every state. When enabled, a
-vertical dashed line is drawn in each panel at the commit of each regression
-with an indicator naming one of the plotted machines, the panel's metric, and
-one of the selected tests. A regression with indicators on several of the
-selected metrics is therefore drawn in each of their panels. Lines are
-color-coded by state: red for `active`, yellow for `detected`, and gray for the
-resolved states (`not_to_be_fixed`, `fixed` and `false_positive`). The line
+(`detected` and `confirmed`, see E8), and "All" covers every state. When
+enabled, a vertical dashed line is drawn in each panel at the commit of each
+regression with an indicator naming one of the plotted machines, the panel's
+metric, and one of the selected tests. A regression with indicators on several
+of the selected metrics is therefore drawn in each of their panels. Lines are
+color-coded by state: red for `confirmed`, yellow for `detected`, and gray for
+the resolved states (`not_to_be_fixed`, `fixed` and `false_positive`). The line
 itself is not hovered, so that the points along it can be: each line has a
 marker of its color at the top of its panel, stacked downwards when several
 regressions share a commit. A regression affects a selected test in a panel when

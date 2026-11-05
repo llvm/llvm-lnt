@@ -737,7 +737,7 @@ describe('the samples of the point whose details are open (GR10, GR11)', () => {
 const REGRESSIONS = [
   regression('1', {
     title: 'a slowed down',
-    state: 'active',
+    state: 'confirmed',
     commit: 'c20',
     bug: 'https://example.com/bugs/1',
   }),
@@ -804,7 +804,7 @@ describe('the regression annotations (GR15)', () => {
         machine: ['m1', 'm2'],
         test: ['a'],
         metric: 'execution_time',
-        state: ['detected', 'active', 'not_to_be_fixed', 'fixed', 'false_positive'],
+        state: ['detected', 'confirmed', 'not_to_be_fixed', 'fixed', 'false_positive'],
         limit: 10000,
         cursor: null,
       },
@@ -813,13 +813,13 @@ describe('the regression annotations (GR15)', () => {
     expect(lists.at(-1)?.get('metric')).toBe('execution_time')
     expect(lists.at(-1)?.get('has_commit')).toBe('true')
 
-    const [active, fixed] = markers()
-    expect(active.x).toEqual(['c20'])
-    expect(active.marker.color).toBe('#dc2626')
-    expect(hoverText(active, 0)).toContain('<b>a slowed down</b><br>Affects:<br>a<br>')
+    const [confirmed, fixed] = markers()
+    expect(confirmed.x).toEqual(['c20'])
+    expect(confirmed.marker.color).toBe('#dc2626')
+    expect(hoverText(confirmed, 0)).toContain('<b>a slowed down</b><br>Affects:<br>a<br>')
     expect(fixed.marker.color).toBe('#6b7280')
     expect(hoverText(fixed, 0)).toContain('<b>(untitled)</b>')
-    expect((fixed.y as number[])[0]).toBeLessThan((active.y as number[])[0])
+    expect((fixed.y as number[])[0]).toBeLessThan((confirmed.y as number[])[0])
     // The lines, at the commits on the x-axis only.
     expect(layout().shapes?.map((shape) => [shape.x0, shape.line?.color])).toEqual([
       ['c20', '#dc2626'],
@@ -836,7 +836,7 @@ describe('the regression annotations (GR15)', () => {
     await pickOption('Regressions', 'Active')
 
     expect(currentUrl()).toContain('regressions=active')
-    await waitFor(() => expect(lookups.at(-1)?.state).toEqual(['detected', 'active']))
+    await waitFor(() => expect(lookups.at(-1)?.state).toEqual(['detected', 'confirmed']))
   })
 
   it("shows the details of the regression whose marker is clicked, linking to it", async () => {
@@ -850,7 +850,7 @@ describe('the regression annotations (GR15)', () => {
 
     const dialog = screen.getByRole('dialog', { name: 'Regression: a slowed down' })
     expect(dialog).toHaveFocus()
-    expect(details().getByText('active')).toBeInTheDocument()
+    expect(details().getByText('confirmed')).toBeInTheDocument()
     expect(details().getByRole('link', { name: 'r20' })).toHaveAttribute(
       'href',
       '/projects/llvm/suites/libcxx/commits/c20',

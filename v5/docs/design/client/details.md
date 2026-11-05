@@ -147,9 +147,9 @@ invalid (see AR11):
 
 ### Active regressions table
 
-A section showing non-resolved regressions (state: detected, active) with at least one
-indicator on this machine, newest first
-(`GET /regressions?machine={name}&state=detected&state=active&sort=-created_at&limit=25`).
+A section showing the regressions still being worked on (`detected` and `confirmed`, see E8)
+with at least one indicator on this machine, newest first
+(`GET /regressions?machine={name}&state=detected&state=confirmed&sort=-created_at&limit=25`).
 Each row's title links to its regression detail page.
 
 Each row shows:
@@ -160,7 +160,7 @@ Each row shows:
 - Tests: the regression's `test_count`, which counts the tests across all of its
   indicators rather than only those on this machine
 
-If there are no unresolved regressions for the machine, it shows "No active regressions on this machine."
+If the machine has no such regressions, it shows "No active regressions on this machine."
 The table has no Previous/Next: below it, a "Show all regressions" button links to the
 Regressions tab of the Projects page, filtered by this machine only, whatever the state.
 It is shown even when the table is empty, since the machine may have resolved regressions.
@@ -374,7 +374,7 @@ libc++ › Benchmarks › Regressions
 
 +---------------------------------------------------------------+
 | Title      find_if slowdown                          [Edit]   |
-| State      (active) [active v]                                |
+| State      (confirmed) [confirmed v]                          |
 | Bug        https://github.com/llvm/llvm-project/...  [Edit]   |
 | Commit     014621ede7c1                              [Edit]   |
 | Created    2026-08-31, 3:03:36 PM                             |

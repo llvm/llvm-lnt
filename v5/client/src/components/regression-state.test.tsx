@@ -29,7 +29,7 @@ describe('StateChips', () => {
     const chips = within(screen.getByRole('group', { name: 'State' })).getAllByRole('button')
     expect(chips.map((chip) => chip.textContent)).toEqual([
       'detected',
-      'active',
+      'confirmed',
       'not to be fixed',
       'fixed',
       'false positive',

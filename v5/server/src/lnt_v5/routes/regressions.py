@@ -161,7 +161,7 @@ _CREATE_EXAMPLES = {
 _UPDATE_EXAMPLES = {
     "triage": {
         "summary": "Confirm a regression and link its bug",
-        "value": {"state": "active", "bug": examples.BUG},
+        "value": {"state": "confirmed", "bug": examples.BUG},
     },
     "detach": {"summary": "Clear the suspected commit", "value": {"commit": None}},
 }
@@ -192,7 +192,7 @@ _QUERY_EXAMPLES = {
             "machine": [examples.MACHINE],
             "test": [examples.TEST, examples.OTHER_TEST],
             "metric": examples.METRIC,
-            "state": ["detected", "active"],
+            "state": ["detected", "confirmed"],
         },
     }
 }
@@ -938,7 +938,7 @@ def list_regressions(
         Query(
             description=(
                 "Only return regressions in one of these states. Repeat the parameter for several "
-                "states: `state=active&state=detected`. Leave out to return all states."
+                "states: `state=confirmed&state=detected`. Leave out to return all states."
             )
         ),
     ] = None,

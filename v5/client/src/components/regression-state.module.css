@@ -1,5 +1,5 @@
-/* The colours of the states (GR15): red for active, yellow for detected, grey once resolved. */
-.active {
+/* The colours of the states (GR15): red for confirmed, yellow for detected, grey once resolved. */
+.confirmed {
   --state-bg: #fde2e2;
   --state-fg: #991b1b;
   --state-border: #f5a3a3;

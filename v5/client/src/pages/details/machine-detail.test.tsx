@@ -1144,11 +1144,11 @@ describe('the Machine Detail page', () => {
   })
 
   describe('its active regressions', () => {
-    it('are those detected or active on the machine, newest first, by UUID and title', async () => {
+    it('are those detected or confirmed on the machine, newest first, by UUID and title', async () => {
       const long = 'x'.repeat(60)
       const { regressionQueries } = renderMachine({
         regressions: [
-          regression('a', { title: 'find_if slowdown', state: 'active', test_count: 12 }),
+          regression('a', { title: 'find_if slowdown', state: 'confirmed', test_count: 12 }),
           regression('b', { title: long, test_count: 1 }),
           regression('c', { title: null }),
         ],
@@ -1156,7 +1156,7 @@ describe('the Machine Detail page', () => {
 
       const list = await table('Active regressions')
       expect(rowsOf(list)).toEqual([
-        'aaaaaaaa… | find_if slowdown | active | 12',
+        'aaaaaaaa… | find_if slowdown | confirmed | 12',
         `bbbbbbbb… | ${'x'.repeat(49)}… | detected | 1`,
         'cccccccc… | (untitled) | detected | 0',
       ])
@@ -1177,7 +1177,7 @@ describe('the Machine Detail page', () => {
       expect(regressionQueries).toHaveLength(1)
       const query = regressionQueries[0]
       expect(query.get('machine')).toBe(NAME)
-      expect(query.getAll('state')).toEqual(['detected', 'active'])
+      expect(query.getAll('state')).toEqual(['detected', 'confirmed'])
       expect(query.get('sort')).toBe('-created_at')
       expect(query.get('limit')).toBe('25')
     })

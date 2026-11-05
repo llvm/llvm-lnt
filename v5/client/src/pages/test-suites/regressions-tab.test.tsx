@@ -72,7 +72,7 @@ describe('the Regressions tab', () => {
       cursorPage([
         regression('a', {
           title: 'find_if slowdown',
-          state: 'active',
+          state: 'confirmed',
           commit: 'abc123',
           machine_count: 2,
           test_count: 12,
@@ -87,7 +87,7 @@ describe('the Regressions tab', () => {
     await waitFor(() =>
       expect(rowsOf(list)).toEqual([
         // The bug, cut short, then whole for assistive technology.
-        'aaaaaaaa… | find_if slowdown | active | r100 (v1) | 2 | 12 | 2026-08-31, 3:03:36 PM | ' +
+        'aaaaaaaa… | find_if slowdown | confirmed | r100 (v1) | 2 | 12 | 2026-08-31, 3:03:36 PM | ' +
           'https://github.com/llvm/llvm-…https://github.com/llvm/llvm-project/issues/1234 | Delete',
         'bbbbbbbb… | (untitled) | not to be fixed | -- | 0 | 0 | 2026-08-31, 3:03:36 PM | ' +
           'PR1234 | Delete',
@@ -177,7 +177,7 @@ describe('the Regressions tab', () => {
     await waitFor(() => expect(regressions).toHaveLength(2))
 
     fireEvent.click(screen.getByRole('button', { name: 'fixed' }))
-    fireEvent.click(screen.getByRole('button', { name: 'active' }))
+    fireEvent.click(screen.getByRole('button', { name: 'confirmed' }))
     const user = userEvent.setup()
     await user.type(machineInput(), 'macos')
     await user.click(await screen.findByRole('option', { name: 'macos-arm64' }))
@@ -187,12 +187,12 @@ describe('the Regressions tab', () => {
 
     await waitFor(() =>
       expect(currentUrl()).toBe(
-        '/projects/llvm/suites/libcxx?tab=regressions&state=active&state=fixed&machine=macos-arm64' +
+        '/projects/llvm/suites/libcxx?tab=regressions&state=confirmed&state=fixed&machine=macos-arm64' +
           '&metric=execution_time&has_commit=false&search=slow',
       ),
     )
     const last = regressions.at(-1)!
-    expect(last.getAll('state')).toEqual(['active', 'fixed'])
+    expect(last.getAll('state')).toEqual(['confirmed', 'fixed'])
     expect(last.get('machine')).toBe('macos-arm64')
     expect(last.get('metric')).toBe('execution_time')
     expect(last.get('has_commit')).toBe('false')
@@ -208,7 +208,7 @@ describe('the Regressions tab', () => {
 
     await table('Regressions')
     expect(screen.getByRole('button', { name: 'detected' })).toHaveAttribute('aria-pressed', 'true')
-    expect(screen.getByRole('button', { name: 'active' })).toHaveAttribute('aria-pressed', 'false')
+    expect(screen.getByRole('button', { name: 'confirmed' })).toHaveAttribute('aria-pressed', 'false')
     expect(machineInput()).toHaveValue('linux-x86_64')
     expect(selectButton('Metric')).toHaveTextContent('Execution Time')
     expect(screen.getByLabelText('No commit set')).toBeChecked()
@@ -443,7 +443,7 @@ describe('creating a regression', () => {
 
     fireEvent.change(within(form).getByLabelText('Title'), { target: { value: ' find_if slow ' } })
     fireEvent.change(within(form).getByLabelText('Bug'), { target: { value: 'https://bugs/1' } })
-    await pickOption('State', 'active', form)
+    await pickOption('State', 'confirmed', form)
     const picker = within(form).getByRole('combobox', { name: 'Commit' })
     const user = userEvent.setup()
     await user.type(picker, 'abc')
@@ -453,7 +453,7 @@ describe('creating a regression', () => {
 
     await waitFor(() => expect(currentUrl()).toBe(`/projects/llvm/suites/libcxx/regressions/${uuidOf('c')}`))
     expect(bodies).toEqual([
-      { title: 'find_if slow', bug: 'https://bugs/1', state: 'active', commit: 'abc123' },
+      { title: 'find_if slow', bug: 'https://bugs/1', state: 'confirmed', commit: 'abc123' },
     ])
     expect(headers).toEqual([`Bearer ${TOKEN}`])
     // The picker offers every commit of the suite.

@@ -777,7 +777,7 @@ Regression state values:
 | Value | Name             |
 |-------|------------------|
 | 0     | detected         |
-| 1     | active           |
+| 1     | confirmed        |
 | 2     | not_to_be_fixed  |
 | 3     | fixed            |
 | 4     | false_positive   |

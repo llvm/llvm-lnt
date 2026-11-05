@@ -25,7 +25,7 @@ class RegressionState(IntEnum):
     """
 
     DETECTED = 0
-    ACTIVE = 1
+    CONFIRMED = 1
     NOT_TO_BE_FIXED = 2
     FIXED = 3
     FALSE_POSITIVE = 4
@@ -42,12 +42,12 @@ class RegressionState(IntEnum):
 #
 # The class docstring is published: it is this enum's description in I8's document.
 class RegressionStateName(StrEnum):
-    """The state of a regression. `detected` and `active` mean it is still being worked on;
+    """The state of a regression. `detected` and `confirmed` mean it is still being worked on;
     `not_to_be_fixed`, `fixed` and `false_positive` mean it is resolved. A regression can move from
     any state to any other."""
 
     DETECTED = auto()
-    ACTIVE = auto()
+    CONFIRMED = auto()
     NOT_TO_BE_FIXED = auto()
     FIXED = auto()
     FALSE_POSITIVE = auto()

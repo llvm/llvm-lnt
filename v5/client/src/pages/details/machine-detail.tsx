@@ -306,7 +306,7 @@ function Actions({ suite, machine }: { suite: SuiteRef; machine: Machine }) {
 }
 
 /**
- * The regressions still being worked on (detected and active) with an indicator on the machine,
+ * The regressions still being worked on (detected and confirmed) with an indicator on the machine,
  * newest first: the first page only, with a link to all of the machine's regressions (DT1).
  */
 function ActiveRegressions({ suite, name }: { suite: SuiteRef; name: string }) {

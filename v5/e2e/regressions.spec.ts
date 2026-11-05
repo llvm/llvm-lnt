@@ -108,10 +108,10 @@ test.describe('filtering', () => {
 
   test('a deep link restores the filters', async ({ page }) => {
     await page.goto(
-      `/projects/libcxx/suites/benchmarks?tab=regressions&state=active&machine=${HARDENED}`,
+      `/projects/libcxx/suites/benchmarks?tab=regressions&state=confirmed&machine=${HARDENED}`,
     )
 
-    await expect(page.getByRole('button', { name: 'active', exact: true })).toHaveAttribute(
+    await expect(page.getByRole('button', { name: 'confirmed', exact: true })).toHaveAttribute(
       'aria-pressed',
       'true',
     )
@@ -255,7 +255,7 @@ test('creates a regression with a commit picked through the picker', async ({
     await create.click()
     const form = page.getByRole('form', { name: 'New regression' })
     await form.getByLabel('Title').fill(title)
-    await pickOption(form, 'State', 'active')
+    await pickOption(form, 'State', 'confirmed')
     const picker = form.getByRole('combobox', { name: 'Commit' })
     // The tag is searched, and only one commit has it.
     await typeInto(picker, TAG)
@@ -272,7 +272,7 @@ test('creates a regression with a commit picked through the picker', async ({
     const created = (await (
       await request.get(`/api/projects/libcxx/suites/benchmarks/regressions/${uuid}`)
     ).json()) as RegressionDetail
-    expect(created).toMatchObject({ title, state: 'active' })
+    expect(created).toMatchObject({ title, state: 'confirmed' })
     const commit = await (
       await request.get(`/api/projects/libcxx/suites/benchmarks/commits/${created.commit}`)
     ).json()

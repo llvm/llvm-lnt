@@ -153,7 +153,7 @@ Deleting a suite, or removing entries from its schema, destroys data and needs
   rejected with `invalid_cursor` (400) means: start again from the first page.
 - **Sorting**: `sort=<name>`, prefixed with `-` for descending.
 - **Query parameters**: give several values by repeating the parameter
-  (`?state=active&state=detected`). A parameter the endpoint does not take is
+  (`?state=confirmed&state=detected`). A parameter the endpoint does not take is
   400 rather than ignored, and so is repeating one that takes a single value.
 - **Errors**: `{"error": {"code": "...", "message": "..."}}`. Branch on `code`,
   never on `message`. The codes are `invalid_request` and `invalid_cursor`
@@ -347,7 +347,7 @@ regression itself with `GET /regressions/{uuid}`.
 ```
 
 Every key is optional; `bug`, `notes` and `state` are accepted too. The state
-defaults to `detected`, and moves freely between `detected`, `active`,
+defaults to `detected`, and moves freely between `detected`, `confirmed`,
 `not_to_be_fixed`, `fixed` and `false_positive` through `PATCH`. As for a run,
 `uuid` is optional and generated when omitted; choose your own to make the
 request safe to retry.

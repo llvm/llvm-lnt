@@ -5,7 +5,7 @@ import styles from './regression-state.module.css'
 /** The class giving each state its colours. */
 const STATE_CLASS: Record<RegressionState, string> = {
   detected: styles.detected,
-  active: styles.active,
+  confirmed: styles.confirmed,
   not_to_be_fixed: styles.notToBeFixed,
   fixed: styles.fixed,
   false_positive: styles.falsePositive,
@@ -13,7 +13,7 @@ const STATE_CLASS: Record<RegressionState, string> = {
 
 /**
  * A regression's state, coloured as the Graph page colours its annotations (GR15): red for
- * `active`, yellow for `detected`, and grey for the resolved states.
+ * `confirmed`, yellow for `detected`, and grey for the resolved states.
  */
 export function StateBadge({ state }: { state: RegressionState }) {
   return <span className={clsx(styles.badge, STATE_CLASS[state])}>{stateLabel(state)}</span>
