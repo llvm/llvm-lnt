@@ -28,7 +28,7 @@ import {
   TEXT_SUITE,
   TESTS,
   addMachine,
-  addMetric,
+  toggleMetric,
   box,
   chart,
   commitAt,
@@ -37,7 +37,6 @@ import {
   listed,
   mockWorld,
   pointOf,
-  removeMetric,
   testPage,
   testTable,
   answerSeries,
@@ -87,51 +86,54 @@ describe('the Graph page (GR1)', () => {
     expect(await main().findByText('Select a suite first.')).toBeInTheDocument()
     expect(selectButton('Suite')).toHaveTextContent('-- Select suite --')
     expect(screen.getByRole('combobox', { name: 'Machines' })).toBeDisabled()
-    expect(screen.getByRole('combobox', { name: 'Metrics' })).toBeDisabled()
+    expect(selectButton('Metrics')).toBeDisabled()
     expect(screen.getByRole('searchbox', { name: 'Filter tests' })).toBeDisabled()
     // GR12: the overlay, with no axis to keep.
     expect(layout().annotations?.[0]?.text).toBe('No data to plot')
   })
 
-  it('offers only the numeric metrics of the suite selected', async () => {
+  it('offers only the numeric metrics of the suite selected, checking none', async () => {
     mockWorld()
     renderPage('/graph')
 
     await pickSuite('Suite', 'llvm', 'libcxx')
     expect(currentUrl()).toBe('/graph?project=llvm&suite=libcxx')
-    const input = screen.getByRole('combobox', { name: 'Metrics' })
-    expect(input).toHaveValue('')
-    expect(input).toHaveAttribute('placeholder', 'Add a metric...')
-    await userEvent.setup().type(input, 'Time')
-    const options = (await screen.findAllByRole('option')).map((option) => option.textContent)
+    expect(selectButton('Metrics')).toHaveTextContent('-- Select metrics --')
+    await userEvent.setup().click(selectButton('Metrics'))
+    const options = screen.getAllByRole('option').map((option) => option.textContent)
     expect(options).toEqual(['Execution Time', 'Compile Time'])
+    expect(screen.getAllByRole('option').map((option) => option.ariaSelected)).toEqual([
+      'false',
+      'false',
+    ])
   })
 
-  it('adds metrics as chips, in order, offers each once, and finds one by its name', async () => {
+  it('plots the metrics in the order they are checked, which the button names', async () => {
     mockWorld()
     renderPage('/graph?project=llvm&suite=libcxx&machine=m1')
     const user = userEvent.setup()
 
-    await addMetric('Compile Time')
-    // By its name rather than its label.
-    await user.type(screen.getByRole('combobox', { name: 'Metrics' }), 'execution_t')
-    await user.click(await screen.findByRole('option', { name: 'Execution Time' }))
+    // The list stays open while metrics are checked, each going after those checked before.
+    await user.click(selectButton('Metrics'))
+    await user.click(screen.getByRole('option', { name: 'Compile Time' }))
+    await user.click(screen.getByRole('option', { name: 'Execution Time' }))
+    expect(screen.getByRole('listbox')).toBeVisible()
     await waitFor(() =>
       expect(query()).toMatchObject({ metric: ['compile_time', 'execution_time'] }),
     )
-    const chips = within(screen.getByRole('list', { name: 'Metrics added' }))
-    expect(chips.getAllByRole('listitem').map((chip) => chip.textContent)).toEqual([
-      'Compile Time×',
-      'Execution Time×',
-    ])
-    await user.type(screen.getByRole('combobox', { name: 'Metrics' }), 'Time')
-    // Both are added: the list has nothing left to offer.
-    expect(await screen.findByText('No matches.')).toBeInTheDocument()
     await user.keyboard('{Escape}')
+    expect(selectButton('Metrics')).toHaveTextContent('Compile Time, Execution Time')
 
-    await removeMetric('Compile Time')
-    expect(query()).toMatchObject({ metric: ['execution_time'] })
-    expect(chips.getByRole('button', { name: 'Remove Execution Time' })).toHaveFocus()
+    // Unchecking one moves those after it up; checking it again puts it last.
+    await user.click(selectButton('Metrics'))
+    await user.click(screen.getByRole('option', { name: 'Compile Time' }))
+    await waitFor(() => expect(query()).toMatchObject({ metric: ['execution_time'] }))
+    await user.click(screen.getByRole('option', { name: 'Compile Time' }))
+    await waitFor(() =>
+      expect(query()).toMatchObject({ metric: ['execution_time', 'compile_time'] }),
+    )
+    await user.keyboard('{Escape}')
+    expect(selectButton('Metrics')).toHaveTextContent('Execution Time, Compile Time')
   })
 
   it('says so when the suite has no numeric metric', async () => {
@@ -780,7 +782,7 @@ describe('the selection (GR6, GR7, GR14)', () => {
       return testPage(query.get('machine') === 'm1' ? ['b'] : ['b', 'd'])
     })
 
-    await addMetric('Compile Time')
+    await toggleMetric('Compile Time')
     expect(currentUrl()).toContain('test=a&test=b')
     act(() => lists.open())
     await waitFor(() =>
@@ -792,7 +794,7 @@ describe('the selection (GR6, GR7, GR14)', () => {
     // Only the lists of the metric added (GR8).
     expect(asked.sort()).toEqual(['m1/compile_time', 'm2/compile_time'])
 
-    await removeMetric('Execution Time')
+    await toggleMetric('Execution Time')
     await waitFor(() => expect(query()).toMatchObject({ metric: ['compile_time'], test: ['b'] }))
   })
 
@@ -802,14 +804,14 @@ describe('the selection (GR6, GR7, GR14)', () => {
     await waitFor(() => expect(box('a')).toBeChecked())
     mockTests(() => testPage(['b']))
 
-    await removeMetric('Execution Time')
+    await toggleMetric('Execution Time')
     expect(await main().findByText('Add a metric to list the tests that have it.')).toBeVisible()
     expect(currentUrl()).toBe(
       '/graph?project=llvm&suite=libcxx&machine=m1&machine=m2&test=a&test=b',
     )
     expect(drawn()).toEqual([])
 
-    await addMetric('Compile Time')
+    await toggleMetric('Compile Time')
     await waitFor(() => expect(query()).toMatchObject({ metric: ['compile_time'], test: ['b'] }))
   })
 

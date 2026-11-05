@@ -53,7 +53,7 @@ export function MachineChips({
   }))
 
   return (
-    <div className={styles.chipInput} ref={root}>
+    <div className={styles.machines} ref={root}>
       <Combobox
         label="Machines"
         suggestions={suggestions}

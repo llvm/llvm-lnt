@@ -34,16 +34,17 @@ several metrics at once, each in a panel of its own.
   per-keystroke API calls). A "Loading machines..." hint is shown until the
   initial fetch completes.
 
-- **Metric chip input**: The metric selector is a chip-based multi-select input
-  as well: the user adds a metric by picking it from a combobox (see AR14), and
-  each added metric appears as a chip, labelled with the metric's label (see
-  AR6), with an x button to remove it. The combobox lists the suite's numeric
-  metrics (see D3) that are not added yet, in schema order, since non-numeric
-  metrics cannot be plotted on a value axis; typing narrows them to those whose
-  label or name contains the text, case-insensitively. No metric is added
-  initially. A metric added goes after the others, and the chips' order is the
-  order of the chart's panels. A suite with no numeric metric says so in place
-  of the input.
+- **Metric selector**: A dropdown of checkboxes, before the aggregation
+  controls, with one per numeric metric of the suite (see D3), in schema order,
+  labelled with the metric's label (see AR6): non-numeric metrics cannot be
+  plotted on a value axis. Any number of them can be checked, and the list stays
+  open while they are checked and unchecked, the chart following at once. No
+  metric is checked initially. The metrics are plotted in the order they were
+  checked, which is the order of the chart's panels: a metric checked goes after
+  the others, and unchecking one moves those after it up. The closed dropdown
+  names the metrics checked in that order, or says how many there are when they
+  are too many to name, and says to select metrics while none is checked. A
+  suite with no numeric metric says so in place of the dropdown.
 
 - **Explicit test selection**: There is no "Plot" button or auto-plot. When at
   least one machine and one metric are selected, the test table is populated
@@ -63,13 +64,13 @@ several metrics at once, each in a panel of its own.
   replaced by another without losing the selection.
 
 - **Panels**: The chart has a panel per selected metric, stacked vertically in
-  the order of the metric chips. The panels share the x-axis, whose commit
-  labels are shown once, under the bottom panel: zooming or panning along it in
-  one panel moves every panel. Each panel has a y-axis of its own, titled with
-  its metric's label followed by its unit as AR6 writes it, when it has one.
-  The panels are as tall as one another, and the chart grows taller with each
-  panel. Before any metric is selected, the chart is a single panel without a
-  title. The encoding below is the same in every panel: the panel stands for
+  the order the metrics were selected in. The panels share the x-axis, whose
+  commit labels are shown once, under the bottom panel: zooming or panning along
+  it in one panel moves every panel. Each panel has a y-axis of its own, titled
+  with its metric's label followed by its unit as AR6 writes it, when it has
+  one. The panels are as tall as one another, and the chart grows taller with
+  each panel. Before any metric is selected, the chart is a single panel without
+  a title. The encoding below is the same in every panel: the panel stands for
   the metric, which needs no encoding of its own.
 
 - **Multi-machine trace naming and symbols**: Each trace is named `{test name} -
@@ -462,10 +463,10 @@ Baseline lines (GR9), regression annotations (GR15) and the highlighted commits
 
 `?project={p}&suite={s}&machine={name}&machine={name2}&metric={name}&metric={name2}&test_filter={text}&test_filter_regex=true&test={name}&test={name2}&run_agg={fn}&sample_agg={fn}&regressions={mode}&baseline={project}/{suite}/{machine}/{commit}&baseline={project2}/{suite2}/{machine2}/{commit2}&highlight={commit}&highlight={commit2}`
 
-`metric` is repeated once per metric, in the order of the chips (GR1), so that
-a URL naming a single metric, as the links of other pages do, plots it in a
-single panel. A `metric` that the suite does not declare as numeric is dropped,
-and if the URL names a metric twice, it is added once.
+`metric` is repeated once per metric, in the order the metrics were selected in
+(GR1), so that a URL naming a single metric, as the links of other pages do,
+plots it in a single panel. A `metric` that the suite does not declare as
+numeric is dropped, and if the URL names a metric twice, it is added once.
 
 `test` is present only while at most 10 tests are selected: with more, the URL
 holds no `test` at all, and the page says that the URL does not reflect the

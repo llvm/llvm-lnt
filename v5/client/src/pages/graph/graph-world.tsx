@@ -14,7 +14,7 @@ import { chartProps } from '../../test/chart-props'
 import { BARE_SUITE, SUITE, commit, cursorPage, machine, metric } from '../../test/fixtures'
 import { mockApi, mockSeries, ndjsonResponse } from '../../test/mock-api'
 import { main, mockCommits, mockMachines, mockSuites } from '../../test/page'
-import { pick } from '../../test/select'
+import { toggleOptions } from '../../test/select'
 import { server } from '../../test/server'
 
 /** libcxx, with two numeric metrics and one that cannot be plotted. */
@@ -208,15 +208,9 @@ export async function addMachine(name: string) {
   await user.click(await screen.findByRole('option', { name }))
 }
 
-/** Add the metric labelled `label` with its combobox (GR1). */
-export function addMetric(label: string) {
-  return pick('Metrics', label)
-}
-
-/** Remove the metric labelled `label` with its chip (GR1). */
-export async function removeMetric(label: string) {
-  const metrics = within(screen.getByRole('list', { name: 'Metrics added' }))
-  await userEvent.setup().click(metrics.getByRole('button', { name: `Remove ${label}` }))
+/** Check the metric labelled `label` in the metric selector, or uncheck it if checked (GR1). */
+export function toggleMetric(label: string) {
+  return toggleOptions('Metrics', [label])
 }
 
 export const GRAPHED =

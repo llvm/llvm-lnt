@@ -41,8 +41,7 @@ import {
   GRAPHED,
   GRAPH_SUITE,
   addMachine,
-  addMetric,
-  removeMetric,
+  toggleMetric,
   answerSeries,
   box,
   chart,
@@ -1650,8 +1649,8 @@ describe('the highlighted commits (GR16)', () => {
     // Kept, by its commit string, which the x-axis no longer gives the display value of.
     expect(highlightChip()).toHaveTextContent(/^Highlighted: c40×$/)
 
-    await addMetric('Compile Time')
-    await removeMetric('Execution Time')
+    await toggleMetric('Compile Time')
+    await toggleMetric('Execution Time')
     await pickOption('Run aggregation', 'max')
     await addMachine('m2')
     await waitFor(() => expect(bands()).toEqual(['c40']))
@@ -1966,15 +1965,15 @@ describe('the panels of several metrics (GR1)', () => {
     const asked = () => recorded.series.map(({ query }) => query.get('metric'))
     expect(asked()).toEqual(['execution_time'])
 
-    await addMetric('Compile Time')
+    await toggleMetric('Compile Time')
     await waitFor(() => expect(panelTraces()).toHaveLength(2))
     expect(asked()).toEqual(['execution_time', 'compile_time'])
 
-    await removeMetric('Compile Time')
+    await toggleMetric('Compile Time')
     await waitFor(() => expect(panelTraces()).toEqual(['a - m1 on y: c10=1 c20=2']))
-    await addMetric('Compile Time')
+    await toggleMetric('Compile Time')
     await waitFor(() => expect(panelTraces()).toHaveLength(2))
-    await removeMetric('Execution Time')
+    await toggleMetric('Execution Time')
     await waitFor(() => expect(panelTraces()).toEqual(['a - m1 on y: c10=7 c20=8']))
     await settle()
     expect(asked()).toEqual(['execution_time', 'compile_time'])
@@ -2113,14 +2112,8 @@ describe('the panels of several metrics (GR1)', () => {
         '&metric=compile_time&metric=execution_time',
     )
 
-    await waitFor(() =>
-      expect(query().metric).toEqual(['compile_time', 'execution_time']),
-    )
-    const chips = within(screen.getByRole('list', { name: 'Metrics added' }))
-    expect(chips.getAllByRole('listitem').map((chip) => chip.textContent)).toEqual([
-      'Compile Time×',
-      'Execution Time×',
-    ])
+    await waitFor(() => expect(query().metric).toEqual(['compile_time', 'execution_time']))
+    expect(selectButton('Metrics')).toHaveTextContent('Compile Time, Execution Time')
   })
 
   it('resets the zoom of every panel on a double-click (GR5)', async () => {
@@ -2143,13 +2136,13 @@ describe('the panels of several metrics (GR1)', () => {
 
     click('a - m1', 1)
     expect(screen.getByRole('dialog')).toBeInTheDocument()
-    await addMetric('Compile Time')
+    await toggleMetric('Compile Time')
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
 
     await waitFor(() => expect(panelTraces()).toHaveLength(2))
     act(() => chart().onClick?.(eventIn('a - m1', 'y', 1)))
     expect(screen.getByRole('dialog')).toBeInTheDocument()
-    await removeMetric('Compile Time')
+    await toggleMetric('Compile Time')
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
   })
 
@@ -2164,7 +2157,7 @@ describe('the panels of several metrics (GR1)', () => {
     const signalOf = (metric: string) =>
       recorded.series.find(({ query }) => query.get('metric') === metric)!.signal
 
-    await removeMetric('Compile Time')
+    await toggleMetric('Compile Time')
 
     await waitFor(() => expect(signalOf('compile_time').aborted).toBe(true))
     expect(signalOf('execution_time').aborted).toBe(false)
@@ -2178,7 +2171,7 @@ describe('the panels of several metrics (GR1)', () => {
     await waitFor(() => expect(lookups).toHaveLength(1))
     await waitFor(() => expect(lists).toHaveLength(1))
 
-    await addMetric('Compile Time')
+    await toggleMetric('Compile Time')
 
     await waitFor(() => expect(lookups).toHaveLength(2))
     await waitFor(() => expect(lists).toHaveLength(2))

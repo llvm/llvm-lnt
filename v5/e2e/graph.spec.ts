@@ -19,6 +19,7 @@ import {
   pickOption,
   pickSuggestion,
   pickSuite,
+  selectButton,
 } from './select.ts'
 import { table } from './tables.ts'
 
@@ -104,7 +105,9 @@ test('plots a test chosen from scratch', async ({ page }) => {
 
   await pickSuite(page, 'Suite', 'libc++', 'Microbenchmarks')
   await pickSuggestion(page, 'Machines', LINUX)
-  await pickSuggestion(page, 'Metrics', 'Execution Time')
+  // The metric selector stays open while its metrics are checked.
+  await pickOption(page, 'Metrics', 'Execution Time')
+  await page.keyboard.press('Escape')
   // Found with the filter, which then only narrows the table: the test stays drawn under a filter
   // that hides it, and comes back selected once the filter is cleared (GR1).
   const filter = page.getByRole('searchbox', { name: 'Filter tests' })
@@ -602,6 +605,8 @@ test('plots each metric in a panel of its own, with a line across them at a poin
 }) => {
   await page.goto(`${LINUX_TEST}&metric=cycles`)
   await expect(tracesOf(page)).toHaveCount(2)
+  // The metric selector names the metrics in the order of their panels.
+  await expect(selectButton(page, 'Metrics')).toHaveText(/^Execution Time, Cycles Elapsed/)
   // Each panel's y-axis is titled with its metric and unit.
   await expect(plotOf(page).locator('text.ytitle')).toHaveText('Execution Time — seconds (s)')
   await expect(plotOf(page).locator('text.y3title')).toHaveText('Cycles Elapsed — cycles')

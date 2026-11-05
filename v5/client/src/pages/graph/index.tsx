@@ -27,12 +27,12 @@ import { ControlsPanel } from '../../components/controls-panel'
 import { ErrorMessage } from '../../components/feedback'
 import { useRangeSelection } from '../../components/range-selection'
 import { RegexFilter } from '../../components/regex-filter'
-import { Select } from '../../components/select'
+import { Select, TreeSelect } from '../../components/select'
 import { useTextFilter } from '../../components/use-text-filter'
 import { compareStrings } from '../../format'
 import { suiteOption } from '../../labels'
 import { ACTIVE_STATES, REGRESSION_STATES, type RegressionState } from '../../regression-states'
-import { displayValueOf, isNumeric, type Metric } from '../../schema'
+import { displayValueOf, isNumeric, labelOf, type Metric } from '../../schema'
 import {
   booleanParam,
   enumParam,
@@ -56,7 +56,6 @@ import {
 } from './baselines'
 import { GraphChart } from './graph-chart'
 import { MachineChips } from './machine-chips'
-import { MetricChips } from './metric-chips'
 import { TestTable } from './test-table'
 import styles from './graph.module.css'
 
@@ -168,6 +167,11 @@ function GraphPage() {
     [numeric, settings.metric],
   )
   const metricNames = useMemo(() => metrics.map((metric) => metric.name), [metrics])
+  // The options of the metric selector: a flat list of checkboxes.
+  const metricOptions = useMemo(
+    () => numeric.map((entry) => ({ value: entry.name, label: labelOf(entry) })),
+    [numeric],
+  )
   useDropUnusable(
     suites,
     () => schema === undefined || metrics.length === settings.metric.length,
@@ -350,19 +354,21 @@ function GraphPage() {
             isDisabled={disabled}
             onChange={(chosen) => update({ machine: chosen })}
           />
-          {schema !== undefined && numeric.length === 0 ? (
-            <p className={styles.note}>This suite has no numeric metric.</p>
-          ) : (
-            <MetricChips
-              metrics={metrics}
-              all={numeric}
-              isDisabled={disabled}
-              onChange={(chosen) => update({ metric: chosen })}
-            />
-          )}
         </div>
         {/* How it is plotted. */}
         <div className={styles.settings}>
+          {schema !== undefined && numeric.length === 0 ? (
+            <p className={styles.note}>This suite has no numeric metric.</p>
+          ) : (
+            <TreeSelect
+              label="Metrics"
+              options={metricOptions}
+              value={metricNames}
+              placeholder="-- Select metrics --"
+              onChange={(checked) => update({ metric: inCheckedOrder(metricNames, checked) })}
+              isDisabled={disabled}
+            />
+          )}
           <Select<Aggregation>
             label="Run aggregation"
             options={AGGREGATION_OPTIONS}
@@ -504,6 +510,15 @@ function GraphPage() {
       />
     </section>
   )
+}
+
+/**
+ * The metrics `checked`, in the order they were checked, which is that of the panels (GR1): those
+ * of `current` still checked, in their order, then those newly checked.
+ */
+function inCheckedOrder(current: readonly string[], checked: readonly string[]): string[] {
+  const kept = current.filter((name) => checked.includes(name))
+  return [...kept, ...checked.filter((name) => !current.includes(name))]
 }
 
 interface Chosen {

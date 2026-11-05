@@ -25,10 +25,8 @@
   align-items: flex-end;
 }
 
-/*
- * The machine and metric comboboxes, each with the chips of what it added below it, one per line.
- */
-.chipInput {
+/* The machine combobox, and below it the chips of the machines added, one per line. */
+.machines {
   display: flex;
   flex-direction: column;
   gap: var(--lnt-space-2);

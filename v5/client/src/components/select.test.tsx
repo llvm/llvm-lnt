@@ -3,7 +3,7 @@ import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 import { optionsIn, pickOption, selectButton } from '../test/select'
-import { Select, type Option } from './select'
+import { Select, TreeSelect, type Option } from './select'
 
 const OPTIONS = [
   { value: '', label: 'Any metric' },
@@ -444,5 +444,35 @@ describe('Select with options in groups', () => {
     await user.click(option)
     expect(onChange).not.toHaveBeenCalled()
     expect(screen.getByRole('listbox')).toBeInTheDocument()
+  })
+})
+
+describe('TreeSelect with a flat list', () => {
+  const FLAT = OPTIONS.slice(1).concat({ value: 'cycles', label: 'Cycles' })
+
+  it('names the options checked in the order of its value, or counts them', async () => {
+    const onChange = vi.fn()
+    const metrics = (value: string[]) => (
+      <TreeSelect
+        label="Metrics"
+        options={FLAT}
+        value={value}
+        placeholder="None"
+        onChange={onChange}
+      />
+    )
+    const { rerender } = render(metrics([]))
+    expect(selectButton('Metrics')).toHaveTextContent('None')
+
+    const user = userEvent.setup()
+    await user.click(selectButton('Metrics'))
+    await user.click(screen.getByRole('option', { name: 'Code Size' }))
+    expect(onChange).toHaveBeenLastCalledWith(['code_size'])
+    await user.keyboard('{Escape}')
+
+    rerender(metrics(['code_size', 'execution_time']))
+    expect(selectButton('Metrics')).toHaveTextContent('Code Size, Execution Time')
+    rerender(metrics(['cycles', 'code_size', 'execution_time']))
+    expect(selectButton('Metrics')).toHaveTextContent('3 selected')
   })
 })
