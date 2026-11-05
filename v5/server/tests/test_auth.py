@@ -47,10 +47,11 @@ UNKNOWN_TOKEN = "f" * 64
 # instance-wide key (I5).
 IN_FULL_ONLY = {
     ("POST", "/api/projects/{project}/suites"),
+    ("PATCH", "/api/projects/{project}/suites"),
     ("PATCH", "/api/projects/{project}"),
     ("DELETE", "/api/projects/{project}"),
 }
-UNRESTRICTED_ONLY = {("POST", "/api/projects")}
+UNRESTRICTED_ONLY = {("POST", "/api/projects"), ("PATCH", "/api/projects")}
 
 # A suite of the smallest shape, for the tests that need one to exist.
 NTS: dict[str, Any] = {"name": "nts", "metrics": [{"name": "execution_time", "type": "real"}]}
@@ -303,6 +304,22 @@ class TestSuiteRestriction:
         assert response.status_code == 403
         assert "covering project 'nts' in full" in response.json()["error"]["message"]
 
+    def test_cannot_reorder_the_suites_of_the_project_of_one_it_names(
+        self,
+        api_client: TestClient,
+        restricted_key: Callable[..., str],
+        bearer: Callable[[str], dict[str, str]],
+    ) -> None:
+        # The order is the project's, which a key listing one of its suites does not cover in full.
+        headers = bearer(restricted_key(Scope.MANAGE, "nts"))
+
+        response = api_client.patch(
+            "/api/projects/nts/suites", json={"order": ["nts"]}, headers=headers
+        )
+
+        assert response.status_code == 403
+        assert "covering project 'nts' in full" in response.json()["error"]["message"]
+
     @pytest.mark.parametrize(
         ("method", "body"),
         [("PATCH", {"display_name": "NTS"}), ("PATCH", {"name": "new"}), ("DELETE", None)],
@@ -331,6 +348,19 @@ class TestSuiteRestriction:
         headers = bearer(restricted_key(Scope.MANAGE, "nts"))
 
         response = api_client.post("/api/projects", json={"name": "new"}, headers=headers)
+
+        assert response.status_code == 403
+        assert "from an instance-wide API key" in response.json()["error"]["message"]
+
+    def test_cannot_reorder_the_projects(
+        self,
+        api_client: TestClient,
+        restricted_key: Callable[..., str],
+        bearer: Callable[[str], dict[str, str]],
+    ) -> None:
+        headers = bearer(restricted_key(Scope.MANAGE, "nts"))
+
+        response = api_client.patch("/api/projects", json={"order": ["nts"]}, headers=headers)
 
         assert response.status_code == 403
         assert "from an instance-wide API key" in response.json()["error"]["message"]
@@ -510,6 +540,27 @@ class TestProjectRestriction:
 
         assert response.status_code == 403
         assert "covering project 'llvm' in full" in response.json()["error"]["message"]
+
+    def test_reorders_the_suites_of_the_project_and_of_no_other(
+        self, api_client: TestClient, make_api_suite: Callable[..., Any], libcxx: dict[str, str]
+    ) -> None:
+        for project_name in ("libcxx", "llvm"):
+            make_api_suite(NTS, project_name)
+            make_api_suite({**NTS, "name": "bench"}, project_name)
+        order = {"order": ["bench", "nts"]}
+
+        mine = api_client.patch("/api/projects/libcxx/suites", json=order, headers=libcxx)
+        theirs = api_client.patch("/api/projects/llvm/suites", json=order, headers=libcxx)
+        everything = api_client.patch(
+            "/api/projects", json={"order": ["llvm", "libcxx"]}, headers=libcxx
+        )
+
+        assert mine.status_code == 200, mine.text
+        assert [suite["name"] for suite in mine.json()["items"]] == ["bench", "nts"]
+        assert theirs.status_code == 403
+        assert "covering project 'llvm' in full" in theirs.json()["error"]["message"]
+        # The order of the projects is the instance's, which no restricted key covers.
+        assert everything.status_code == 403
 
     def test_changes_the_display_name_of_the_project(
         self, api_client: TestClient, libcxx: dict[str, str]

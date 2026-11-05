@@ -120,13 +120,16 @@ class TestList:
 
         assert items == [api_client.get(f"{SUITES}/nts").json()]
 
-    def test_is_ordered_by_name(self, api_client: TestClient, create: Callable[..., Any]) -> None:
+    def test_is_in_the_project_s_order(
+        self, api_client: TestClient, create: Callable[..., Any]
+    ) -> None:
         for name in ("zebra", "alpha", "middle"):
             create(name=name)
 
         names = [item["name"] for item in api_client.get(SUITES).json()["items"]]
 
-        assert names == ["alpha", "middle", "zebra"]
+        # Each created last (D7), rather than by name.
+        assert names == ["zebra", "alpha", "middle"]
 
     def test_needs_no_credential(self, api_client: TestClient, create: Callable[..., Any]) -> None:
         create()
@@ -961,12 +964,12 @@ class TestEvolveOrder:
             pytest.param({"order": []}, "leaves out 'compile_time', 'execution_time'", id="empty"),
             pytest.param(
                 {"order": ["execution_time", "compile_time", "code_size"]},
-                "names 'code_size', which the list does not have",
+                "names 'code_size', which is not among them",
                 id="unknown",
             ),
             pytest.param(
                 {"remove": ["compile_time"], "order": ["execution_time", "compile_time"]},
-                "names 'compile_time', which the list does not have",
+                "names 'compile_time', which is not among them",
                 id="removed",
             ),
             pytest.param(

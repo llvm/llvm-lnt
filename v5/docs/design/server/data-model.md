@@ -53,12 +53,12 @@ schema, and caches the `schema_version` counter alongside them. This may happen
 at startup or on first use; correctness does not depend on which. An
 implementation that loads at startup must still serve if the load fails.
 
-**Multi-process safety.** In a deployment with several workers, a worker that
-creates, changes or deletes a suite or a project (see D5 and D7) bumps the
-`schema_version` counter in the same transaction. Every request path that reads
-the in-memory suite registry must first compare its cached counter with the one
-in the database, and reload all schemas from the database if they differ. This
-check is a single-row integer read per request.
+**Multi-process safety.** In a deployment with several workers, a worker bumps
+the `schema_version` counter in the same transaction when it creates, changes or
+deletes a suite or a project, or reorders projects or suites (see D5 and D7).
+Every request path that reads the in-memory suite registry must first compare
+its cached counter with the one in the database, and reload all schemas from the
+database if they differ. This check is a single-row integer read per request.
 
 The counter and the schemas must be read from the same snapshot: a reader must
 never cache a counter that is newer than the schemas cached with it.
@@ -438,9 +438,12 @@ namespace of their own (see below).
 | id | INTEGER | PK |
 | name | VARCHAR | unique, not null |
 | display_name | VARCHAR(256) | nullable |
+| position | INTEGER | not null |
 
 - One row per project (see D7).
 - See D7 for the limits on the name and the display name.
+- `position` places the project among the projects (see D7). Lower positions
+  come first.
 
 #### `schema`
 
@@ -453,6 +456,7 @@ namespace of their own (see below).
 | schema_json | TEXT | not null |
 | created_at | TIMESTAMP WITH TIME ZONE | not null |
 | migration_version | INTEGER | not null |
+| position | INTEGER | not null |
 
 - One row per test suite, holding the suite's schema (see D4).
 - Unique constraint on `(project_id, name)`: a suite's name is unique within its
@@ -471,6 +475,8 @@ namespace of their own (see below).
   been applied to the suite's tables. It is unrelated to `schema_version`
   below, which only signals that some suite has changed.
 - `name` is the suite's name, also held by `schema_json`. See D4 for its limits.
+- `position` places the suite among the suites of its project (see D7). Lower
+  positions come first.
 
 #### `schema_version`
 
@@ -483,10 +489,11 @@ namespace of their own (see below).
   (see D6) and never deleted. Readers may rely on it being there. `id` is fixed
   at `1` so that the row can be addressed without a search.
 - Bumped whenever a suite or a project is created, changed (renaming and moving
-  a suite included) or deleted, and whenever a migration gives a suite another
-  namespace (D6), so that other workers can detect that what they cached about
-  suites and projects is stale (see D2). Migrating a suite's tables otherwise
-  changes nothing a worker caches, so it does not bump the counter.
+  a suite included), deleted or reordered (see D7), and whenever a migration
+  gives a suite another namespace (D6), so that other workers can detect that
+  what they cached about suites and projects is stale (see D2). Migrating a
+  suite's tables otherwise changes nothing a worker caches, so it does not bump
+  the counter.
 
 #### `api_key`
 
@@ -1015,7 +1022,21 @@ refused while it has suites (see E13), so it never deletes any data.
 
 **Renames and moves.** A suite can be renamed within its project, moved to
 another project, or both at once (see E10), and a project can be renamed (see
-E13). Only names change: the suite keeps its namespace (see D5) and all of its
-data. The old name is not kept as an alias: every URL under the suite, or under
-every suite of a renamed project, changes, and the old one answers 404 until
+E13). Only names change, and a moved suite goes last in its new project (see
+Order below). The suite keeps its namespace (see D5) and all of its data. The
+old name is not kept as an alias: every URL under the suite, or under every
+suite of a renamed project, changes, and the old one answers 404 until
 something else takes the name. See I5 for how API keys follow renames and moves.
+
+**Order.** The projects have an order. The suites of each project also have an
+order. The API lists projects and suites in these orders (see E10 and E13).
+Only these actions change an order:
+
+- Reordering the projects (see E13), or the suites of a project (see E10).
+- Creating a project puts it last. Creating a suite puts it last in its project.
+- Moving a suite to another project puts it last there (see E10).
+- Deleting a project or a suite removes it. The others keep their order.
+
+Nothing else moves a project or a suite. Renaming a project, renaming a suite
+within its project, changing a display name, and changing a suite's schema all
+leave it in place.

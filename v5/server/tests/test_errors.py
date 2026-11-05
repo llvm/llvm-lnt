@@ -160,9 +160,10 @@ class TestApplicationWiring:
     @pytest.mark.parametrize(
         ("method", "path", "allowed"),
         [
-            # Two routes serve this path; RFC 9110 has `Allow` name both, where Starlette's own 405
-            # would name only whichever matched first. It names HEAD too, served wherever GET is.
-            ("put", "/api/projects", "GET, HEAD, POST"),
+            # Three routes serve this path; RFC 9110 has `Allow` name them all, where Starlette's
+            # own 405 would name only whichever matched first. It names HEAD too, served wherever
+            # GET is.
+            ("put", "/api/projects", "GET, HEAD, PATCH, POST"),
             ("delete", "/api/projects/nts/suites/nts/runs", "GET, HEAD, POST"),
         ],
     )

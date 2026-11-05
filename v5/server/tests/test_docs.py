@@ -153,7 +153,7 @@ class TestOpenApiDocument:
             for changes in patch.values()
         ]
 
-        assert len(bodies) == 10
+        assert len(bodies) == 12
         for name in bodies:
             for key, property in schemas[name]["properties"].items():
                 assert "default" not in property, f"{name}.{key} publishes a default"
@@ -342,8 +342,16 @@ class TestDocumentedAuthentication:
                 "requires an API key with the `manage` scope, unrestricted or covering this test "
                 "suite.",
             ),
-            # One that addresses neither, which no restricted key may make.
+            # Reordering a project's suites, which is the project's.
+            (
+                SUITES_PATH,
+                "patch",
+                "requires an API key with the `manage` scope, unrestricted or covering this "
+                "project in full.",
+            ),
+            # Those that address neither, which no restricted key may make.
             (PROJECTS_PATH, "post", "requires an unrestricted API key with the `manage` scope."),
+            (PROJECTS_PATH, "patch", "requires an unrestricted API key with the `manage` scope."),
             # `admin` keys cannot be restricted, so there is nothing to add.
             ("/api/admin/api-keys", "get", "requires an API key with the `admin` scope."),
         ],
@@ -377,13 +385,14 @@ class TestDocumentedAuthentication:
 
 
 class TestSuiteOperations:
-    """I8: the document describes what the API can actually do, including these five."""
+    """I8: the document describes what the API can actually do, including these six."""
 
     @pytest.mark.parametrize(
         ("path", "method"),
         [
             ("/api/projects/{project}/suites", "get"),
             ("/api/projects/{project}/suites", "post"),
+            ("/api/projects/{project}/suites", "patch"),
             ("/api/projects/{project}/suites/{suite}", "get"),
             ("/api/projects/{project}/suites/{suite}/schema", "patch"),
             ("/api/projects/{project}/suites/{suite}", "delete"),
@@ -398,6 +407,8 @@ class TestSuiteOperations:
         ("path", "method", "status"),
         [
             ("/api/projects/{project}/suites", "post", "409"),
+            ("/api/projects/{project}/suites", "patch", "404"),
+            ("/api/projects/{project}/suites", "patch", "409"),
             ("/api/projects/{project}/suites/{suite}", "get", "404"),
             ("/api/projects/{project}/suites/{suite}", "delete", "404"),
             ("/api/projects/{project}/suites/{suite}/schema", "patch", "404"),
@@ -1651,8 +1662,10 @@ class TestResponseSamples:
 # creates.
 EXAMPLE_SEQUENCE = [
     (PROJECTS_PATH, "post"),
+    (PROJECTS_PATH, "patch"),
     (f"{PROJECTS_PATH}/{{project}}", "patch"),
     (SUITES_PATH, "post"),
+    (SUITES_PATH, "patch"),
     # Each example that renames or moves something is undone at once (see `test_are_accepted`).
     (f"{SUITES_PATH}/{{suite}}", "patch"),
     (RUNS_PATH, "post"),
@@ -1723,7 +1736,8 @@ class TestRequestExamples:
             "value": examples.NEXT_COMMIT,
         }
 
-        # The project the suite is moved to by the examples that move it.
+        # The project the suite is moved to by the examples that move it, and that the example
+        # reordering the projects lists first.
         assert api_client.post(PROJECTS_PATH, json={"name": "llvm"}, headers=headers).is_success
 
         for path, method in EXAMPLE_SEQUENCE:

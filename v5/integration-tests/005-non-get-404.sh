@@ -14,7 +14,7 @@ expect_body '"code":"not_found"'
 request --request PUT "${BASE_URL}/api/projects"
 expect_status 405
 expect_body '"code":"method_not_allowed"'
-expect_header Allow 'GET, HEAD, POST'
+expect_header Allow 'GET, HEAD, PATCH, POST'
 
 # HEAD on a client route is answered like GET, minus the body.
 request --head "${BASE_URL}/projects/llvm/suites/nts"

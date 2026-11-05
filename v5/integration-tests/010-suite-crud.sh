@@ -142,6 +142,28 @@ for _ in $(seq 1 "$ATTEMPTS"); do
     expect_body '"label":"Forge"'
 done
 
+echo "  reordering the project's suites is visible on every worker, though no schema changed"
+request -X POST -H "$AUTH" -H "$JSON" --data '{"name": "suite-crud-first", "metrics": []}' "$SUITES"
+expect_status 201
+# First, every worker caches the new suite, which is last in the order, so that only the reorder's
+# own bump can make them list it first.
+for _ in $(seq 1 "$ATTEMPTS"); do
+    request "$SUITES"
+    expect_status 200
+    expect_body '^\{"items":\[\{"name":"suite-crud",'
+    expect_body '"name":"suite-crud-first"'
+done
+request -X PATCH -H "$AUTH" -H "$JSON" --data '{"order": ["suite-crud-first", "suite-crud"]}' \
+    "$SUITES"
+expect_status 200
+for _ in $(seq 1 "$ATTEMPTS"); do
+    request "$SUITES"
+    expect_status 200
+    expect_body '^\{"items":\[\{"name":"suite-crud-first"'
+done
+request -X DELETE -H "$AUTH" "${SUITES}/suite-crud-first?confirm=true"
+expect_status 204
+
 echo "  a removal without confirmation is refused"
 request -X PATCH -H "$AUTH" -H "$JSON" \
     --data '{"metrics": {"remove": ["code_size"]}}' "${SUITES}/suite-crud/schema"

@@ -28,7 +28,13 @@ from lnt_v5.suites import tables as suite_tables
 from lnt_v5.suites.schema import SuiteSchema
 from lnt_v5.suites.store import StoredSuite, normalized_json
 from lnt_v5.suites.tables import NAMESPACE_PREFIX
-from lnt_v5.tables import SCHEMA_VERSION_ID, metadata, namespace_sequence
+from lnt_v5.tables import (
+    SCHEMA_VERSION_ID,
+    metadata,
+    namespace_sequence,
+    project_position_sequence,
+    schema_position_sequence,
+)
 from migration_snapshots import reference_schema, replay
 
 
@@ -1162,13 +1168,134 @@ class TestNoReadKeys:
         upgrade_by_hand(at_0009, "0010")
         downgrade_by_hand(at_0009, "0009")
 
-        upgrade_by_hand(at_0009, "0010")
+        upgrade_by_hand(at_0009, "head")
 
         assert_no_pending_revision(at_0009)
         # As at the head `test_tables.py` checks them on.
         assert not accepts_key_row(at_0009, "read", restricted=False)
         assert accepts_key_row(at_0009, "submit", restricted=True)
         assert not accepts_key_row(at_0009, "admin", restricted=True)
+
+
+def names_in_order(engine: Engine) -> dict[str, list[str]]:
+    """Each project's suites by name, in order, keyed by the project's name, in order."""
+    with engine.connect() as connection:
+        projects = connection.execute(text("SELECT id, name FROM project ORDER BY position")).all()
+        return {
+            project.name: list(
+                connection.execute(
+                    text("SELECT name FROM schema WHERE project_id = :id ORDER BY position"),
+                    {"id": project.id},
+                ).scalars()
+            )
+            for project in projects
+        }
+
+
+class TestOrder:
+    """0011 puts the projects, and the suites of each project, in an order (D5, D7)."""
+
+    @pytest.fixture
+    def at_0010(self, empty_engine: Engine) -> Engine:
+        """At 0010, with projects and suites whose labels sort otherwise than their names."""
+        upgrade_by_hand(empty_engine, "0010")
+        with empty_engine.begin() as connection:
+            connection.execute(
+                text(
+                    "INSERT INTO project (name, display_name) VALUES "
+                    "('swift', NULL), ('llvm', 'LLVM'), ('libcxx', 'libc++'), "
+                    "('b-same', 'Same'), ('a-same', 'Same'); "
+                    "INSERT INTO schema "
+                    "(project_id, name, namespace, schema_json, migration_version) "
+                    "SELECT project.id, suite, suite, document, 0 "
+                    "FROM project JOIN (VALUES "
+                    "('llvm', 'nts', '{\"display_name\": \"Test Suite\"}'), "
+                    "('llvm', 'zeta', '{\"display_name\": \"alpha\"}'), "
+                    "('llvm', 'broken', '{'), "
+                    "('llvm', 'beta', '{\"display_name\": null}'), "
+                    "('libcxx', 'benchmarks', '[]')"
+                    ") AS s(p, suite, document) ON s.p = project.name"
+                )
+            )
+        return empty_engine
+
+    def test_puts_them_in_the_order_of_their_labels(self, at_0010: Engine) -> None:
+        upgrade_by_hand(at_0010, "0011")
+
+        # By label, case-insensitively, then by name, as the web UI listed them (AR22). A schema
+        # that cannot be read is labelled by its name.
+        assert list(names_in_order(at_0010).items()) == [
+            ("libcxx", ["benchmarks"]),
+            ("llvm", ["zeta", "beta", "broken", "nts"]),
+            ("a-same", []),
+            ("b-same", []),
+            ("swift", []),
+        ]
+        # D2: the order is something workers cache.
+        assert schema_version_of(at_0010) == 1
+
+    def test_changes_nothing_workers_cache_in_an_empty_instance(self, empty_engine: Engine) -> None:
+        upgrade_by_hand(empty_engine, "0011")
+
+        assert schema_version_of(empty_engine) == 0
+
+    def test_puts_what_is_created_afterwards_last(self, at_0010: Engine) -> None:
+        upgrade_by_hand(at_0010, "0011")
+        with at_0010.begin() as connection:
+            connection.execute(
+                text(
+                    "INSERT INTO project (name) VALUES ('aaa'); "
+                    "INSERT INTO schema "
+                    "(project_id, name, namespace, schema_json, migration_version) "
+                    "SELECT id, 'aaa', 'aaa', '{}', 0 FROM project WHERE name = 'llvm'"
+                )
+            )
+
+        order = names_in_order(at_0010)
+        assert list(order)[-1] == "aaa"
+        assert order["llvm"][-1] == "aaa"
+
+    @pytest.mark.parametrize("table", ["project", "schema"])
+    def test_each_position_is_drawn_from_a_sequence_its_column_owns(
+        self, empty_engine: Engine, table: str
+    ) -> None:
+        # Autogenerate compares neither sequences nor server defaults, so
+        # `test_leaves_the_schema_and_the_code_in_agreement` cannot catch either going missing.
+        upgrade_by_hand(empty_engine, "0011")
+
+        with empty_engine.connect() as connection:
+            owned = connection.execute(
+                text("SELECT pg_get_serial_sequence(:table, 'position')"), {"table": table}
+            ).scalar_one()
+        sequence = {"project": project_position_sequence, "schema": schema_position_sequence}
+        assert owned == f"public.{sequence[table].name}"
+        default = inspect(empty_engine).get_columns(table)
+        assert {column["name"]: column["default"] for column in default}["position"] == (
+            f"nextval('{sequence[table].name}'::regclass)"
+        )
+
+    def test_downgrading_undoes_it(self, at_0010: Engine) -> None:
+        upgrade_by_hand(at_0010, "0011")
+
+        downgrade_by_hand(at_0010, "0010")
+
+        assert "position" not in column_names(at_0010, "public", "project")
+        assert "position" not in column_names(at_0010, "public", "schema")
+        with at_0010.connect() as connection:
+            query = text("SELECT relname FROM pg_class WHERE relkind = 'S'")
+            remaining = set(connection.execute(query).scalars())
+        assert namespace_sequence.name in remaining
+        assert project_position_sequence.name not in remaining
+        assert schema_position_sequence.name not in remaining
+
+    def test_downgrading_and_upgrading_again_matches_the_code(self, at_0010: Engine) -> None:
+        upgrade_by_hand(at_0010, "0011")
+        downgrade_by_hand(at_0010, "0010")
+
+        upgrade_by_hand(at_0010, "head")
+
+        assert_no_pending_revision(at_0010)
+        assert names_in_order(at_0010)["llvm"] == ["zeta", "beta", "broken", "nts"]
 
 
 class TestConcurrentUpgrade:
