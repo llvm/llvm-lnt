@@ -450,7 +450,7 @@ describe('Select with options in groups', () => {
 describe('TreeSelect with a flat list', () => {
   const FLAT = OPTIONS.slice(1).concat({ value: 'cycles', label: 'Cycles' })
 
-  it('names the options checked in the order of its value, or counts them', async () => {
+  it('checks options without children, naming them, or counting them', async () => {
     const onChange = vi.fn()
     const metrics = (value: string[]) => (
       <TreeSelect
@@ -470,14 +470,9 @@ describe('TreeSelect with a flat list', () => {
     expect(onChange).toHaveBeenLastCalledWith(['code_size'])
     await user.keyboard('{Escape}')
 
-    rerender(metrics(['code_size', 'execution_time']))
-    expect(selectButton('Metrics')).toHaveTextContent('Code Size, Execution Time')
-    // What it checks is in the order of the options, whatever that of its value.
-    await user.click(selectButton('Metrics'))
-    await user.click(screen.getByRole('option', { name: 'Cycles' }))
-    expect(onChange).toHaveBeenLastCalledWith(['execution_time', 'code_size', 'cycles'])
-    await user.keyboard('{Escape}')
-    rerender(metrics(['cycles', 'code_size', 'execution_time']))
+    rerender(metrics(['execution_time', 'code_size']))
+    expect(selectButton('Metrics')).toHaveTextContent('Execution Time, Code Size')
+    rerender(metrics(['execution_time', 'code_size', 'cycles']))
     expect(selectButton('Metrics')).toHaveTextContent('3 selected')
   })
 

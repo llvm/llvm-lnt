@@ -57,7 +57,7 @@ describe('graphLayout', () => {
     expect(layout.yaxis?.uirevision).toBe('m1\0execution_time')
     expect(layout.yaxis).toMatchObject({ domain: [0, 1] })
     expect(layout.yaxis).not.toHaveProperty('title')
-    expect(layout.xaxis).toMatchObject({ anchor: 'y' })
+    expect(layout.xaxis).toMatchObject({ anchor: 'free', position: 0 })
     expect(layout.annotations).toEqual([])
   })
 
@@ -98,20 +98,21 @@ describe('graphLayout', () => {
     expect(layout.yaxis3.uirevision).toBe('m1\0compile_time')
     // Each panel's markers' axis over its values'.
     expect(layout.yaxis4).toMatchObject({ overlaying: 'y3', range: [0, 1], visible: false })
-    // The commits' labels under the bottom panel.
-    expect(layout.xaxis).toMatchObject({ anchor: 'y3' })
+    // The commits' labels under the bottom panel, at the bottom of the plot.
+    expect(layout.xaxis).toMatchObject({ anchor: 'free', position: 0 })
     // Only the empty panel says so, in its middle.
     expect(layout.annotations).toMatchObject([{ text: 'No data to plot' }])
     const [said] = layout.annotations as unknown as { y: number }[]
     expect(said.y).toBeCloseTo((bottom[0] + bottom[1]) / 2)
   })
 
-  it("titles a panel with its metric's label and unit", () => {
+  it("titles a panel with its metric's label and its short unit", () => {
     expect(panelTitle(metric('execution_time', { display_name: 'Execution Time' }))).toBe(
       'Execution Time',
     )
-    expect(panelTitle({ ...SECONDS, display_name: 'Execution Time' })).toBe(
-      'Execution Time — seconds (s)',
+    expect(panelTitle({ ...SECONDS, display_name: 'Execution Time' })).toBe('Execution Time (s)')
+    expect(panelTitle(metric('instructions', { unit: 'instructions' }))).toBe(
+      'instructions (instructions)',
     )
   })
 })

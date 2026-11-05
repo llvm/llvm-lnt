@@ -9,7 +9,7 @@ import type { PlotGeometry } from '../../components/chart'
 import { noDataAnnotations } from '../../components/plot-annotations'
 import { escapeHtml, plural, regressionTitle } from '../../format'
 import type { RegressionState } from '../../regression-states'
-import { formatMeasuredValue, formatUnit, labelOf, type Metric } from '../../schema'
+import { formatMeasuredValue, labelOf, shortUnit, type Metric } from '../../schema'
 import type { Point } from './points'
 
 /**
@@ -434,8 +434,13 @@ export function graphLayout({
       ...(commits.length > 0 ? { range: [-0.5, commits.length - 0.5], autorange: false } : {}),
       tickangle: -45,
       automargin: true,
-      // Under the bottom panel.
-      anchor: panelAxes(panels.length - 1).values,
+      // Under the bottom panel, at the bottom of the plot, rather than anchored to the bottom panel's
+      // y-axis. Plotly gives the axis a bar to drag it by under its main subplot, the one of the
+      // axis it is anchored to, but leaves behind the bar it gave a previous main subplot: a chart
+      // drawn with one panel, then with two, would keep an invisible bar to drag the x-axis by over
+      // the top panel. Free, its main subplot stays the top panel's however many panels there are.
+      anchor: 'free',
+      position: 0,
     },
     ...axes,
     // The axis of the baselines' lines, which span the plot whatever its zoom, and is not shown.
@@ -463,10 +468,10 @@ export function panelsReset(count: number): Record<string, unknown> {
 }
 
 /**
- * The title of the y-axis of a metric's panel (GR1): its label, followed by its unit as AR6 writes
- * it, as a Dashboard card's title is (DA2).
+ * The title of the y-axis of a metric's panel (GR1): its label, followed by its short unit in
+ * parentheses (see `shortUnit`).
  */
 export function panelTitle(metric: Metric): string {
-  const unit = formatUnit(metric)
-  return unit === null ? labelOf(metric) : `${labelOf(metric)} — ${unit}`
+  const unit = shortUnit(metric)
+  return unit === null ? labelOf(metric) : `${labelOf(metric)} (${unit})`
 }

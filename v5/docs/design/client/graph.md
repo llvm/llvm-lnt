@@ -67,11 +67,12 @@ several metrics at once, each in a panel of its own.
   the order the metrics were selected in. The panels share the x-axis, whose
   commit labels are shown once, under the bottom panel: zooming or panning along
   it in one panel moves every panel. Each panel has a y-axis of its own, titled
-  with its metric's label followed by its unit as AR6 writes it, when it has
-  one. The panels are as tall as one another, and the chart grows taller with
-  each panel. Before any metric is selected, the chart is a single panel without
-  a title. The encoding below is the same in every panel: the panel stands for
-  the metric, which needs no encoding of its own.
+  with its metric's label followed, in parentheses, by the unit its values are
+  shown with (GR10), when it has one: "Execution Time (s)". The panels are as
+  tall as one another, and the chart grows taller with each panel. Before any
+  metric is selected, the chart is a single panel without a title. The encoding
+  below is the same in every panel: the panel stands for the metric, which needs
+  no encoding of its own.
 
 - **Multi-machine trace naming and symbols**: Each trace is named `{test name} -
   {machine label}` (test name first for natural sorting; see AR23). Machines are visually

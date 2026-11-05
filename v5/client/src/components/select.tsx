@@ -251,10 +251,7 @@ export interface TreeParent<Value extends string> extends TreeOption<Value> {
 interface TreeProps<Value extends string> {
   label: string
   options: readonly TreeParent<Value>[]
-  /**
-   * The values of the options checked, a parent's and no child of a checked one, in the order the
-   * button names them.
-   */
+  /** The values of the options checked, in any order: a parent's, and no child of a checked one. */
   value: readonly Value[]
   /** What the button shows while no option is checked. */
   placeholder: string
@@ -292,12 +289,11 @@ function checkedOf<Value extends string>(
 
 /**
  * A dropdown checking any number of `options`, each with a checkbox, in a tree two levels deep, or
- * in a flat list. The children are indented below their parent.
- * Checking a parent covers its children: they are then listed as covered, without a checkbox, and
- * cannot be focused or checked, and those checked are unchecked. Unchecking the parent lists them
- * again, unchecked. The list stays open while options are checked and unchecked. The button names
- * the options checked, in the order of `value`, or says how many there are when they are too many
- * to name.
+ * in a flat list: the children are indented below their parent. Checking a parent covers its
+ * children: they are then listed as covered, without a checkbox, and cannot be focused or checked,
+ * and those checked are unchecked. Unchecking the parent lists them again, unchecked. The list
+ * stays open while options are checked and unchecked. The button names the options checked, or
+ * says how many there are when they are too many to name (see `named`).
  */
 export function TreeSelect<Value extends string>({
   label,
@@ -314,14 +310,15 @@ export function TreeSelect<Value extends string>({
   const checked = new Set(value)
   // Built again only when the options change, so that the list renders its rows again only then,
   // or when what is checked changes (see `dependencies` below).
-  const { rows, byValue } = useMemo(() => {
-    const listed: Row<Value>[] = options.flatMap((parent) => [
-      parent,
-      ...(parent.children ?? []).map((child) => ({ ...child, parent })),
-    ])
-    return { rows: listed, byValue: new Map(listed.map((row) => [row.value, row])) }
-  }, [options])
-  const picked = value.flatMap((checkedValue) => byValue.get(checkedValue) ?? [])
+  const rows = useMemo(
+    (): Row<Value>[] =>
+      options.flatMap((parent) => [
+        parent,
+        ...(parent.children ?? []).map((child) => ({ ...child, parent })),
+      ]),
+    [options],
+  )
+  const picked = rows.filter((row) => checked.has(row.value))
   let summary = placeholder
   if (picked.length > named) summary = `${picked.length} selected`
   else if (picked.length > 0) {

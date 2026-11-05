@@ -56,11 +56,16 @@ export function formatMetricValue(value: FieldValue, metric: Metric): string {
 }
 
 /**
- * `shown`, a value of `metric` as shown, followed by the metric's unit abbreviation, or by its unit
- * when it has no abbreviation, and by nothing when it has neither (DA2, GR10).
+ * A metric's unit where space is short: its unit abbreviation, or its unit when it has no
+ * abbreviation, or null when it has neither (DA2, GR1, GR10).
  */
+export function shortUnit({ unit, unit_abbrev }: Metric): string | null {
+  return unit_abbrev ?? unit
+}
+
+/** `shown`, a value of `metric` as shown, followed by the metric's short unit (see `shortUnit`). */
 export function withUnit(shown: string, metric: Metric): string {
-  const unit = metric.unit_abbrev ?? metric.unit
+  const unit = shortUnit(metric)
   return unit === null ? shown : `${shown} ${unit}`
 }
 

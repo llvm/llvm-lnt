@@ -1949,7 +1949,7 @@ describe('the panels of several metrics (GR1)', () => {
       'execution_time',
     ])
     const axes = layout() as Record<string, { title?: { text: string } }>
-    expect(axes.yaxis.title?.text).toBe('Execution Time — seconds (s)')
+    expect(axes.yaxis.title?.text).toBe('Execution Time (s)')
     expect(axes.yaxis3.title?.text).toBe('Compile Time')
     expect(main().getByRole('img')).toHaveAccessibleName('Execution Time, Compile Time over time')
     // The tooltip labels the value with the panel's metric (GR10).

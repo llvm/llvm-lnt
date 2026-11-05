@@ -611,8 +611,8 @@ test('plots each metric in a panel of its own, with a line across them at a poin
     'Execution Time, Cycles Elapsed',
   )
   // Each panel's y-axis is titled with its metric and unit.
-  await expect(plotOf(page).locator('text.ytitle')).toHaveText('Execution Time — seconds (s)')
-  await expect(plotOf(page).locator('text.y3title')).toHaveText('Cycles Elapsed — cycles')
+  await expect(plotOf(page).locator('text.ytitle')).toHaveText('Execution Time (s)')
+  await expect(plotOf(page).locator('text.y3title')).toHaveText('Cycles Elapsed (cycles)')
 
   // A point of the bottom panel, in the middle of the history, and the same commit's above it.
   const index = await plotOf(page).evaluate(
@@ -662,4 +662,42 @@ test('resets the zoom of every panel on a double-click in any of them (GR5)', as
   // And stays reset as the chart is drawn again.
   await pickOption(page, 'Sample aggregation', 'max')
   await expect.poll(async () => (await axis('yaxis')).autorange).toBe(true)
+})
+
+test('leaves no bar to drag an axis by over a panel once a metric is added (GR1, GR5)', async ({
+  page,
+}) => {
+  await page.goto(LINUX_TEST)
+  await expect(tracesOf(page)).toHaveCount(1)
+  await pickOption(page, 'Metrics', 'Cycles Elapsed')
+  await page.keyboard.press('Escape')
+  await expect(tracesOf(page)).toHaveCount(2)
+
+  // Every element Plotly lets the pointer drag, but for each panel's own, that sits over a panel.
+  const over = () =>
+    plotOf(page).evaluate((element) => {
+      const { xaxis, yaxis, yaxis3 } = (element as PlotDiv)._fullLayout
+      const plot = element.getBoundingClientRect()
+      const panels = [yaxis, yaxis3!].map((axis) => ({
+        left: plot.x + xaxis._offset,
+        right: plot.x + xaxis._offset + xaxis._length,
+        top: plot.y + axis._offset,
+        bottom: plot.y + axis._offset + axis._length,
+      }))
+      return [...element.querySelectorAll<SVGElement>('.draglayer .drag')]
+        .filter((drag) => getComputedStyle(drag).pointerEvents !== 'none')
+        .filter((drag) => !drag.classList.contains('nsewdrag'))
+        .filter((drag) => {
+          const box = drag.getBoundingClientRect()
+          return panels.some(
+            (panel) =>
+              box.left < panel.right &&
+              box.right > panel.left &&
+              box.top < panel.bottom - 1 &&
+              box.bottom > panel.top + 1,
+          )
+        })
+        .map((drag) => drag.getAttribute('class'))
+    })
+  await expect.poll(over).toEqual([])
 })
