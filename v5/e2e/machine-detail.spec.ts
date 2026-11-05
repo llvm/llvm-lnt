@@ -41,7 +41,7 @@ test('the Machines tab links to the page of each machine, whose trail leads back
   await page.goBack()
   // The project's page, which goes to its first suite (TS1).
   await trail.getByRole('link', { name: 'libc++', exact: true }).click()
-  await expect(page).toHaveURL('/projects/libcxx/suites/header-sizes')
+  await expect(page).toHaveURL('/projects/libcxx/suites/benchmarks')
   await expect(
     page.getByRole('navigation', { name: 'Projects' }).getByRole('link', { name: 'libc++' }),
   ).toHaveAttribute('aria-current', 'true')

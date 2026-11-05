@@ -10,7 +10,7 @@ This page provides various tabs with different tools.
 | Tab | Shows | API Calls |
 |-----|-------|-----------|
 | API Keys | List, create, revoke API keys (global to instance) | `GET/POST/DELETE admin/api-keys`, `GET projects` |
-| Projects | List, create, rename and delete projects, change their display names, create suites | `GET/POST projects`, `PATCH/DELETE projects/{project}`, `POST projects/{project}/suites` |
+| Projects | List, create, reorder, rename and delete projects, change their display names, create suites | `GET/POST/PATCH projects`, `PATCH/DELETE projects/{project}`, `POST projects/{project}/suites` |
 
 The URL keeps the selected tab as `tab` (`projects` for Projects, and nothing for API Keys, the
 default), and the sort of the API Keys tab's table as `sort` (see AD1).
@@ -116,10 +116,10 @@ The tab lists the projects of the instance (see D7) and manages them:
 ```
 New project    Name [________]    Display name [________]    [Create project]
 
-Name              Display name         Suites
-----------------------------------------------------------------------
-libcxx  [Edit]    libc++  [Edit]       2  [+]    [red Delete button, disabled]
-swift   [Edit]    --      [Edit]       0  [+]    [red Delete button]
+    Name              Display name         Suites
+--------------------------------------------------------------------------
+⠿   libcxx  [Edit]    libc++  [Edit]       2  [+]    [red Delete button, disabled]
+⠿   swift   [Edit]    --      [Edit]       0  [+]    [red Delete button]
 ```
 
 The "New project" form has an input for the project's name and one for its display name, and a
@@ -146,6 +146,10 @@ The table has a row for each project, those without suites included, in AR22's o
   project. It requires `manage` covering the project in full (see I5). The editor takes the place
   of the tab's whole content. Once it closes, the focus returns to the project's "+", or to the
   table when the "+" cannot take it.
+- A grip (⠿), before the other columns, which drags the project to another place in the order
+  of the projects (see AR22 "Reordering"). For assistive technology, it is named
+  `Drag project libcxx`. A drop sends every project in the new order (`PATCH /api/projects`, see
+  E13). Dragging requires an instance-wide `manage` key (see I5).
 - A red Delete button, which requires `manage` covering the project in full, is disabled while
   the project has suites, saying why on hover. Clicking it asks for a plain confirmation (see AR16),
   which says that API keys listing the project lose it, and that a key left with nothing grants

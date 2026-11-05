@@ -1,22 +1,31 @@
-/* The grip dragging an item (see drag-reorder.tsx): unobtrusive until hovered or focused. */
+/*
+ * The grip dragging an item (see drag-reorder.tsx): unobtrusive until hovered or focused. A page
+ * can set its colours, and its background when hovered or focused, for the grips inside an element
+ * of its own, such as a chip.
+ */
 .grip {
   display: inline-block;
   padding: 0 var(--lnt-space-1);
-  color: var(--lnt-muted);
+  color: var(--reorder-grip-color, var(--lnt-muted));
   cursor: grab;
   user-select: none;
   border-radius: var(--lnt-radius);
   line-height: 1.5;
 }
 
-.grip:hover,
+.grip:not(.disabled):hover,
 .grip:focus-visible {
-  color: var(--lnt-fg);
-  background-color: var(--lnt-panel);
+  color: var(--reorder-grip-active-color, var(--lnt-fg));
+  background-color: var(--reorder-grip-active-background, var(--lnt-panel));
 }
 
 .grip[aria-disabled='true'] {
   cursor: default;
+}
+
+/* Disabled, rather than busy: fainter, as a disabled control looks (AR5). */
+.grip.disabled {
+  opacity: 0.3;
 }
 
 /* The item being dragged, which stays in its place until dropped. */
@@ -38,6 +47,30 @@
 
 .after > td {
   box-shadow: inset 0 -2px 0 0 var(--lnt-accent);
+}
+
+/* Between items side by side, such as chips, a line in the middle of the gap between them, which
+   the list sets as `--reorder-gap`. */
+.horizontal {
+  position: relative;
+}
+
+.horizontal.before::before,
+.horizontal.after::after {
+  content: '';
+  position: absolute;
+  inset-block: 0;
+  width: 2px;
+  border-radius: 1px;
+  background-color: var(--lnt-accent);
+}
+
+.horizontal.before::before {
+  inset-inline-start: calc(var(--reorder-gap, 0px) / -2 - 1px);
+}
+
+.horizontal.after::after {
+  inset-inline-end: calc(var(--reorder-gap, 0px) / -2 - 1px);
 }
 
 /* What follows the pointer while dragging: the item's label. */

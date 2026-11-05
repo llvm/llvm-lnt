@@ -831,6 +831,7 @@ describe('Start from', () => {
 
   it("lists the suites by their labels under their project, in order, and copies neither one's names", async () => {
     await openEditor({
+      // In the order they are listed in, rather than by label (AR22).
       suites: [
         { ...SUITE, display_name: 'Microbenchmarks' },
         { ...BARE_SUITE, name: 'alpha' },
@@ -843,7 +844,7 @@ describe('Start from', () => {
     // Only suites, under the heading of the one project that has any (AR22).
     expect(screen.getAllByRole('group')).toHaveLength(1)
     const group = screen.getByRole('group', { name: 'llvm' })
-    expect(optionsIn(group)).toEqual(['alpha', 'Microbenchmarks'])
+    expect(optionsIn(group)).toEqual(['Microbenchmarks', 'alpha'])
     expect(screen.getAllByRole('option')).toHaveLength(2)
     await user.click(within(group).getByRole('option', { name: 'Microbenchmarks' }))
 

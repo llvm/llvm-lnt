@@ -89,8 +89,8 @@ test("lists the suites under their projects' headings, without the projects that
   // Other tests create projects of their own meanwhile, so only the seeded ones are checked.
   await openSelect(page, 'Suite', optionGroup(page, 'libc++'))
   await expect(optionGroup(page, 'libc++').getByRole('option')).toHaveText([
-    'header-sizes',
     'Microbenchmarks',
+    'header-sizes',
   ])
   await expect(optionGroup(page, 'LLVM').getByRole('option')).toHaveText(['nts'])
   await expect(optionGroup(page, 'swift')).toHaveCount(0)

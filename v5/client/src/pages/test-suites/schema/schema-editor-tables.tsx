@@ -235,7 +235,7 @@ const ListTable = memo(function ListTable({ list, entries, busy, change }: ListP
       // A removed entry cannot move (TS7).
       cell: (entry) =>
         !entry.removed && (
-          <ReorderGrip itemKey={rowKey(entry)} busy={busy} data-focus={`${entry.id}-grip`} />
+          <ReorderGrip itemKey={rowKey(entry)} />
         ),
     },
     {
@@ -317,13 +317,13 @@ const ListTable = memo(function ListTable({ list, entries, busy, change }: ListP
 
   const itemKeys = useMemo(() => entries.map(rowKey), [entries])
   const labelOf = (key: string) => entryLabel(entries.find((entry) => rowKey(entry) === key)!)
-  // Once dropped, the entry's grip keeps the focus.
+  // Once dropped, the entry's grip keeps the focus (see `Reorderable`).
   const onMove = (key: string, target: string) =>
-    change((draft) => moveEntryTo(draft, list, Number(key), Number(target)), `${key}-grip`)
+    change((draft) => moveEntryTo(draft, list, Number(key), Number(target)))
 
   return (
     <section aria-label={heading}>
-      <Reorderable keys={itemKeys} labelOf={labelOf} onMove={onMove}>
+      <Reorderable keys={itemKeys} labelOf={labelOf} onMove={onMove} busy={busy}>
         <SchemaList
           list={list}
           columns={columns}

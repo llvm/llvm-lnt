@@ -442,7 +442,8 @@ describe('sorting the keys', () => {
     expect(prefixes(list)).toEqual(['7d1e40aa', '135f502b', '229d78c5', 'aaaaaaaa', '3f0ac112'])
   })
 
-  it('names the suites of a key by their labels, sorted by them (AR22)', async () => {
+  it('names the suites of a key by their labels, in the order they are listed in (AR22)', async () => {
+    // Listed first, though both its name and its label would sort it last.
     mockSuites([{ ...SUITE, display_name: 'zeta' }, BARE_SUITE])
     const both = apiKey('triage', {
       prefix: 'bbbbbbbb',
@@ -453,10 +454,10 @@ describe('sorting the keys', () => {
     const { list } = await renderKeys({ keys: [libcxx, both, nts] })
 
     await waitFor(() => expect(rowsOf(list)[0].split(' | ')[3]).toBe('llvm › zeta'))
-    expect(rowsOf(list)[1].split(' | ')[3]).toBe('llvm › nts, llvm › zeta')
+    expect(rowsOf(list)[1].split(' | ')[3]).toBe('llvm › zeta, llvm › nts')
 
     fireEvent.click(within(list).getByRole('button', { name: 'Covers' }))
-    expect(prefixes(list)).toEqual(['dddddddd', 'bbbbbbbb', 'cccccccc'])
+    expect(prefixes(list)).toEqual(['cccccccc', 'bbbbbbbb', 'dddddddd'])
   })
 
   it('shows a whole project by its label followed by (all), before its suites', async () => {
@@ -481,24 +482,31 @@ describe('sorting the keys', () => {
   })
 
   it("names suites of several projects by full labels, a project's together (AR22)", async () => {
-    // Both labelled 'LLVM', so that 'LLVM › alpha' would come first by full label.
+    // Both labelled 'LLVM', so that 'LLVM › beta' would come between the others by full label.
     const extra = { name: 'extra', display_name: 'LLVM' }
     const llvm = { ...PROJECT, display_name: 'LLVM' }
-    mockSuites([
-      { ...SUITE, project: llvm, name: 'alpha' },
-      { ...BARE_SUITE, project: extra, name: 'zeta' },
-    ])
+    mockSuites(
+      [
+        { ...SUITE, project: llvm, name: 'alpha' },
+        { ...BARE_SUITE, project: extra, name: 'beta' },
+        { ...BARE_SUITE, project: llvm, name: 'zeta' },
+      ],
+      { projects: [llvm, extra] },
+    )
     const key = apiKey('triage', {
       prefix: 'bbbbbbbb',
       restricted_to: [
+        { project: 'extra', suite: 'beta' },
         { project: 'llvm', suite: 'alpha' },
-        { project: 'extra', suite: 'zeta' },
+        { project: 'llvm', suite: 'zeta' },
       ],
     })
     const { list } = await renderKeys({ keys: [key] })
 
     // By project, then by suite, rather than by the full labels.
-    await waitFor(() => expect(rowsOf(list)[0].split(' | ')[3]).toBe('LLVM › zeta, LLVM › alpha'))
+    await waitFor(() =>
+      expect(rowsOf(list)[0].split(' | ')[3]).toBe('LLVM › alpha, LLVM › zeta, LLVM › beta'),
+    )
   })
 
   it('keeps the sort in the URL, leaving out the default one', async () => {
