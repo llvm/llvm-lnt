@@ -595,19 +595,20 @@ be long and whose names may contain any character, do not fit in a query string.
 GET    /api/projects/{project}/suites/{suite}/series
 ```
 
-Returns the samples of one machine, with their values of the metrics the
-request names: the machine's whole time series, for tools that analyse it, or
-the part of it the filters below select, such as one test's samples to chart.
-It is a streaming endpoint (see I2): the whole result comes in one response.
+Returns a machine's samples, one line per sample, with each sample's values for
+the requested metrics. Without filters, this is the machine's whole history, for
+tools that analyse it. The filters below narrow it down, for example to one test
+for a chart. It is a streaming endpoint (see I2): the whole result comes in one
+response.
 
 **Auth scope:** `read`.
 
 **Query parameters:**
 
-- `metric` (required): the metrics to return values of, repeated for several
-  (see I3). Naming a metric twice is the same as naming it once. Only the
-  samples that have a value for at least one of them are returned. 400 if the
-  suite's schema does not declare one of them.
+- `metric` (required): a metric to return, repeated for several (see I3). A
+  metric named twice counts once. A sample is returned only if it has a value
+  for at least one of the requested metrics. 400 if the suite's schema does not
+  declare one of them.
 - `machine` (required): the name of the machine. 404 if it does not exist.
 - `test`: only the samples of these tests, repeated for several (see I3). 404
   if one of them does not exist. Each name lengthens the URL, which proxies
@@ -633,9 +634,9 @@ It is a streaming endpoint (see I2): the whole result comes in one response.
 object with these keys:
 
 - `test`, `machine`: the names of the sample's test and machine.
-- `metrics`: a dict of metric name to value, typed per D3, holding the
-  requested metrics that the sample has a value for, and only those (see I4),
-  as on E6's sample object. It is never empty.
+- `metrics`: the sample's values for the requested metrics, by metric name, each
+  in the JSON representation of its type (see D3). A requested metric that the
+  sample has no value for is left out, as on E6's sample object (see I4).
 - `commit`: the commit of the sample's run, by value.
 - `ordinal`, `tag`: that commit's ordinal and tag, or null where it has none.
 - `run_uuid`: the UUID of the sample's run.
@@ -645,8 +646,8 @@ object with these keys:
 {"test": "test.suite/benchmark", "machine": "linux", "metrics": {"execution_time": 1.23, "instructions": 2903114}, "commit": "a1b2c3", "ordinal": 1024, "tag": null, "run_uuid": "573af861-8303-4a5b-a643-b8321e0142c4", "submitted_at": "2026-08-25T14:22:41Z", "measured_at": "2026-08-25T14:02:17Z"}
 ```
 
-Since each repetition of a test within a run is a sample of its own (see O1),
-the values on one line were measured together.
+When a run measures a test several times, each repetition is a separate sample,
+on a line of its own (see O1). So the values on one line were measured together.
 
 The errors above are all found before the response starts.
 
