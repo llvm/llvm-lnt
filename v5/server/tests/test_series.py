@@ -83,7 +83,7 @@ def lines(api_client: TestClient, **params: Any) -> list[dict[str, Any]]:
 
 
 def keys(served: list[dict[str, Any]]) -> list[tuple[str, str, Any]]:
-    return [(line["test"], line["commit"], line["value"]) for line in served]
+    return [(line["test"], line["commit"], line["metrics"]["execution_time"]) for line in served]
 
 
 @pytest.fixture
@@ -128,8 +128,7 @@ class TestSeriesResponse:
         point = {
             "test": "suite/one",
             "machine": "linux",
-            "metric": "execution_time",
-            "value": 1.25,
+            "metrics": {"execution_time": 1.25},
             "commit": "abc",
             "ordinal": 42,
             "run_uuid": run["uuid"],
@@ -173,7 +172,7 @@ class TestSeriesResponse:
         submitted = "2026-01-02T05:04:05+02:00" if metric == "built_at" else value
         submit("linux", "abc", entry("t", {metric: submitted}))
 
-        assert [point["value"] for point in lines(api_client, metric=metric)] == [value]
+        assert [point["metrics"] for point in lines(api_client, metric=metric)] == [{metric: value}]
 
     def test_skips_the_samples_with_no_value_for_the_metric(
         self, api_client: TestClient, submit: Callable[..., dict[str, Any]]
@@ -192,7 +191,67 @@ class TestSeriesResponse:
             entry("t", {"execution_time": 1.0}, {"execution_time": 2.0}, {"execution_time": 3.0}),
         )
 
-        assert sorted(point["value"] for point in lines(api_client)) == [1.0, 2.0, 3.0]
+        assert sorted(point["metrics"]["execution_time"] for point in lines(api_client)) == [
+            1.0,
+            2.0,
+            3.0,
+        ]
+
+    def test_carries_the_requested_metrics_each_sample_has_a_value_for(
+        self, api_client: TestClient, submit: Callable[..., dict[str, Any]]
+    ) -> None:
+        submit(
+            "linux",
+            "abc",
+            entry("all", {"execution_time": 1.0, "toolchain": "clang-21", "compile_status": 0}),
+            entry("one", {"toolchain": "gcc-15"}),
+            entry("neither", {"compile_status": 1}),
+        )
+
+        served = lines(api_client, metric=["execution_time", "toolchain"])
+
+        # Each value of its own JSON type (D3).
+        assert [(point["test"], point["metrics"]) for point in served] == [
+            ("all", {"execution_time": 1.0, "toolchain": "clang-21"}),
+            ("one", {"toolchain": "gcc-15"}),
+        ]
+
+    def test_keeps_the_values_of_each_repetition_together(
+        self, api_client: TestClient, submit: Callable[..., dict[str, Any]]
+    ) -> None:
+        # O1: a repetition is a sample of its own, so a line holds what was measured together.
+        submit(
+            "linux",
+            "abc",
+            entry(
+                "t",
+                {"execution_time": 1.0, "compile_time": 10.0},
+                {"execution_time": 2.0},
+                {"compile_time": 30.0},
+            ),
+        )
+
+        served = lines(api_client, metric=["execution_time", "compile_time"])
+
+        assert sorted(
+            [point["metrics"] for point in served], key=lambda metrics: json.dumps(metrics)
+        ) == [
+            {"compile_time": 30.0},
+            {"execution_time": 1.0, "compile_time": 10.0},
+            {"execution_time": 2.0},
+        ]
+
+    def test_naming_a_metric_twice_is_naming_it_once(
+        self, api_client: TestClient, submit: Callable[..., dict[str, Any]]
+    ) -> None:
+        submit("linux", "abc", entry("t", {"execution_time": 1.0, "compile_time": 2.0}))
+        once = get(api_client, metric=["execution_time", "compile_time"])
+
+        twice = get(api_client, metric=["compile_time", "execution_time", "compile_time"])
+
+        assert twice.status_code == once.status_code == 200
+        assert twice.content == once.content
+        assert get(api_client, metric=["execution_time"] * 2).content == get(api_client).content
 
     def test_is_empty_when_nothing_matches(
         self, api_client: TestClient, history: list[dict[str, Any]]
@@ -302,18 +361,25 @@ class TestSeriesOrder:
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         # One submission per test, against the order of their names, so that the tests' ids do not
-        # follow their names: a submission creates its own tests in name order.
+        # follow their names: a submission creates its own tests in name order. Each test has
+        # values for different metrics.
+        metrics = {
+            "z": ["execution_time"],
+            "m": ["compile_time"],
+            "a": ["execution_time", "compile_time"],
+        }
         for name in ("z", "m", "a"):
-            submit("linux", "c1", entry(name, {"execution_time": 1.0}))
-            submit("linux", "c2", entry(name, {"execution_time": 2.0}))
+            for value, commit in ((1.0, "c1"), (2.0, "c2")):
+                submit("linux", commit, entry(name, dict.fromkeys(metrics[name], value)))
         place("c1", 1)
         place("c2", 2)
-        whole = get(api_client).content
+        both = ["execution_time", "compile_time"]
+        whole = get(api_client, metric=both).content
         # One test per batch, and every batch sent in a chunk of its own.
         monkeypatch.setattr(series_module, "BATCH_ROWS", 1)
         monkeypatch.setattr(series_module, "CHUNK_BYTES", 1)
 
-        batched = get(api_client).content
+        batched = get(api_client, metric=both).content
 
         assert batched == whole
         assert [
@@ -428,10 +494,14 @@ class TestSeriesErrors:
         assert response.status_code == 400
         assert code_of(response) == "invalid_request"
 
+    @pytest.mark.parametrize("metric", ["nope", ["execution_time", "nope"]])
     def test_an_unknown_metric_is_400(
-        self, api_client: TestClient, history: list[dict[str, Any]]
+        self, api_client: TestClient, history: list[dict[str, Any]], metric: Any
     ) -> None:
-        assert get(api_client, metric="nope").status_code == 400
+        response = get(api_client, metric=metric)
+
+        assert response.status_code == 400
+        assert code_of(response) == "invalid_request"
 
     @pytest.mark.parametrize(
         "params",

@@ -595,18 +595,19 @@ be long and whose names may contain any character, do not fit in a query string.
 GET    /api/projects/{project}/suites/{suite}/series
 ```
 
-Returns the values of one metric on one machine: its whole time series, for
-tools that analyse it, or the part of it the filters below select, such as one
-test's values to chart. It is a streaming endpoint (see I2): the whole result
-comes in one response.
+Returns the samples of one machine, with their values of the metrics the
+request names: the machine's whole time series, for tools that analyse it, or
+the part of it the filters below select, such as one test's samples to chart.
+It is a streaming endpoint (see I2): the whole result comes in one response.
 
 **Auth scope:** `read`.
 
 **Query parameters:**
 
-- `metric` (required): the metric to return values for. Only the samples that
-  have a value for it are returned. 400 if the suite's schema does not declare
-  it.
+- `metric` (required): the metrics to return values of, repeated for several
+  (see I3). Naming a metric twice is the same as naming it once. Only the
+  samples that have a value for at least one of them are returned. 400 if the
+  suite's schema does not declare one of them.
 - `machine` (required): the name of the machine. 404 if it does not exist.
 - `test`: only the samples of these tests, repeated for several (see I3). 404
   if one of them does not exist. Each name lengthens the URL, which proxies
@@ -632,14 +633,20 @@ comes in one response.
 object with these keys:
 
 - `test`, `machine`: the names of the sample's test and machine.
-- `metric`: the name of the metric, the one the request names, so that each
-  line stands on its own.
-- `value`: the sample's value for the metric, never null, in the JSON
-  representation of the metric's type (see D3).
+- `metrics`: a dict of metric name to value, typed per D3, holding the
+  requested metrics that the sample has a value for, and only those (see I4),
+  as on E6's sample object. It is never empty.
 - `commit`: the commit of the sample's run, by value.
 - `ordinal`, `tag`: that commit's ordinal and tag, or null where it has none.
 - `run_uuid`: the UUID of the sample's run.
 - `submitted_at`, `measured_at`: the run's timestamps (see D5).
+
+```json
+{"test": "test.suite/benchmark", "machine": "linux", "metrics": {"execution_time": 1.23, "instructions": 2903114}, "commit": "a1b2c3", "ordinal": 1024, "tag": null, "run_uuid": "573af861-8303-4a5b-a643-b8321e0142c4", "submitted_at": "2026-08-25T14:22:41Z", "measured_at": "2026-08-25T14:02:17Z"}
+```
+
+Since each repetition of a test within a run is a sample of its own (see O1),
+the values on one line were measured together.
 
 The errors above are all found before the response starts.
 
@@ -703,8 +710,7 @@ machine name, then by ordinal. Each item contains:
   and commit, for `metric` under `sample_agg`. It is a real number even for an
   `integer` metric.
 
-A (machine, commit) with no run geomean is absent from the response. Unlike a
-line of the series, an item does not repeat `metric`.
+A (machine, commit) with no run geomean is absent from the response.
 
 
 ## E10: Test Suites

@@ -1,9 +1,9 @@
 """A machine's time series, streamed (E9's `GET /series`).
 
-The whole series, or the tests or commits the request selects, in one response, as NDJSON, rather
-than a page at a time: the order a series is analysed in -- by test, then by commit -- is one no
-page cursor can follow cheaply, and neither a tool that wants all of it nor a chart of one test has
-any use for pages.
+One line per sample, with its values of the metrics the request names. The whole series, or the
+tests or commits the request selects, in one response, as NDJSON, rather than a page at a time: the
+order a series is analysed in -- by test, then by commit -- is one no page cursor can follow
+cheaply, and neither a tool that wants all of it nor a chart of one test has any use for pages.
 
 The response is read a batch of tests at a time, each batch in its own short statement that joins
 the machine's runs to their samples, typically through the sample table's primary key, which leads
@@ -36,6 +36,7 @@ from sqlalchemy import (
     exists,
     func,
     literal,
+    or_,
     select,
 )
 from sqlalchemy.dialects.postgresql import ARRAY
@@ -103,17 +104,21 @@ class SeriesInterruptedError(RuntimeError):
 
 
 class Series:
-    """One machine's samples of one metric, as statements over a batch of tests at a time."""
+    """One machine's samples that have a value for one of some metrics, as statements over a batch
+    of tests at a time."""
 
-    def __init__(self, suite: Suite, metric: Metric, machine_name: str, machine: int) -> None:
+    def __init__(
+        self, suite: Suite, metrics: Sequence[Metric], machine_name: str, machine: int
+    ) -> None:
         tables = suite.tables
         self._run = tables.run
         self._commit = tables.commit
         self._sample = tables.sample
         self._test = tables.test
         self._machine = tables.machine
-        self._value = self._sample.c[metric.name]
-        self._metric = metric
+        self._metrics = metrics
+        self._names = [metric.name for metric in metrics]
+        self._values = [self._sample.c[name] for name in self._names]
         self._machine_name = machine_name
         self._machine_id = machine
         self._tests = Tests(suite)
@@ -129,13 +134,14 @@ class Series:
         return self._runs(select(func.count()), conditions)
 
     def tests(self, among: Sequence[int] | None) -> Select[Any]:
-        """The tests that may have a value on the machine, in the order the series serves them.
+        """The tests that may have a value for one of the metrics on the machine, in the order the
+        series serves them.
 
         From `test_coverage`, which can only name more tests than have samples (D5): a test whose
         samples are gone reads as an empty batch. By code point, whatever the database's locale.
         """
         query = select(self._test.c.id).where(
-            self._tests.has_sample(self._machine_id, self._metric)
+            self._tests.has_sample(self._machine_id, self._metrics)
         )
         if among is not None:
             query = query.where(self._test.c.id.in_(among))
@@ -147,17 +153,17 @@ class Series:
         From the machine's runs, joined to their samples (see the module's docstring for how). The
         tests are one array rather than a bind parameter apiece, since a batch can hold every test
         the suite has. The order ends with the repetition, so that the same data is served byte for
-        byte the same.
+        byte the same. The metrics' values come last, for `lines` to unpack.
         """
         columns = select(
             self._test.c.name,
-            self._value,
             self._commit.c.commit,
             self._commit.c.ordinal,
             self._run.c.uuid,
             self._run.c.submitted_at,
             self._run.c.measured_at,
             self._commit.c.tag,
+            *self._values,
         )
         return (
             self._runs(columns, conditions)
@@ -165,7 +171,7 @@ class Series:
             .join(self._test, self._test.c.id == self._sample.c.test_id)
             .where(
                 self._sample.c.test_id == any_(literal(list(tests), ARRAY(Integer))),
-                self._value.is_not(None),
+                or_(*(value.is_not(None) for value in self._values)),
             )
             .order_by(
                 self._test.c.name.collate("C"),
@@ -181,10 +187,27 @@ class Series:
 
         Fetched a few at a time through a server-side cursor: fetched all at once, the result sits
         whole in the database driver's memory, which the process then keeps.
+
+        A single metric has a value on every row, which spares filtering out the nulls: that would
+        add more than half to the time a line takes to build and encode.
         """
-        machine, metric = self._machine_name, self._metric.name
-        for test, *rest in connection.execute(query.execution_options(yield_per=FETCH_ROWS)):
-            _ENCODER.encode_into(_Line(test, machine, metric, *rest), out, -1)
+        machine, names = self._machine_name, self._names
+        rows = connection.execute(query.execution_options(yield_per=FETCH_ROWS))
+        if len(names) == 1:
+            (name,) = names
+            for test, commit, ordinal, run, submitted, measured, tag, value in rows:
+                line = _Line(
+                    test, machine, {name: value}, commit, ordinal, run, submitted, measured, tag
+                )
+                _ENCODER.encode_into(line, out, -1)
+                out += b"\n"
+            return
+        for test, commit, ordinal, run, submitted, measured, tag, *values in rows:
+            metrics = {
+                name: value for name, value in zip(names, values, strict=True) if value is not None
+            }
+            line = _Line(test, machine, metrics, commit, ordinal, run, submitted, measured, tag)
+            _ENCODER.encode_into(line, out, -1)
             out += b"\n"
 
     def check(self, connection: Connection, version: int) -> None:
@@ -243,13 +266,13 @@ def stream(
 @router.get(
     "/series",
     dependencies=[require_scope(Scope.READ)],
-    summary="Download a machine's values of a metric",
+    summary="Download a machine's samples of some metrics",
     # Without a media type, so that FastAPI documents none for the 200 beside the one below.
     response_class=Response,
     responses={
         200: {
             "description": (
-                "One value per line, each a JSON object of this schema (newline-delimited JSON). "
+                "One sample per line, each a JSON object of this schema (newline-delimited JSON). "
                 "An empty body if nothing matches."
             ),
             "content": {NDJSON: {"schema": schema_ref(DataPoint)}},
@@ -263,23 +286,24 @@ def get_series(
     engine: EngineDep,
     registry: RegistryDep,
     metric: Annotated[
-        str,
+        list[str],
         Query(
             description=(
-                "The metric to return values for. Returns 400 if the suite's schema doesn't "
-                "define it."
+                "The metrics to return values of. Repeat the parameter for several metrics. Only "
+                "the samples that have a value for at least one of them are returned. Returns 400 "
+                "if the suite's schema doesn't define one of them."
             )
         ),
     ],
     machine: Annotated[
         str,
-        Query(description="The machine to return values for. Returns 404 if it doesn't exist."),
+        Query(description="The machine to return samples of. Returns 404 if it doesn't exist."),
     ],
     test: Annotated[
         list[str] | None,
         Query(
             description=(
-                "Only return values for these tests. Repeat the parameter for several tests. "
+                "Only return the samples of these tests. Repeat the parameter for several tests. "
                 "Returns 404 if any of them doesn't exist. Every name lengthens the URL, which "
                 "proxies limit to a few kilobytes: to read more than a few dozen tests, leave this "
                 "out and read the machine's whole series instead."
@@ -290,7 +314,7 @@ def get_series(
         str | None,
         Query(
             description=(
-                "Only return values from runs of this commit. If the commit doesn't exist, the "
+                "Only return samples from runs of this commit. If the commit doesn't exist, the "
                 "result is empty. Can't be combined with `after_commit` or `before_commit`."
             )
         ),
@@ -299,7 +323,7 @@ def get_series(
         str | None,
         Query(
             description=(
-                "Only return values from commits after this one (exclusive), by ordinal. Commits "
+                "Only return samples from commits after this one (exclusive), by ordinal. Commits "
                 "without an ordinal are left out. Returns 404 if the commit doesn't exist, and 400 "
                 "if it has no ordinal."
             )
@@ -309,7 +333,7 @@ def get_series(
         str | None,
         Query(
             description=(
-                "Only return values from commits before this one (exclusive), by ordinal. Commits "
+                "Only return samples from commits before this one (exclusive), by ordinal. Commits "
                 "without an ordinal are left out. Returns 404 if the commit doesn't exist, and 400 "
                 "if it has no ordinal."
             )
@@ -318,7 +342,7 @@ def get_series(
     submitted_after: Annotated[
         DatetimeValue | None,
         Query(
-            description=f"Only return values from runs submitted after this time (exclusive). "
+            description=f"Only return samples from runs submitted after this time (exclusive). "
             f"{TIMESTAMP_HINT}"
         ),
     ] = None,
@@ -326,7 +350,7 @@ def get_series(
         DatetimeValue | None,
         Query(
             description=(
-                "Only return values from runs submitted before this time (exclusive). To read the "
+                "Only return samples from runs submitted before this time (exclusive). To read the "
                 "same data again later, pick a time a few minutes in the past: a run is stamped "
                 f"when it starts being stored, a little before it can be read. {TIMESTAMP_HINT}"
             )
@@ -335,14 +359,14 @@ def get_series(
     measured_after: Annotated[
         DatetimeValue | None,
         Query(
-            description=f"Only return values from runs measured after this time (exclusive). "
+            description=f"Only return samples from runs measured after this time (exclusive). "
             f"{TIMESTAMP_HINT}"
         ),
     ] = None,
     measured_before: Annotated[
         DatetimeValue | None,
         Query(
-            description=f"Only return values from runs measured before this time (exclusive). "
+            description=f"Only return samples from runs measured before this time (exclusive). "
             f"{TIMESTAMP_HINT}"
         ),
     ] = None,
@@ -350,21 +374,23 @@ def get_series(
         bool | None,
         Query(
             description=(
-                "Only return values from commits that have (`true`) or don't have (`false`) an "
+                "Only return samples from commits that have (`true`) or don't have (`false`) an "
                 "ordinal. Leave out to return both. `after_commit` and `before_commit` imply "
                 "`true`."
             )
         ),
     ] = None,
 ) -> StreamingResponse:
-    """One machine's values of a metric, in a single response of newline-delimited JSON (one
-    object per line): all of them, for tools that analyse a whole series, or those of the tests
-    and commits the filters select, such as one test's to chart it. Values come grouped by test, in
-    order of test name (by code point), then by commit ordinal, with the commits that have none
-    last; then by commit and run, so that the same data always comes in the same order.
+    """One machine's samples, with their values of the requested metrics, in a single response of
+    newline-delimited JSON (one sample per line): all of them, for tools that analyse a whole
+    series, or those of the tests and commits the filters select, such as one test's to chart it.
+    A test measured several times in a run has one sample per repetition, so the values on a line
+    were measured together. Samples come grouped by test, in order of test name (by code point),
+    then by commit ordinal, with the commits that have none last; then by commit and run, so that
+    the same data always comes in the same order.
 
     The response is streamed as it is read, so it can be large and long: ask for it compressed
-    (`Accept-Encoding: gzip`, or `curl --compressed`). Each test's values are read at one point in
+    (`Accept-Encoding: gzip`, or `curl --compressed`). Each test's samples are read at one point in
     time, but different tests may be read at different times, so a run submitted or deleted during
     the download can appear for some tests and not others.
 
@@ -387,9 +413,11 @@ def get_series(
         # batches see as a different version, even if it came before the suite was read.
         version = connection.execute(_VERSION).scalar_one()
         with suite_scope(registry, connection, project, testsuite) as suite:
+            # Each named once, in the schema's order, whatever the request's.
+            named = {declared_entry(suite.schema, Metric, name).name for name in metric}
             series = Series(
                 suite,
-                declared_entry(suite.schema, Metric, metric),
+                [entry for entry in suite.schema.metrics if entry.name in named],
                 machine,
                 machine_id(connection, suite, machine),
             )

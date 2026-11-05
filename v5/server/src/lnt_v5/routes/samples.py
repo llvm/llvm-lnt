@@ -6,10 +6,10 @@ several identical-looking objects, and O1 makes those repetitions indistinguisha
 
 Two things here follow from the design docs rather than from convenience.
 
-`metrics` carries only the metrics that have a value. That is I4's one stated exception to the rule
-that a declared dict carries every declared key, and the reason is the shape of the data: a suite
-declares a long metric list that any given test populates sparsely, so a full dict would be mostly
-nulls repeated on every row of a page.
+`metrics` carries only the metrics that have a value. That is I4's exception, shared with a line of
+`GET /series`, to the rule that a declared dict carries every declared key, and the reason is the
+shape of the data: a suite declares a long metric list that any given test populates sparsely, so a
+full dict would be mostly nulls repeated on every row of a page.
 
 A test is named by `?test=` rather than by a path segment, because I1 keeps a test name out of every
 path. Folding it into this list rather than giving it a route of its own also keeps one pagination

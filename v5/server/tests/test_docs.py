@@ -1336,6 +1336,23 @@ class TestTimeSeriesOperations:
 
         assert status in operation["responses"]
 
+    def test_a_data_point_holds_the_values_a_sample_is_read_back_with(
+        self, client: TestClient
+    ) -> None:
+        # E9 and E6: a line of the series carries a sample's `metrics`, restricted to the metrics
+        # requested.
+        schemas = client.get("/api/openapi.json").json()["components"]["schemas"]
+        line = schemas["DataPoint"]["properties"]["metrics"]["additionalProperties"]
+
+        assert line == schemas["Sample"]["properties"]["metrics"]["additionalProperties"]
+
+    def test_the_series_takes_one_metric_or_several(self, client: TestClient) -> None:
+        operation = client.get("/api/openapi.json").json()["paths"][SERIES_PATH]["get"]
+        metric = next(p for p in operation["parameters"] if p["name"] == "metric")
+
+        assert metric["required"] is True
+        assert metric["schema"]["type"] == "array"
+
     def test_the_series_is_documented_as_lines_of_data_points(self, client: TestClient) -> None:
         # OpenAPI cannot say "one per line", so the 200 names the schema of a line, which the
         # document must carry although no operation returns one as JSON.
@@ -1392,8 +1409,7 @@ class TestTimeSeriesOperations:
         assert set(point["properties"]) == {
             "test",
             "machine",
-            "metric",
-            "value",
+            "metrics",
             "commit",
             "ordinal",
             "run_uuid",
@@ -1406,7 +1422,6 @@ class TestTimeSeriesOperations:
     def test_a_trend_item_carries_exactly_what_endpoints_md_gives_it(
         self, client: TestClient
     ) -> None:
-        # No `metric`, unlike a data point: endpoints.md states that difference explicitly.
         item = client.get("/api/openapi.json").json()["components"]["schemas"]["TrendPoint"]
 
         assert set(item["properties"]) == {

@@ -1,7 +1,7 @@
 """Time series (E9).
 
 `GET /trends` combines the runs' geomeans (O9) into one per (machine, commit). `GET /series` lives
-in `series.py`, and takes from here the point it streams (`DataPoint`) and the filters it selects
+in `series.py`, and takes from here the line it streams (`DataPoint`) and the filters it selects
 runs with (`run_conditions`).
 """
 
@@ -64,20 +64,27 @@ ONE_KIND_OF_COMMIT_FILTER = (
 _TAG = "The commit's tag. Null if it has none."
 
 
-# A line of `GET /series`. Carries the commit's `ordinal` and `tag`, the denormalization I4 grants
-# time-series points, and echoes `metric` so that each line is self-descriptive.
+# A line of `GET /series`: one sample, whose `metrics` holds only the requested metrics it has a
+# value for, as the sample list's holds only those with a value (I4). Carries the commit's `ordinal`
+# and `tag`, the denormalization I4 grants time-series points.
 class DataPoint(BaseModel):
-    """One measured value, with the test, machine, commit and run it comes from."""
+    """One sample: its values of the requested metrics, with the test, machine, commit and run it
+    comes from. If a test was repeated in a run, it has one sample per repetition, so the values
+    of a sample were measured together."""
 
     test: str = Field(description="The name of the test.", examples=[examples.TEST])
     machine: str = Field(description="The name of the machine.", examples=[examples.MACHINE])
-    metric: str = Field(
-        description="The name of the metric (the one in the request).",
-        examples=[examples.METRIC],
-    )
-    value: DeclaredValue = Field(
-        description="The measured value. Never null.",
-        examples=[examples.SAMPLE_METRICS["execution_time"]],
+    metrics: dict[str, DeclaredValue] = Field(
+        description=(
+            "The sample's values of the requested metrics, keyed by metric name. Metrics it has "
+            "no value for are left out, so it is never empty."
+        ),
+        examples=[
+            {
+                examples.METRIC: examples.SAMPLE_METRICS[examples.METRIC],
+                examples.OTHER_METRIC: examples.SAMPLE_METRICS[examples.OTHER_METRIC],
+            }
+        ],
     )
     commit: str = Field(
         description="The value of the commit the run measured.",

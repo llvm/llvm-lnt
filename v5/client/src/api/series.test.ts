@@ -1,7 +1,7 @@
 import { HttpResponse } from 'msw'
 import { describe, expect, it } from 'vitest'
 import type { Schemas } from './client'
-import { fetchSeries } from './series'
+import { fetchMeasurements, fetchSeries } from './series'
 import { errorResponse, mockSeries, ndjsonResponse } from '../test/mock-api'
 import { server } from '../test/server'
 import { REF } from '../test/fixtures'
@@ -11,8 +11,7 @@ const signal = () => new AbortController().signal
 const pointAt = (commit: string, ordinal: number, value: number): Schemas['DataPoint'] => ({
   test: 'a',
   machine: 'm1',
-  metric: 'execution_time',
-  value,
+  metrics: { execution_time: value },
   commit,
   ordinal,
   run_uuid: `run-${commit}`,
@@ -32,7 +31,12 @@ describe('fetchSeries', () => {
       }),
     )
 
-    const query = { metric: 'execution_time', machine: 'm1', test: ['a', 'b/c'], has_ordinal: true }
+    const query = {
+      metric: ['execution_time'],
+      machine: 'm1',
+      test: ['a', 'b/c'],
+      has_ordinal: true,
+    }
     expect(await fetchSeries(REF, query, signal())).toEqual(points)
     expect(url?.pathname).toBe('/api/projects/llvm/suites/libcxx/series')
     expect(url?.search).toBe('?metric=execution_time&machine=m1&test=a&test=b%2Fc&has_ordinal=true')
@@ -49,18 +53,36 @@ describe('fetchSeries', () => {
       ),
     )
 
-    const query = { metric: 'execution_time', machine: 'm1' }
+    const query = { metric: ['execution_time'], machine: 'm1' }
     expect(await fetchSeries(REF, query, signal())).toEqual([])
   })
 
   it('fails with the error the API answered with', async () => {
     server.use(mockSeries(() => errorResponse(404, 'not_found', "Machine 'm9' not found")))
 
-    const query = { metric: 'execution_time', machine: 'm9' }
+    const query = { metric: ['execution_time'], machine: 'm9' }
     await expect(fetchSeries(REF, query, signal())).rejects.toMatchObject({
       status: 404,
       code: 'not_found',
       message: "Machine 'm9' not found",
     })
+  })
+})
+
+describe('fetchMeasurements', () => {
+  it('asks for the one metric, and keeps its value of each line', async () => {
+    let url: URL | undefined
+    server.use(
+      mockSeries(({ request }) => {
+        url = new URL(request.url)
+        return ndjsonResponse([[{ ...pointAt('c10', 10, 1), metrics: { instructions: 7 } }]])
+      }),
+    )
+
+    const query = { metric: 'instructions', machine: 'm1', test: ['a'] }
+    expect(await fetchMeasurements(REF, query, signal())).toEqual([
+      { commit: 'c10', run: 'run-c10', measured: '2026-08-25T14:22:41Z', value: 7 },
+    ])
+    expect(url?.searchParams.getAll('metric')).toEqual(['instructions'])
   })
 })

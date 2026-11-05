@@ -230,10 +230,12 @@ spec only needs to list its keys.
   cannot place a point without them; and an API key's restrictions name a suite
   by its project's name and its own together, in one object (see E11).
 - Schema-declared data is always in its own nested dict -- `fields` on machines
-  and commits, `metrics` on samples -- never flattened onto the entity.
+  and commits, `metrics` on samples and on the lines of a series -- never
+  flattened onto the entity.
 - A `fields` dict contains every field the suite's schema declares, with `null`
-  where the entity has no value. A sample's `metrics` is the exception to this
-  rule.
+  where the entity has no value. The `metrics` of a sample (E6) and of a line
+  of a series (E9) are the exception to this rule: they hold only the metrics
+  that have a value, and a line of a series only those its request names.
 - Values in `fields` and `metrics` use the JSON representation of their
   declared type (see D3) and are never converted to strings. Built-in
   timestamps follow the same convention (see D5).
