@@ -224,7 +224,7 @@ export function Select<Value extends string>({
   )
 }
 
-/** The most options a `TreeSelect`'s button names; beyond that it counts them. */
+/** The most options a `TreeSelect`'s button names by default; beyond that it counts them. */
 const NAMED = 2
 
 /** An option of a `TreeSelect`, below an option of its own if it is a child. */
@@ -263,6 +263,10 @@ interface TreeProps<Value extends string> {
   isDisabled?: boolean
   /** Keep the label for assistive technology only, where the page already says what it is. */
   hideLabel?: boolean
+  /** The most options the button names; beyond that it counts them. */
+  named?: number
+  /** What to say on hover over the dropdown, and to assistive technology. */
+  title?: string
 }
 
 /** An option of a `TreeSelect` as its list holds it, with its parent if it has one. */
@@ -303,7 +307,10 @@ export function TreeSelect<Value extends string>({
   onChange,
   isDisabled,
   hideLabel,
+  named = NAMED,
+  title,
 }: TreeProps<Value>) {
+  const titleId = useId()
   const checked = new Set(value)
   // Built again only when the options change, so that the list renders its rows again only then,
   // or when what is checked changes (see `dependencies` below).
@@ -316,64 +323,67 @@ export function TreeSelect<Value extends string>({
   }, [options])
   const picked = value.flatMap((checkedValue) => byValue.get(checkedValue) ?? [])
   let summary = placeholder
-  if (picked.length > NAMED) summary = `${picked.length} selected`
+  if (picked.length > named) summary = `${picked.length} selected`
   else if (picked.length > 0) {
     summary = picked.map((row) => row.summary ?? row.name ?? row.label).join(', ')
   }
   return (
-    <AriaSelect
-      className={shared.root}
-      selectionMode="multiple"
-      value={picked.map((row) => row.value)}
-      onChange={(keys) => onChange(checkedOf(options, keys as Value[]))}
-      isDisabled={isDisabled}
-    >
-      <FieldLabel label={label} hidden={hideLabel} />
-      <Button className={clsx(styles.button, styles.treeButton)}>
-        {/* Cut short when too long for the button, but whole on hover, and to assistive
-            technology, which reads the button's text. */}
-        <SelectValue className={styles.summary}>
-          <span title={summary}>{summary}</span>
-        </SelectValue>
-        <span aria-hidden="true">▾</span>
-      </Button>
-      <Popover className={shared.popover} maxHeight={320}>
-        <ListBox className={shared.list} items={rows} dependencies={[value]}>
-          {(row) => {
-            const { parent, note } = row
-            const covered = parent !== undefined && checked.has(parent.value)
-            // Given only where it differs from what the option shows, which names it otherwise.
-            let name: string | undefined
-            if (covered) name = `${row.name ?? row.label}, covered by ${parent.label}`
-            else if (row.name !== undefined) name = [row.name, note].filter(Boolean).join(' ')
-            return (
-              <ListBoxItem
-                id={row.value}
-                textValue={row.label}
-                aria-label={name}
-                isDisabled={covered}
-                className={clsx(styles.checkOption, parent !== undefined && styles.child)}
-              >
-                {({ isSelected }) => (
-                  <span className={styles.checkRow}>
-                    {/* Only to show the option as checked: the option itself is what is picked. A
-                        covered option keeps its room, to stay in line with the others. */}
-                    <input
-                      type="checkbox"
-                      checked={isSelected}
-                      readOnly
-                      tabIndex={-1}
-                      aria-hidden="true"
-                    />
-                    {row.label}
-                    {note !== undefined && <Note>{note}</Note>}
-                  </span>
-                )}
-              </ListBoxItem>
-            )
-          }}
-        </ListBox>
-      </Popover>
-    </AriaSelect>
+    // On an element of its own, as for a `Select`.
+    <span className={styles.titled} title={title}>
+      <AriaSelect
+        className={shared.root}
+        selectionMode="multiple"
+        value={picked.map((row) => row.value)}
+        onChange={(keys) => onChange(checkedOf(options, keys as Value[]))}
+        isDisabled={isDisabled}
+      >
+        <FieldLabel label={label} hidden={hideLabel} />
+        <Button
+          className={styles.button}
+          aria-describedby={title === undefined ? undefined : titleId}
+        >
+          <SelectValue>{summary}</SelectValue>
+          <span aria-hidden="true">▾</span>
+        </Button>
+        {title !== undefined && <VisuallyHidden id={titleId}>{title}</VisuallyHidden>}
+        <Popover className={shared.popover} maxHeight={320}>
+          <ListBox className={shared.list} items={rows} dependencies={[value]}>
+            {(row) => {
+              const { parent, note } = row
+              const covered = parent !== undefined && checked.has(parent.value)
+              // Given only where it differs from what the option shows, which names it otherwise.
+              let name: string | undefined
+              if (covered) name = `${row.name ?? row.label}, covered by ${parent.label}`
+              else if (row.name !== undefined) name = [row.name, note].filter(Boolean).join(' ')
+              return (
+                <ListBoxItem
+                  id={row.value}
+                  textValue={row.label}
+                  aria-label={name}
+                  isDisabled={covered}
+                  className={clsx(styles.checkOption, parent !== undefined && styles.child)}
+                >
+                  {({ isSelected }) => (
+                    <span className={styles.checkRow}>
+                      {/* Only to show the option as checked: the option itself is what is picked. A
+                          covered option keeps its room, to stay in line with the others. */}
+                      <input
+                        type="checkbox"
+                        checked={isSelected}
+                        readOnly
+                        tabIndex={-1}
+                        aria-hidden="true"
+                      />
+                      {row.label}
+                      {note !== undefined && <Note>{note}</Note>}
+                    </span>
+                  )}
+                </ListBoxItem>
+              )
+            }}
+          </ListBox>
+        </Popover>
+      </AriaSelect>
+    </span>
   )
 }

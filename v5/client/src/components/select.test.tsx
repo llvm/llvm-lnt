@@ -480,4 +480,28 @@ describe('TreeSelect with a flat list', () => {
     rerender(metrics(['cycles', 'code_size', 'execution_time']))
     expect(selectButton('Metrics')).toHaveTextContent('3 selected')
   })
+
+  it('names as many options as it is told to, and says what it is told to on hover', () => {
+    const metrics = (value: string[]) => (
+      <TreeSelect
+        label="Metrics"
+        options={FLAT}
+        value={value}
+        placeholder="None"
+        onChange={() => {}}
+        named={1}
+        title={value.length === 0 ? undefined : 'Checked'}
+      />
+    )
+    const { rerender } = render(metrics(['code_size']))
+    expect(selectButton('Metrics')).toHaveTextContent('Code Size')
+    expect(selectButton('Metrics')).toHaveAccessibleDescription('Checked')
+    expect(selectButton('Metrics').closest('[title]')).toHaveAttribute('title', 'Checked')
+
+    rerender(metrics(['code_size', 'execution_time']))
+    expect(selectButton('Metrics')).toHaveTextContent('2 selected')
+    rerender(metrics([]))
+    expect(selectButton('Metrics')).toHaveTextContent('None')
+    expect(selectButton('Metrics')).not.toHaveAccessibleDescription()
+  })
 })

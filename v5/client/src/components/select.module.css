@@ -9,21 +9,6 @@
   text-align: left;
 }
 
-/*
- * The button of a `TreeSelect`, whose summary of what is checked is cut short rather than widen it
- * and move what is beside it: the list shows every option checked.
- */
-.treeButton {
-  max-width: 10rem;
-}
-
-.summary {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
 /* Only there to carry a title: it takes no part in the layout. */
 .titled {
   display: contents;

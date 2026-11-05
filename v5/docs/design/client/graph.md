@@ -42,9 +42,9 @@ several metrics at once, each in a panel of its own.
   metric is checked initially. The metrics are plotted in the order they were
   checked, which is the order of the chart's panels: a metric checked goes after
   the others, and unchecking one moves those after it up. The closed dropdown
-  names the metrics checked in that order, or says how many there are when they
-  are too many to name, and says to select metrics while none is checked. A
-  suite with no numeric metric says so in place of the dropdown.
+  names the metric checked, or says how many are checked when there are several,
+  and says to select metrics while none is checked. A suite with no numeric
+  metric says so in place of the dropdown.
 
 - **Explicit test selection**: There is no "Plot" button or auto-plot. When at
   least one machine and one metric are selected, the test table is populated

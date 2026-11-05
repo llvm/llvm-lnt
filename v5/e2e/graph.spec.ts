@@ -605,8 +605,11 @@ test('plots each metric in a panel of its own, with a line across them at a poin
 }) => {
   await page.goto(`${LINUX_TEST}&metric=cycles`)
   await expect(tracesOf(page)).toHaveCount(2)
-  // The metric selector names the metrics in the order of their panels.
-  await expect(selectButton(page, 'Metrics')).toHaveText(/^Execution Time, Cycles Elapsed/)
+  // The metric selector counts the metrics, and lists them from the top panel on hover.
+  await expect(selectButton(page, 'Metrics')).toHaveText(/^2 selected/)
+  await expect(selectButton(page, 'Metrics')).toHaveAccessibleDescription(
+    'Execution Time, Cycles Elapsed',
+  )
   // Each panel's y-axis is titled with its metric and unit.
   await expect(plotOf(page).locator('text.ytitle')).toHaveText('Execution Time — seconds (s)')
   await expect(plotOf(page).locator('text.y3title')).toHaveText('Cycles Elapsed — cycles')

@@ -48,6 +48,11 @@ import {
 // The tests check what the page hands Plotly to draw (see test/chart.tsx).
 vi.mock('../../components/chart', () => import('../../test/chart'))
 
+/** What a hover over the metric selector says (GR1). */
+function metricsTitle() {
+  return selectButton('Metrics').closest('[title]')?.getAttribute('title')
+}
+
 /** Click the row of `test` with Shift held (AR10). */
 async function shiftClick(user: ReturnType<typeof userEvent.setup>, test: string) {
   await user.keyboard('{Shift>}')
@@ -108,7 +113,7 @@ describe('the Graph page (GR1)', () => {
     ])
   })
 
-  it('plots the metrics in the order they are checked, which the button names', async () => {
+  it('plots the metrics in the order they are checked, which its hover lists', async () => {
     mockWorld()
     renderPage('/graph?project=llvm&suite=libcxx&machine=m1')
     const user = userEvent.setup()
@@ -122,18 +127,25 @@ describe('the Graph page (GR1)', () => {
       expect(query()).toMatchObject({ metric: ['compile_time', 'execution_time'] }),
     )
     await user.keyboard('{Escape}')
-    expect(selectButton('Metrics')).toHaveTextContent('Compile Time, Execution Time')
+    // The button counts several metrics, which a hover lists, from the top panel.
+    expect(selectButton('Metrics')).toHaveTextContent(/^2 selected/)
+    expect(metricsTitle()).toBe('Compile Time, Execution Time')
+    expect(selectButton('Metrics')).toHaveAccessibleDescription('Compile Time, Execution Time')
 
     // Unchecking one moves those after it up; checking it again puts it last.
     await user.click(selectButton('Metrics'))
     await user.click(screen.getByRole('option', { name: 'Compile Time' }))
     await waitFor(() => expect(query()).toMatchObject({ metric: ['execution_time'] }))
+    await user.keyboard('{Escape}')
+    // A single metric is named.
+    expect(selectButton('Metrics')).toHaveTextContent(/^Execution Time/)
+    await user.click(selectButton('Metrics'))
     await user.click(screen.getByRole('option', { name: 'Compile Time' }))
     await waitFor(() =>
       expect(query()).toMatchObject({ metric: ['execution_time', 'compile_time'] }),
     )
     await user.keyboard('{Escape}')
-    expect(selectButton('Metrics')).toHaveTextContent('Execution Time, Compile Time')
+    expect(metricsTitle()).toBe('Execution Time, Compile Time')
   })
 
   it('says so when the suite has no numeric metric', async () => {

@@ -367,6 +367,9 @@ function GraphPage() {
               placeholder="-- Select metrics --"
               onChange={(checked) => update({ metric: inCheckedOrder(metricNames, checked) })}
               isDisabled={disabled}
+              // The metric checked, or how many are, and on hover every one, from the top panel.
+              named={1}
+              title={metrics.length === 0 ? undefined : metrics.map(labelOf).join(', ')}
             />
           )}
           <Select<Aggregation>

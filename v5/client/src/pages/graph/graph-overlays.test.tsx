@@ -2113,7 +2113,7 @@ describe('the panels of several metrics (GR1)', () => {
     )
 
     await waitFor(() => expect(query().metric).toEqual(['compile_time', 'execution_time']))
-    expect(selectButton('Metrics')).toHaveTextContent('Compile Time, Execution Time')
+    expect(selectButton('Metrics')).toHaveAccessibleDescription('Compile Time, Execution Time')
   })
 
   it('resets the zoom of every panel on a double-click (GR5)', async () => {
