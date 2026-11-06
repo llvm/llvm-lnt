@@ -1145,23 +1145,24 @@ describe('the URL (GR14, AR2)', () => {
   it("lists the suites under their projects' headings, and leaves out a project without any (AR22)", async () => {
     mockWorld()
     const zed = { name: 'aaa', display_name: 'Zed' }
+    // In the order the API lists them, rather than by label (AR22).
     mockSuites(
       [
-        GRAPH_SUITE,
         TEXT_SUITE,
+        GRAPH_SUITE,
         inProject({ ...GRAPH_SUITE, name: 'zeta', display_name: 'Alpha' }, zed),
       ],
-      { projects: [PROJECT, zed, { name: 'empty', display_name: 'Empty' }] },
+      { projects: [zed, PROJECT, { name: 'empty', display_name: 'Empty' }] },
     )
     renderPage('/graph')
 
     await waitFor(() => expect(selectButton('Suite')).toBeEnabled())
     await userEvent.setup().click(selectButton('Suite'))
     const groups = screen.getAllByRole('group')
-    expect(groups.map(optionsIn)).toEqual([['libcxx', 'text_only'], ['Alpha']])
-    expect(groups[0]).toHaveAccessibleName('llvm')
-    expect(groups[1]).toHaveAccessibleName('Zed')
-    await userEvent.setup().click(within(groups[1]).getByRole('option', { name: 'Alpha' }))
+    expect(groups.map(optionsIn)).toEqual([['Alpha'], ['text_only', 'libcxx']])
+    expect(groups[0]).toHaveAccessibleName('Zed')
+    expect(groups[1]).toHaveAccessibleName('llvm')
+    await userEvent.setup().click(within(groups[0]).getByRole('option', { name: 'Alpha' }))
 
     await waitFor(() => expect(query()).toEqual({ project: ['aaa'], suite: ['zeta'] }))
     expect(selectButton('Suite')).toHaveTextContent('Zed › Alpha')

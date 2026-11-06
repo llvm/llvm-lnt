@@ -70,6 +70,8 @@ export const BENCHMARKS: SuiteRef = { project: 'libcxx', suite: 'benchmarks' }
 /** The seeded suite of the real nts runs. */
 export const NTS: SuiteRef = { project: 'llvm', suite: 'nts' }
 
+// In the order they are created in, which is the order the instance lists them in (D7): the suite
+// with runs first.
 export const PROJECTS: Project[] = [
   {
     name: 'libcxx',

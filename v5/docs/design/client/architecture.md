@@ -562,11 +562,20 @@ otherwise as its entries, each as it is: a whole project by its label followed
 by `(all)`, and a single suite by its full label, even when its project is
 listed too (see I5). A key whose every entry has been deleted shows `Nothing`.
 
-**Order.** Wherever the UI lists projects or suites, it orders projects by
-label, and the suites of each project by label, after the project itself when
-both are listed (as in what a key covers). Labels are compared
-case-insensitively and in the order of the browser's language, and ties are
-broken by name.
+**Order.** Wherever the UI lists projects or suites, it lists them in the
+order the API does: the instance's order of projects, and each project's order
+of its suites (see D7). Where both are listed, as in what a key covers, the
+suites of a project come after the project itself. What a key covers comes from
+the API ordered by name (see E11). The UI puts its entries in the order of the
+projects and suites they name. An entry for a project or suite missing from the
+list of projects, as before the list has loaded, comes after the listed ones at
+its level. Such entries are ordered by name.
+
+**Reordering.** The projects are reordered on the Admin page (AD3), and the
+suites of a project on the Projects page (TS1), by dragging them (see AR24).
+Each drop saves the whole new order (see E10 and E13). If the API refuses the
+order because the projects or suites changed elsewhere, or because the project
+no longer exists, the page fetches the list of projects again.
 
 **Grouping.** A dropdown or a combobox that picks a suite lists the suites under
 a heading for each project (see AR5), and leaves out the projects without
@@ -596,8 +605,8 @@ how the bots submitting runs, command lines and URLs know the machine, and
 display names are not unique: two machines may share one.
 
 **Order.** Wherever the UI lists machines in no other order, it orders them by
-label, as AR22 orders suites: case-insensitively, in the order of the browser's
-language, with ties broken by name.
+label, compared case-insensitively and in the order of the browser's language,
+with ties broken by name.
 
 **Filtering.** A client-side filter over machines (AR9) matches a machine's
 label or its name.
@@ -626,5 +635,11 @@ supports native dragging. From the keyboard:
 - Escape ends the drag and leaves the order unchanged.
 
 A screen reader announces each step. After a drop, the focus is on the grip of
-the item that moved. Each page says which items can be moved, and when the new
+the item dropped. Each page says which items can be moved, and when the new
 order is saved.
+
+A page may save the new order on each drop. The list then shows the new order
+straight away, unlike a control that saves on change (AR13). Until the order is
+saved, the item that moved is faded, and no item can be dragged, though the grips
+can still be focused. If the save fails, the item goes back to its place, and the
+page says why.

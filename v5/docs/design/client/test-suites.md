@@ -42,6 +42,29 @@ when it has no suites. Clicking the selected chip does nothing, though a modifie
 click still opens it in a new tab. The chips of both rows are cards, the
 selected one standing out from the others.
 
+**Reordering the suites**: When the project has two suites or more, a small
+icon button at the end of its row of suites puts the row in a reordering mode.
+The button is named `Reorder suites`, for assistive technology and on hover. It
+requires `manage` covering the project in full (see I5). When it is disabled,
+its hover says what it does, then what it needs (see AR17). In the mode, the
+chips are not links, and the selected one still stands out. Each chip has a grip
+(⠿), which drags the chip sideways to another place in the row (see AR22
+"Reordering"). For assistive technology, the grip is named
+`Drag suite Microbenchmarks`. A drop
+sends the project's suites in their new order (`PATCH /api/projects/{p}/suites`,
+see E10). The icon becomes a "Done" button, which keeps the focus and needs no
+scope. "Done" stays for as long as the mode lasts, even once the project is down
+to one suite. "Done" leaves the mode, and so does selecting another project. The
+mode is not a setting of the page, so the URL does not keep it (see AR2
+"State").
+
+```
+Normal:      [ Microbenchmarks ]  [ header-sizes ]  ⇄
+Reordering:  [ ⠿ Microbenchmarks ]  [ ⠿ header-sizes ]  [Done]
+Dragging header-sizes before Microbenchmarks:
+            ┃[ ⠿ Microbenchmarks ]  [ ⠿ header-sizes ]  [Done]
+```
+
 **Tabs**: [Runs] [Machines] [Commits] [Regressions] [Schema]. Default tab is Runs.
 Switching tabs clears the search, the filters and the pagination position.
 
