@@ -140,6 +140,8 @@ These hold on every page, unless the page specifies otherwise.
   string.
 - A metric, machine field or commit field is labelled with its `display_name`
   when the schema sets one, and with its `name` otherwise.
+- A suite's metrics, machine fields and commit fields are listed in *schema
+  order*, the order in which the suite's schema lists them (see D4).
 - Where a page names a metric's unit, it writes its `unit` followed by its
   `unit_abbrev` in parentheses, as much of either as is set (`seconds (s)`,
   `seconds`, `(s)`), and only once when the two are identical (`cycles`, not
@@ -600,3 +602,29 @@ language, with ties broken by name.
 **Filtering.** A client-side filter over machines (AR9) matches a machine's
 label or its name.
 
+
+## AR24: Reordering
+
+The user can change the order of some lists. Each item in such a list has a
+grip (⠿), and dragging the grip moves the item. For assistive technology, the
+grip is named after its item.
+
+An item dropped on another item takes that item's place. An item moved towards
+the start of the list goes just before the item it is dropped on. An item moved
+towards the end goes just after it. During a drag, a line shows where the item
+would go.
+
+Dragging works with a mouse, from the keyboard, and by touch where the browser
+supports native dragging. From the keyboard:
+
+- Enter on the grip starts the drag, at the item's current place.
+- Tab and Shift+Tab move to the next and previous places, in list order, and
+  wrap around at the ends. The grip itself is one more stop, just before the
+  item's current place.
+- Enter drops the item at the chosen place. On the item's current place or on
+  the grip, the order stays as it is.
+- Escape ends the drag and leaves the order unchanged.
+
+A screen reader announces each step. After a drop, the focus is on the grip of
+the item that moved. Each page says which items can be moved, and when the new
+order is saved.

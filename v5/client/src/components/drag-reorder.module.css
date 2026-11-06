@@ -1,0 +1,51 @@
+/* The grip dragging an item (see drag-reorder.tsx): unobtrusive until hovered or focused. */
+.grip {
+  display: inline-block;
+  padding: 0 var(--lnt-space-1);
+  color: var(--lnt-muted);
+  cursor: grab;
+  user-select: none;
+  border-radius: var(--lnt-radius);
+  line-height: 1.5;
+}
+
+.grip:hover,
+.grip:focus-visible {
+  color: var(--lnt-fg);
+  background-color: var(--lnt-panel);
+}
+
+.grip[aria-disabled='true'] {
+  cursor: default;
+}
+
+/* The item being dragged, which stays in its place until dropped. */
+.dragging {
+  opacity: 0.5;
+}
+
+/* The drop indicator: a line on the side of the item where the one dragged would go, on a table
+   row's cells, which draw it whole. From the keyboard, it is also where the focus is, which an
+   outline around the whole row would misplace. */
+.before,
+.after {
+  outline: none;
+}
+
+.before > td {
+  box-shadow: inset 0 2px 0 0 var(--lnt-accent);
+}
+
+.after > td {
+  box-shadow: inset 0 -2px 0 0 var(--lnt-accent);
+}
+
+/* What follows the pointer while dragging: the item's label. */
+.preview {
+  padding: var(--lnt-space-1) var(--lnt-space-2);
+  border: 1px solid var(--lnt-border-strong);
+  border-radius: var(--lnt-radius);
+  background-color: var(--lnt-bg);
+  color: var(--lnt-fg);
+  font-size: 0.9rem;
+}

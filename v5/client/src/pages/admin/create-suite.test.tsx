@@ -24,6 +24,7 @@ import {
   type SuiteStore,
 } from '../../test/page'
 import { optionsIn, pickOption, pickSuite, selectButton } from '../../test/select'
+import { dragByKeyboard } from '../../test/drag-reorder'
 import { server } from '../../test/server'
 
 type Failure = ReturnType<typeof errorResponse>
@@ -354,6 +355,36 @@ describe('the entries', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Remove metric b' }))
     expect(screen.getByRole('button', { name: '+ Add metric' })).toHaveFocus()
     expect(rowsOf(await table('Metrics'))).toEqual(['No metrics.'])
+  })
+
+  it('are dragged by their grip, keeping the focus, and are created in the order shown', async () => {
+    const store = await openEditor()
+    const sent = mockCreate(store)
+    typeInto(suiteNameInput(), 'fresh')
+    for (const name of ['a', 'b', 'c']) addEntry('metric', name)
+    const grip = (name: string) => screen.getByRole('button', { name: `Drag metric ${name}` })
+    const names = () =>
+      screen
+        .getAllByRole<HTMLInputElement>('textbox', { name: /^Name of metric \d+$/ })
+        .map((input) => input.value)
+
+    await dragByKeyboard('Drag metric b', 'Before metric a')
+    expect(names()).toEqual(['b', 'a', 'c'])
+    await waitFor(() => expect(grip('b')).toHaveFocus())
+    await dragByKeyboard('Drag metric a', 'After metric c')
+    expect(names()).toEqual(['b', 'c', 'a'])
+    await waitFor(() => expect(grip('a')).toHaveFocus())
+    // Escape leaves the entry where it was.
+    await dragByKeyboard('Drag metric a', null)
+    expect(names()).toEqual(['b', 'c', 'a'])
+    await waitFor(() => expect(grip('a')).toHaveFocus())
+    await dragByKeyboard('Drag metric a', 'Before metric c', true)
+    expect(names()).toEqual(['b', 'a', 'c'])
+
+    fireEvent.click(createButton())
+    await waitFor(() => expect(sent).toHaveLength(1))
+    const body = JSON.parse(sent[0].text) as SuiteSchema
+    expect(body.metrics.map((metric) => metric.name)).toEqual(['b', 'a', 'c'])
   })
 
   it('can be searchable or the display field only while they are text', async () => {

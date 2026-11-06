@@ -97,11 +97,12 @@ Global controls, shared by both sides:
   geomean are undefined for `text` and `datetime`. When the two sides select
   different suites, a metric is offered only if both suites declare it, with
   the same `bigger_is_better` and the same `unit` (an unset unit matching only
-  an unset one). While only one side has a suite, that suite's metrics are
-  offered. The dropdown shows "-- Select metric --" until a metric is selected,
-  and again if a side's suite changes so that the selected metric is no longer
-  offered. It is disabled until a suite is selected. When the selected suites
-  offer no metric, the page says so in place of the dropdown.
+  an unset one). These metrics are listed in side A's schema order (see AR6).
+  While only one side has a suite, that suite's metrics are offered. The
+  dropdown shows "-- Select metric --" until a metric is selected, and again if
+  a side's suite changes so that the selected metric is no longer offered. It
+  is disabled until a suite is selected. When the selected suites offer no
+  metric, the page says so in place of the dropdown.
 - **Run aggregation**: how each side's selected runs' values are combined (see
   CP2 "Aggregation pipeline"): median, mean, min or max, median by default. It
   is the same for both sides, so that Value A and Value B measure the same

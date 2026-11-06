@@ -1,9 +1,10 @@
 import { useId, useRef, useState, type ReactNode } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { api, authedApi, unwrap, type Schemas } from '../../../api/client'
+import { api, ApiError, authedApi, unwrap, type Schemas } from '../../../api/client'
 import { isMissing } from '../../../api/shown-data'
 import {
   fullName,
+  refetchProjects,
   refetchProjectsIfOutdated,
   removeSuite,
   suiteRef,
@@ -221,11 +222,14 @@ function EditForm({ suite, schema, onClose, onMoved }: FormProps) {
         try {
           stored = await patchSchema(save)
         } catch (error) {
-          // A 404 or a 409 `duplicate` says that the schema changed elsewhere since the editor
-          // opened -- the suite was deleted, or an entry added or removed -- and has the list
-          // fetched again: if the suite is gone, the page says so in place of the editor, and
-          // otherwise the viewer shows it as it is once the editor closes.
-          refetchProjectsIfOutdated(queryClient, error)
+          // A refusal may say that the schema changed elsewhere since the editor opened -- the
+          // suite was deleted, or an entry added or removed that the change names, or that a new
+          // order leaves out -- whatever its status: a stale order is a 400 like any invalid
+          // schema. So the list is fetched again: if the suite is gone, the page says so in place
+          // of the editor, and otherwise the viewer shows it as it is once the editor closes.
+          if (error instanceof ApiError && error.status >= 400 && error.status < 500) {
+            refetchProjects(queryClient)
+          }
           if (prompted) throw error
           setFailure(error)
           return

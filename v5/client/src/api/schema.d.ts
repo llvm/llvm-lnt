@@ -276,8 +276,8 @@ export interface paths {
         head?: never;
         /**
          * Change a test suite's schema
-         * @description Add, update or remove metrics, commit fields and machine fields, or change the display name
-         *     or the repository. Returns the updated schema.
+         * @description Add, update, remove or reorder metrics, commit fields and machine fields, or change the
+         *     display name or the repository. Returns the updated schema.
          *
          *     Only display settings can be updated. To change the type of a metric or field, remove it and
          *     add it again. Removing a metric or field permanently deletes its data, so the request must
@@ -1222,7 +1222,7 @@ export interface components {
         };
         /**
          * CommitFieldChanges
-         * @description Commit fields to add, update or remove.
+         * @description Commit fields to add, update, remove or reorder.
          */
         CommitFieldChanges: {
             /**
@@ -1240,6 +1240,11 @@ export interface components {
              * @description Names of the entries to remove. This permanently deletes their data, so the request must include `confirm=true`.
              */
             remove?: string[];
+            /**
+             * Order
+             * @description The names of the list's entries in their new order, after the additions and removals: every entry exactly once. Leave it out to keep the order, with new entries at the end. Can't be null.
+             */
+            order?: string[];
         };
         /**
          * CommitFieldInput
@@ -1820,7 +1825,7 @@ export interface components {
         };
         /**
          * MachineFieldChanges
-         * @description Machine fields to add, update or remove.
+         * @description Machine fields to add, update, remove or reorder.
          */
         MachineFieldChanges: {
             /**
@@ -1838,6 +1843,11 @@ export interface components {
              * @description Names of the entries to remove. This permanently deletes their data, so the request must include `confirm=true`.
              */
             remove?: string[];
+            /**
+             * Order
+             * @description The names of the list's entries in their new order, after the additions and removals: every entry exactly once. Leave it out to keep the order, with new entries at the end. Can't be null.
+             */
+            order?: string[];
         };
         /**
          * MachineFieldInput
@@ -2045,7 +2055,7 @@ export interface components {
         };
         /**
          * MetricChanges
-         * @description Metrics to add, update or remove.
+         * @description Metrics to add, update, remove or reorder.
          */
         MetricChanges: {
             /**
@@ -2063,6 +2073,11 @@ export interface components {
              * @description Names of the entries to remove. This permanently deletes their data, so the request must include `confirm=true`.
              */
             remove?: string[];
+            /**
+             * Order
+             * @description The names of the list's entries in their new order, after the additions and removals: every entry exactly once. Leave it out to keep the order, with new entries at the end. Can't be null.
+             */
+            order?: string[];
         };
         /**
          * MetricInput
@@ -3078,11 +3093,12 @@ export interface components {
          *     What you leave out is not changed.
          *
          *     Either all the changes are applied or none are, and the resulting schema must be valid. Each
-         *     metric or field can only be changed once per request. A new metric or field has no value for
-         *     existing data. Removing one permanently deletes its data (and, for a metric, the regression
-         *     indicators that refer to it), so the request must include `confirm=true`. To rename a metric
-         *     or field, remove it and add it again. Changing the display name or the repository needs no
-         *     confirmation.
+         *     metric or field can only be added, updated or removed once per request, and a list's new
+         *     `order` comes after those changes. New metrics and fields go at the end of their list, in the
+         *     order given, and have no value for existing data. Removing one permanently deletes its data
+         *     (and, for a metric, the regression indicators that refer to it), so the request must include
+         *     `confirm=true`. To rename a metric or field, remove it and add it again. Changing the display
+         *     name, the repository or an order needs no confirmation.
          */
         SchemaPatch: {
             /**

@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react'
+import type { HTMLAttributes, ReactNode, RefObject } from 'react'
 import type { Suite, SuiteSchema } from '../../../api/suites'
 import { DataTable, type Column } from '../../../components/data-table'
 import { InfoBox, InfoRow } from '../../../components/info-box'
@@ -81,6 +81,11 @@ export function SchemaList<Entry>(props: {
   columns: Column<Entry>[]
   rows: Entry[]
   rowKey(entry: Entry): string
+  /** More attributes of an entry's row, from a hook (see `DataTable`). */
+  useRowProps?: (
+    entry: Entry,
+    element: RefObject<HTMLTableRowElement | null>,
+  ) => HTMLAttributes<HTMLTableRowElement>
 }) {
   const { heading, label, noun } = LIST_INFO[props.list]
   return (
@@ -91,6 +96,7 @@ export function SchemaList<Entry>(props: {
         columns={props.columns}
         rows={props.rows}
         rowKey={props.rowKey}
+        useRowProps={props.useRowProps}
         empty={`No ${noun}s.`}
       />
     </>

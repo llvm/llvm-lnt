@@ -724,7 +724,7 @@ GET    /api/projects/{project}/suites                -- List the project's test 
 POST   /api/projects/{project}/suites                -- Create a test suite in the project from a schema definition
 GET    /api/projects/{project}/suites/{suite}        -- Detail
 PATCH  /api/projects/{project}/suites/{suite}        -- Rename, or move to another project
-PATCH  /api/projects/{project}/suites/{suite}/schema -- Add, update, or remove metrics and fields; change the display name or the repository
+PATCH  /api/projects/{project}/suites/{suite}/schema -- Add, update, remove or reorder metrics and fields; change the display name or the repository
 DELETE /api/projects/{project}/suites/{suite}        -- Delete a test suite and all its data
 ```
 
@@ -778,15 +778,16 @@ moving change only names (see D7).
 suite's `display_name`, `metrics`, `commit_fields`, `machine_fields` and/or
 `repository` after creation. D2 gives the semantics; this is the wire format.
 
-For each of the three lists, the body may supply any of `add`, `update`, and
-`remove`:
+For each of the three lists, the body may supply any of `add`, `update`,
+`remove` and `order`:
 
 ```json
 {
   "machine_fields": {
     "add":    [{"name": "kernel", "type": "text", "searchable": true}],
     "update": [{"name": "hardware", "display_name": "Hardware"}],
-    "remove": ["hardwrae"]
+    "remove": ["hardwrae"],
+    "order":  ["kernel", "hardware", "os"]
   }
 }
 ```
@@ -795,6 +796,8 @@ For each of the three lists, the body may supply any of `add`, `update`, and
 - `update` entries have a `name`, plus only the presentation keys being
   changed.
 - `remove` is a list of names.
+- `order` gives the names of all the list's entries, in their new order (see
+  D2). It cannot be `null`.
 
 The body may also supply `display_name`, a string or `null`, and `repository`,
 with only the keys being changed, `null` clearing one:
@@ -812,7 +815,9 @@ change to `display_name` or `repository`. This mirrors
 - 200 with the suite's detail body. A request that asks for no change is a
   successful no-op.
 - 400 if `update` tries to change a `type`, if `confirm=true` is required but
-  missing, or if the resulting schema fails validation (see D3, D4, and D5).
+  missing, if `order` leaves out an entry of the resulting list, names an
+  unknown entry or repeats one, or if the resulting schema fails validation
+  (see D3, D4, and D5).
   Validation covers the whole resulting schema, not just the entries the
   request touched.
 - 404 if `update` or `remove` names an entry that is not in that list.

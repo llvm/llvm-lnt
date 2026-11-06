@@ -294,18 +294,18 @@ Name            [benchmarks      ]
 Display name    [Microbenchmarks ]
 
 Metrics
-Name              Type        Display Name        Unit          Abbrev    Bigger is Better    Dashboard
--------------------------------------------------------------------------------------------------------
-execution_time    real        [Execution Time]    [seconds]     [s]       [ ]                 [x]         ×
-code_size         integer     (removed)                                                            [undo]
-[instructions]    [real v]    [              ]    [       ]     [   ]     [ ]                 [ ]         ×
+   Name              Type        Display Name        Unit          Abbrev    Bigger is Better    Dashboard
+----------------------------------------------------------------------------------------------------------
+⠿  execution_time    real        [Execution Time]    [seconds]     [s]       [ ]                 [x]         ×
+   code_size         integer     (removed)                                                               [undo]
+⠿  [instructions]    [real v]    [              ]    [       ]     [   ]     [ ]                 [ ]         ×
 [+ Add metric]
 
 Commit Fields
-Name              Type        Display Name        Searchable    Display    Listed
------------------------------------------------------------------------------------
-short_sha         text        [Short SHA     ]    [x]           [x]        [ ]        ×
-commit_info       text        [              ]    [ ]           [ ]        [x]        ×
+   Name              Type        Display Name        Searchable    Display    Listed
+--------------------------------------------------------------------------------------
+⠿  short_sha         text        [Short SHA     ]    [x]           [x]        [ ]        ×
+⠿  commit_info       text        [              ]    [ ]           [ ]        [x]        ×
 [+ Add commit field]
 
 Machine Fields
@@ -330,11 +330,13 @@ creating a suite, and "Editing" followed by the suite's full label (see AR22) wh
 
 The editor shows the same entries and keys as the viewer, with an input for each value, and the
 same repository keys, with an input for each. Each URL's input says which placeholders it
-accepts (see D4). Each table has a button to add an entry, and each entry a button (×) to remove
-it. An added entry goes at the end of its list, and entries cannot be reordered. The suite's
-display name, the entries' display name, unit and abbreviation, and the repository's keys, are
-sent without whitespace at either end, and
-an input that is empty, or holds only whitespace, sets its key to `null` (see D2).
+accepts (see D4). Each table has a button to add an entry. A new entry goes at the end of its
+list. Each entry has a button (×) to remove it, and a grip (⠿) to drag it to another place in its
+list (see AR24). Leaving out removed entries (see below), the editor shows the entries in the order
+the suite will have them. A new suite is created with its entries in that order. Entries added to
+an existing suite are sent in that order (see D2). The suite's display name, the entries' display
+name, unit and abbreviation, and the repository's keys, are sent without whitespace at either end,
+and an input that is empty, or holds only whitespace, sets its key to `null` (see D2).
 
 `searchable` and `display` are only valid on a `text` entry, and `dashboard` only on a numeric
 metric (see D3): each is disabled for the other types, says why on hover, and is cleared when the
@@ -381,14 +383,18 @@ an existing entry's presentation keys can be edited: its `name` and `type` are r
 D2 allows changing neither. An added entry is editable in full. Removing an existing entry only
 marks it as removed, with an undo button, and its name stays taken until the schema is saved:
 the reason given for refusing an added entry with that name is that an entry removed in this edit
-cannot be added again in the same edit.
+cannot be added again in the same edit. A removed entry cannot be dragged, and nothing can be
+dropped on it. The other entries move past it as if it were not there.
 
 "Save" first applies every change to the schema in one
 `PATCH /api/projects/{project}/suites/{suite}/schema`, under the suite's current names, then, once
 that succeeds, renames or moves the suite (`PATCH /api/projects/{project}/suites/{suite}`, see
 E10), each only if there is one. The schema change sends only the keys the user changed, of the
 entries and of the repository alike, so that it does not overwrite changes made by others since the
-editor opened. When the user changed nothing, "Save" closes the editor without sending anything.
+editor opened. In the same way, it sends a list's new order only if the user reordered that list.
+More precisely, it sends no order when the list, leaving out removed entries, shows the stored
+entries in their stored order, then the added entries. When the user changed nothing, "Save" closes
+the editor without sending anything.
 
 A save that neither removes an entry nor renames or moves the suite asks nothing. Otherwise, "Save"
 first asks for one confirmation (see AR16) covering all that the save does, and the editor's

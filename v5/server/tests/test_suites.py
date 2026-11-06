@@ -504,17 +504,28 @@ class TestEvolve:
         ]
         assert "code_size" in suite_column_names(db_engine, "nts", "sample")
 
-    def test_appends_rather_than_reordering(
+    def test_appends_additions_in_the_order_given(
         self, api_client: TestClient, create: Callable[..., Any], manage: dict[str, str]
     ) -> None:
-        # Entry order decides the suite's column order (D5) and is visible to clients.
+        # D2: at the end, and not sorted, which `aaa` would show.
         create()
 
         body = patch_request(
-            api_client, manage, {"metrics": {"add": [{"name": "aaa", "type": "real"}]}}
+            api_client,
+            manage,
+            {
+                "metrics": {
+                    "add": [{"name": "zzz", "type": "real"}, {"name": "aaa", "type": "real"}]
+                }
+            },
         ).json()
 
-        assert [m["name"] for m in body["metrics"]][-1] == "aaa"
+        assert [m["name"] for m in body["metrics"]] == [
+            "compile_time",
+            "execution_time",
+            "zzz",
+            "aaa",
+        ]
 
     def test_updates_only_the_keys_it_is_given(
         self, api_client: TestClient, create: Callable[..., Any], manage: dict[str, str]
@@ -843,6 +854,203 @@ class TestEvolve:
         create()
 
         assert patch_request(api_client, manage, body).status_code == 400
+
+
+class TestEvolveOrder:
+    """A list's new `order` (D2, E10)."""
+
+    def test_reorders_a_list_without_touching_its_columns(
+        self,
+        api_client: TestClient,
+        db_engine: Engine,
+        create: Callable[..., Any],
+        manage: dict[str, str],
+    ) -> None:
+        created = create().json()
+        before = schema_version_of(db_engine)
+        columns = suite_column_names(db_engine, "nts", "sample")
+
+        # Without `confirm`, which a change that destroys nothing does not need.
+        response = patch_request(
+            api_client, manage, {"metrics": {"order": ["execution_time", "compile_time"]}}
+        )
+
+        assert response.status_code == 200, response.text
+        # The entries move whole, and nothing else changes.
+        assert response.json() == {**created, "metrics": created["metrics"][::-1]}
+        assert stored_schema(db_engine, "nts") == response.json()
+        assert api_client.get(f"{SUITES}/nts").json() == response.json()
+        assert schema_version_of(db_engine) == before + 1
+        assert suite_column_names(db_engine, "nts", "sample") == columns
+
+    def test_applies_after_the_additions_and_removals(
+        self, api_client: TestClient, create: Callable[..., Any], manage: dict[str, str]
+    ) -> None:
+        create()
+
+        response = patch_request(
+            api_client,
+            manage,
+            {
+                "machine_fields": {
+                    "add": [{"name": "os", "type": "text"}, {"name": "kernel", "type": "text"}],
+                    "remove": ["hardware"],
+                    "order": ["kernel", "os"],
+                }
+            },
+            confirm=True,
+        )
+
+        assert response.status_code == 200, response.text
+        assert [field["name"] for field in response.json()["machine_fields"]] == ["kernel", "os"]
+
+    def test_may_name_an_entry_the_request_updates(
+        self, api_client: TestClient, create: Callable[..., Any], manage: dict[str, str]
+    ) -> None:
+        # Not a second operation on the entry (D2).
+        create()
+
+        response = patch_request(
+            api_client,
+            manage,
+            {
+                "metrics": {
+                    "update": [{"name": "execution_time", "unit": "s"}],
+                    "order": ["execution_time", "compile_time"],
+                }
+            },
+        )
+
+        assert response.status_code == 200, response.text
+        assert [(m["name"], m["unit"]) for m in response.json()["metrics"]] == [
+            ("execution_time", "s"),
+            ("compile_time", "seconds"),
+        ]
+
+    def test_the_current_order_changes_nothing_and_bumps_nothing(
+        self,
+        api_client: TestClient,
+        db_engine: Engine,
+        create: Callable[..., Any],
+        manage: dict[str, str],
+    ) -> None:
+        created = create().json()
+        before = schema_version_of(db_engine)
+
+        response = patch_request(
+            api_client, manage, {"metrics": {"order": ["compile_time", "execution_time"]}}
+        )
+
+        assert response.status_code == 200
+        assert response.json() == created
+        assert schema_version_of(db_engine) == before
+
+    def test_an_empty_list_takes_an_empty_order(
+        self, api_client: TestClient, create: Callable[..., Any], manage: dict[str, str]
+    ) -> None:
+        create(commit_fields=[])
+
+        response = patch_request(api_client, manage, {"commit_fields": {"order": []}})
+
+        assert response.status_code == 200, response.text
+
+    @pytest.mark.parametrize(
+        ("changes", "says"),
+        [
+            pytest.param({"order": ["execution_time"]}, "leaves out 'compile_time'", id="missing"),
+            pytest.param({"order": []}, "leaves out 'compile_time', 'execution_time'", id="empty"),
+            pytest.param(
+                {"order": ["execution_time", "compile_time", "code_size"]},
+                "names 'code_size', which the list does not have",
+                id="unknown",
+            ),
+            pytest.param(
+                {"remove": ["compile_time"], "order": ["execution_time", "compile_time"]},
+                "names 'compile_time', which the list does not have",
+                id="removed",
+            ),
+            pytest.param(
+                {"add": [{"name": "code_size", "type": "integer"}], "order": ["execution_time"]},
+                "leaves out 'compile_time', 'code_size'",
+                id="added",
+            ),
+            pytest.param(
+                {"order": ["execution_time", "compile_time", "execution_time"]},
+                "names 'execution_time' more than once",
+                id="repeated",
+            ),
+        ],
+    )
+    def test_refuses_an_order_that_does_not_name_each_entry_once(
+        self,
+        api_client: TestClient,
+        db_engine: Engine,
+        create: Callable[..., Any],
+        manage: dict[str, str],
+        changes: dict[str, Any],
+        says: str,
+    ) -> None:
+        # Named, so that a client whose schema is out of date can tell why (E10).
+        created = create().json()
+
+        response = patch_request(api_client, manage, {"metrics": changes}, confirm=True)
+
+        assert response.status_code == 400
+        assert code_of(response) == "invalid_request"
+        assert says in response.json()["error"]["message"]
+        assert stored_schema(db_engine, "nts") == created
+
+    def test_refuses_a_null_order(
+        self, api_client: TestClient, create: Callable[..., Any], manage: dict[str, str]
+    ) -> None:
+        create()
+
+        response = patch_request(api_client, manage, {"metrics": {"order": None}})
+
+        assert response.status_code == 400
+        assert code_of(response) == "invalid_request"
+
+    def test_a_reordered_suite_takes_and_serves_runs(
+        self,
+        api_client: TestClient,
+        create: Callable[..., Any],
+        manage: dict[str, str],
+        submitter: dict[str, str],
+    ) -> None:
+        # Its tables declare their columns in the new order, which the database does not have: each
+        # value must still be written to, and read back from, the column of its own name.
+        create()
+        patch_request(
+            api_client,
+            manage,
+            {
+                "metrics": {"order": ["execution_time", "compile_time"]},
+                "machine_fields": {
+                    "add": [{"name": "os", "type": "text"}],
+                    "order": ["os", "hardware"],
+                },
+            },
+        )
+
+        response = api_client.post(
+            f"{SUITES}/nts/runs",
+            json=run_payload(
+                machine={"name": "m", "fields": {"hardware": "arm64", "os": "linux"}},
+                commit={"value": "c1", "ordinal": 1},
+                tests=[entry("t", {"compile_time": 1.5, "execution_time": 2.5})],
+            ),
+            headers=submitter,
+        )
+
+        assert response.status_code == 201, response.text
+        run = response.json()["uuid"]
+        samples = api_client.get(f"{SUITES}/nts/runs/{run}/samples").json()["items"]
+        # Compared as dicts: the values matter here, not the order of the keys.
+        assert [sample["metrics"] for sample in samples] == [
+            {"execution_time": 2.5, "compile_time": 1.5}
+        ]
+        machine = api_client.get(f"{SUITES}/nts/machines/m").json()
+        assert machine["fields"] == {"os": "linux", "hardware": "arm64"}
 
 
 class TestEvolveConfirmation:

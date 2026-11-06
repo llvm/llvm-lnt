@@ -440,8 +440,11 @@ test.describe('the Schema tab', () => {
       await editor
         .getByRole('checkbox', { name: 'On the Dashboard of metric execution_time' })
         .check()
-      // The display field moves from one commit field to another.
+      // The display field moves from one commit field to another, which is dragged up by its grip.
       await editor.getByRole('checkbox', { name: 'Display of commit field short_sha' }).check()
+      await editor
+        .getByRole('button', { name: 'Drag commit field short_sha' })
+        .dragTo(editor.getByRole('button', { name: 'Drag commit field sha', exact: true }))
       await editor.getByRole('button', { name: 'Remove metric compile_time' }).click()
       await editor.getByRole('button', { name: '+ Add machine field' }).click()
       await editor
@@ -461,6 +464,7 @@ test.describe('the Schema tab', () => {
         'No',
         'Yes',
       ])
+      await expect.poll(() => column(table(page, 'Commit fields'), 0)).toEqual(['short_sha', 'sha'])
       const schema = await json<components['schemas']['SuiteSchema']>(
         request,
         `/api${suitePath(suite)}`,
@@ -469,10 +473,101 @@ test.describe('the Schema tab', () => {
         ['execution_time', true],
       ])
       expect(schema.commit_fields.map((field) => [field.name, field.display])).toEqual([
-        ['sha', false],
         ['short_sha', true],
+        ['sha', false],
       ])
       expect(schema.machine_fields.map((field) => field.name)).toEqual(['kernel'])
+    })
+  })
+
+  test("reorders a suite's entries by their grips, with the mouse and from the keyboard", async ({
+    page,
+    request,
+    signIn,
+    tokenFor,
+  }, testInfo) => {
+    const token = await tokenFor('manage')
+    await withOwnSuite(request, token, testInfo, async (suite) => {
+      const created = await request.post(`/api/projects/${suite.project}/suites`, {
+        headers: { Authorization: `Bearer ${token}` },
+        data: {
+          name: suite.suite,
+          metrics: ['a', 'b', 'c', 'd'].map((name) => ({ name, type: 'real' })),
+        },
+      })
+      expect(created.status(), await created.text()).toBe(201)
+      await signIn(page, 'manage')
+      await page.goto(`${suitePath(suite)}?tab=schema`)
+      await page.getByRole('button', { name: 'Edit schema' }).click()
+      const editor = page.getByRole('region', { name: `Editing ${suite.project} › ${suite.suite}` })
+      const metrics = table(page, 'Metrics')
+      const names = () => column(metrics, 1)
+      const grip = (name: string) => editor.getByRole('button', { name: `Drag metric ${name}` })
+      const displayName = (name: string) =>
+        editor.getByRole('textbox', { name: `Display name of metric ${name}` })
+      await expect.poll(names).toEqual(['a', 'b', 'c', 'd'])
+      // In view whole, since a drag that Playwright has to scroll for never starts.
+      await metrics.scrollIntoViewIfNeeded()
+
+      // Down, after the entry dropped on; then up, before it.
+      await grip('a').dragTo(grip('c'))
+      await expect.poll(names).toEqual(['b', 'c', 'a', 'd'])
+      await grip('d').dragTo(grip('c'))
+      await expect.poll(names).toEqual(['b', 'd', 'c', 'a'])
+
+      // Dropped on an input, an entry types nothing into it, and stays where it is on its own row.
+      // A browser types text a drag carries into the field it is dropped on, which Playwright's
+      // drags do not do: so what the drags carried is checked too.
+      await page.evaluate(() => {
+        const carried: string[] = []
+        Object.assign(window, { carried })
+        document.addEventListener(
+          'dragend',
+          (event) => carried.push(...(event.dataTransfer?.types ?? [])),
+          true,
+        )
+      })
+      await displayName('c').fill('Size')
+      await grip('c').dragTo(displayName('c'))
+      await grip('b').dragTo(editor.getByRole('textbox', { name: 'Display name', exact: true }))
+      await expect(displayName('c')).toHaveValue('Size')
+      await expect(editor.getByRole('textbox', { name: 'Display name', exact: true })).toHaveValue(
+        '',
+      )
+      await expect.poll(names).toEqual(['b', 'd', 'c', 'a'])
+      const carried = await page.evaluate(() => (window as unknown as { carried: string[] }).carried)
+      expect(carried.length).toBeGreaterThan(0)
+      expect(carried.filter((type) => type.startsWith('text/'))).toEqual([])
+
+      // From the keyboard, the places start from the entry's own, and go round the list, in its
+      // order, through the grip, whatever the entry's place on the screen.
+      const focused = () => page.evaluate(() => document.activeElement?.getAttribute('aria-label'))
+      const places = async (name: string, count: number) => {
+        await grip(name).focus()
+        await page.keyboard.press('Enter')
+        await expect.poll(focused).toBe(`Leave metric ${name} where it is`)
+        const visited = []
+        for (let step = 0; step < count; step++) {
+          await page.keyboard.press('Tab')
+          visited.push(await focused())
+        }
+        return visited
+      }
+      expect(await places('a', 3)).toEqual(['Before metric b', 'Before metric d', 'Before metric c'])
+      await page.keyboard.press('Enter')
+      await expect.poll(names).toEqual(['b', 'd', 'a', 'c'])
+      await expect(grip('a')).toBeFocused()
+      // A removed entry is no place to drop another.
+      await editor.getByRole('button', { name: 'Remove metric d' }).click()
+      expect(await places('b', 4)).toEqual([
+        'After metric a',
+        'After metric c',
+        'Drag metric b',
+        'Leave metric b where it is',
+      ])
+      await page.keyboard.press('Escape')
+      await expect.poll(names).toEqual(['b', 'd', 'a', 'c'])
+      await expect(grip('b')).toBeFocused()
     })
   })
 

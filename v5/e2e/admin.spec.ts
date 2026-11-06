@@ -346,10 +346,13 @@ test.describe("the Projects tab's suite creation", () => {
       await signIn(page, 'manage')
       const creator = await newSuite(page, suite.project)
       await creator.getByRole('textbox', { name: 'Name', exact: true }).fill(suite.suite)
-      for (const metric of ['execution_time', 'compile_time']) {
+      for (const metric of ['compile_time', 'execution_time']) {
         await creator.getByRole('button', { name: '+ Add metric' }).click()
         await creator.getByRole('textbox', { name: /^Name of metric \d+$/ }).last().fill(metric)
       }
+      await creator
+        .getByRole('button', { name: 'Drag metric execution_time' })
+        .dragTo(creator.getByRole('button', { name: 'Drag metric compile_time' }))
       await creator.getByRole('button', { name: '+ Add machine field' }).click()
       await creator
         .getByRole('textbox', { name: 'Name of machine field 1', exact: true })
@@ -378,6 +381,12 @@ test.describe("the Projects tab's suite creation", () => {
       await machines.getByRole('link', { name: 'm1', exact: true }).click()
       await table(page, 'Run history').getByRole('link').first().click()
       await expect(page).toHaveURL(`${suitePath(suite)}/runs/${run}`)
+      // In the order the suite was created with, the first one selected.
+      const metric = page.getByRole('button', { name: / Metric$/ })
+      await expect(metric).toHaveText(/execution_time/)
+      await metric.click()
+      await expect(page.getByRole('option')).toHaveText(['execution_time', 'compile_time'])
+      await page.keyboard.press('Escape')
       await pickOption(page, 'Metric', 'compile_time')
       await expect(table(page, 'Samples').locator('td').nth(1)).toHaveText('0.25')
       await page.getByRole('main').getByRole('link', { name: 'm1', exact: true }).click()
@@ -421,7 +430,6 @@ test.describe("the Projects tab's suite creation", () => {
       // other one as the schema now does.
       await page.goBack()
       await expect(page).toHaveURL(`${suitePath(suite)}/runs/${run}`)
-      const metric = page.getByRole('button', { name: / Metric$/ })
       await expect(metric).toHaveText(/Execution Time/)
       await metric.click()
       await expect(page.getByRole('option')).toHaveText(['Execution Time'])
