@@ -124,8 +124,8 @@ export interface paths {
         };
         /**
          * List projects
-         * @description Every project, with its test suites and their schemas, sorted by name. Projects without test
-         *     suites are included.
+         * @description Every project, with its test suites and their schemas, in the order of the projects. Projects
+         *     without test suites are included.
          *
          *     **Authorization:** no API key needed.
          */
@@ -133,7 +133,8 @@ export interface paths {
         put?: never;
         /**
          * Create a project
-         * @description Create a project, without test suites. Its `Location` header points to the new project.
+         * @description Create a project, without test suites. The new project goes last. The response's `Location`
+         *     header points to it.
          *
          *     **Authorization:** requires an unrestricted API key with the `manage` scope.
          */
@@ -141,7 +142,18 @@ export interface paths {
         delete?: never;
         options?: never;
         head?: never;
-        patch?: never;
+        /**
+         * Reorder projects
+         * @description Put the projects in a new order. Lists of projects follow this order. Returns the projects in
+         *     the new order, with their test suites, as listing them does.
+         *
+         *     `order` must name every project exactly once. An order that leaves a project out, names one
+         *     twice, or names something that isn't a project is refused. If the order is the current one,
+         *     nothing changes. Projects created later go last.
+         *
+         *     **Authorization:** requires an unrestricted API key with the `manage` scope.
+         */
+        patch: operations["reorder_projects"];
         trace?: never;
     };
     "/api/projects/{project}": {
@@ -193,7 +205,8 @@ export interface paths {
         };
         /**
          * List a project's test suites
-         * @description The project's test suites, with their schemas, sorted by name.
+         * @description The project's test suites, with their schemas, in their order. New test suites go last, and
+         *     so do test suites moved to the project.
          *
          *     **Authorization:** no API key needed.
          */
@@ -201,7 +214,8 @@ export interface paths {
         put?: never;
         /**
          * Create a test suite
-         * @description Create a test suite in the project, from a schema.
+         * @description Create a test suite in the project, from a schema. The new test suite goes last among the
+         *     project's test suites.
          *
          *     The response is the schema with all optional keys filled in. Its `Location` header points to
          *     the new suite.
@@ -212,7 +226,19 @@ export interface paths {
         delete?: never;
         options?: never;
         head?: never;
-        patch?: never;
+        /**
+         * Reorder a project's test suites
+         * @description Put the project's test suites in a new order. Lists of the project's test suites follow this
+         *     order. Returns the test suites in the new order.
+         *
+         *     `order` must name each test suite of the project exactly once. An order that leaves a test suite
+         *     out, names one twice, or names something that isn't a test suite of the project is refused. If
+         *     the order is the current one, nothing changes. Test suites created in the project or moved to it
+         *     later go last.
+         *
+         *     **Authorization:** requires an API key with the `manage` scope, unrestricted or covering this project in full.
+         */
+        patch: operations["reorder_suites"];
         trace?: never;
     };
     "/api/projects/{project}/suites/{suite}": {
@@ -250,11 +276,11 @@ export interface paths {
          * @description Rename a test suite, move it to another project, or both. Returns its schema, under its new
          *     name. A body that changes nothing, an empty one included, changes nothing.
          *
-         *     Only names change: the suite keeps all of its data. Its old name isn't kept: every URL of the
-         *     suite changes, and the old ones answer 404. API keys that list the suite keep covering it. A
-         *     move takes the suite away from the keys that list its old project as a whole, and gives it to
-         *     those that list the new one, so a move also needs a key that is unrestricted or covers the new
-         *     project in full.
+         *     Only names change, and the suite keeps all of its data. A suite moved to another project goes
+         *     last among that project's test suites. The old name isn't kept: every URL of the suite changes,
+         *     and the old ones answer 404. API keys that list the suite keep covering it. A move takes the
+         *     suite away from the keys that list its old project as a whole, and gives it to those that list
+         *     the new one, so a move also needs a key that is unrestricted or covers the new project in full.
          *
          *     **Authorization:** requires an API key with the `manage` scope, unrestricted or covering this test suite.
          */
@@ -2423,7 +2449,7 @@ export interface components {
             display_name: string | null;
             /**
              * Suites
-             * @description The project's test suites, sorted by name.
+             * @description The project's test suites, in their order.
              */
             suites: components["schemas"]["SuiteSchema"][];
         };
@@ -2453,6 +2479,17 @@ export interface components {
              * @description The results.
              */
             items: components["schemas"]["Project"][];
+        };
+        /**
+         * ProjectOrder
+         * @description The projects, in their new order.
+         */
+        ProjectOrder: {
+            /**
+             * Order
+             * @description The names of all the projects, each exactly once, in their new order. Can't be null.
+             */
+            order: string[];
         };
         /**
          * ProjectUpdate
@@ -3110,6 +3147,17 @@ export interface components {
             commit_fields?: components["schemas"]["CommitFieldChanges"];
             machine_fields?: components["schemas"]["MachineFieldChanges"];
             repository?: components["schemas"]["RepositoryUpdate"];
+        };
+        /**
+         * SuiteOrder
+         * @description The project's test suites, in their new order.
+         */
+        SuiteOrder: {
+            /**
+             * Order
+             * @description The names of all the project's test suites, each exactly once, in their new order. Can't be null.
+             */
+            order: string[];
         };
         /**
          * SuiteSchema
@@ -3891,6 +3939,66 @@ export interface operations {
             };
         };
     };
+    reorder_projects: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ProjectOrder"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProjectList"];
+                };
+            };
+            /** @description The request is invalid. This includes query parameters the operation doesn't accept, and single-valued parameters given more than once. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description This operation needs an API key and none was sent, or the key is malformed, unknown or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The API key doesn't have the scope this operation requires, or has it only in other projects or test suites. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description `retry`: the projects were busy, for example because one of them was being renamed, so the change couldn't start. Nothing was saved: send the request again. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
     get_project: {
         parameters: {
             query?: never;
@@ -4191,6 +4299,78 @@ export interface operations {
                 };
             };
             /** @description `duplicate`: the project already has a suite with this name. `retry`: the suite was busy, for example because another request was reading it, so the change couldn't start. Nothing was saved: send the request again. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    reorder_suites: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The name of the project. */
+                project: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SuiteOrder"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuiteSchemaList"];
+                };
+            };
+            /** @description The request is invalid. This includes query parameters the operation doesn't accept, and single-valued parameters given more than once. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description This operation needs an API key and none was sent, or the key is malformed, unknown or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The API key doesn't have the scope this operation requires, or has it only in other projects or test suites. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The project doesn't exist. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description `retry`: the project was busy, for example because one of its test suites was being changed, so the change couldn't start. Nothing was saved: send the request again. */
             409: {
                 headers: {
                     [name: string]: unknown;

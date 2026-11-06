@@ -722,6 +722,7 @@ A (machine, commit) with no run geomean is absent from the response.
 ```
 GET    /api/projects/{project}/suites                -- List the project's test suites
 POST   /api/projects/{project}/suites                -- Create a test suite in the project from a schema definition
+PATCH  /api/projects/{project}/suites                -- Reorder the project's test suites
 GET    /api/projects/{project}/suites/{suite}        -- Detail
 PATCH  /api/projects/{project}/suites/{suite}        -- Rename, or move to another project
 PATCH  /api/projects/{project}/suites/{suite}/schema -- Add, update, remove or reorder metrics and fields; change the display name or the repository
@@ -731,10 +732,10 @@ DELETE /api/projects/{project}/suites/{suite}        -- Delete a test suite and 
 Every suite belongs to a project (see D7). `GET /api/projects` lists every suite
 of the instance along with its project (see E13).
 
-**Auth scope:** `read` for GET, `manage` for POST, PATCH and DELETE. POST
-addresses the project, so a restricted key must cover the project in full. The
-other writes address the suite, and a move needs the destination project covered
-in full as well (see I5).
+**Auth scope:** `read` for GET, `manage` for POST, PATCH and DELETE. Creating a
+suite and reordering the project's suites address the project, so a restricted
+key must cover the project in full. The other writes address the suite, and a
+move needs the destination project covered in full as well (see I5).
 
 **Suite object:** a suite's detail body is its normalized schema: the body
 `POST /api/projects/{project}/suites` accepts, with omitted optional keys filled
@@ -744,12 +745,14 @@ can be posted unchanged to another (see D4). There are no separate schema or
 metric-metadata endpoints.
 
 **List** (`GET /api/projects/{project}/suites`): the same objects, in I2's
-unpaginated envelope, ordered by `name` ascending. A project with no suites
-gives an empty list.
+unpaginated envelope, in the order of the project's suites (see D7). A project
+with no suites gives an empty list.
 
 **Create** (`POST /api/projects/{project}/suites`): the body is the schema
 itself: `name`, `display_name`, `metrics`, `commit_fields`, `machine_fields`,
 `repository` (see D4).
+
+The new suite goes last among the project's suites (see D7).
 
 - 201 with the created suite's detail body, and a `Location` header pointing at
   `GET /api/projects/{project}/suites/{name}`.
@@ -757,12 +760,29 @@ itself: `name`, `display_name`, `metrics`, `commit_fields`, `machine_fields`,
 - 409 `duplicate` if the project already has a suite with that name.
 - 409 `retry` if the creation could not take the locks it needs.
 
+**Reorder** (`PATCH /api/projects/{project}/suites`): the body has `order`: the
+names of the project's suites, in their new order (see D7). `order` is required
+and cannot be `null`. It must name each suite of the project exactly once. If
+the order is the current one, nothing changes.
+
+```json
+{"order": ["header-sizes", "benchmarks"]}
+```
+
+- 200 with the project's suites in their new order, as the list returns them.
+- 400 if `order` is missing or `null`, or does not name each suite of the
+  project exactly once. The message lists the suites that `order` leaves out,
+  the names in it that are not suites of the project, and the names it repeats.
+- 404 if the project does not exist.
+- 409 `retry` if the change could not take the locks it needs.
+
 **Rename or move** (`PATCH /api/projects/{project}/suites/{suite}`): the body
 has `name`, the suite's new name, and `project`, the name of the project to move
 it to. Both are optional, and an omitted key is left unchanged; neither can be
 `null`. A `project` other than the suite's own moves the suite. A body that
 changes neither, an empty one included, is a successful no-op. Renaming and
-moving change only names (see D7).
+moving change only names. A moved suite also goes last in its new project (see
+D7).
 
 - 200 with the suite's detail body, under its new name.
 - 400 if `name` or `project` is `null`, or `name` is not a valid suite name (see
@@ -937,6 +957,7 @@ client to check a token: whether it is usable, which scope it grants, and where.
 ```
 GET    /api/projects              -- List projects, each with its test suites
 POST   /api/projects              -- Create a project
+PATCH  /api/projects              -- Reorder the projects
 GET    /api/projects/{project}    -- Detail
 PATCH  /api/projects/{project}    -- Change the display name, or rename
 DELETE /api/projects/{project}    -- Delete a project that has no suites
@@ -945,28 +966,45 @@ DELETE /api/projects/{project}    -- Delete a project that has no suites
 A project groups test suites (see D7), which are managed through E10.
 
 **Auth scope:** `read` for GET, `manage` for POST, PATCH and DELETE. Creating a
-project requires an instance-wide key, and changing or deleting one a key that
-covers the project in full (see I5).
+project and reordering the projects require an instance-wide key. Changing or
+deleting a project requires a key that covers the project in full (see I5).
 
 **Project object:** `name` and `display_name` (see D7), and `suites`: the
-project's suites, as E10's suite objects, ordered by name. List and detail
-responses return the same object.
+project's suites, as E10's suite objects, in their order (see D7). List and
+detail responses return the same object.
 
 ```json
 {"name": "libcxx", "display_name": "libc++", "suites": [{"name": "benchmarks", "display_name": null, "metrics": [...], ...}]}
 ```
 
 **List** (`GET /api/projects`): the project objects, in I2's unpaginated
-envelope, ordered by `name` ascending, those without suites included.
+envelope, in the order of the projects (see D7). Projects without suites are
+included.
 
 **Create** (`POST /api/projects`): the body has `name` (required) and
-`display_name` (optional, `null` when omitted).
+`display_name` (optional, `null` when omitted). The new project goes last among
+the projects (see D7).
 
 - 201 with the created project, and a `Location` header pointing at
   `GET /api/projects/{name}`.
 - 400 if `name` is missing or not a valid project name, or `display_name` is
   empty or too long (see D7).
 - 409 `duplicate` if a project with that name already exists.
+
+**Reorder** (`PATCH /api/projects`): the body has `order`: the names of the
+projects, in their new order (see D7). `order` is required and cannot be `null`.
+It must name each project exactly once. If the order is the current one, nothing
+changes.
+
+```json
+{"order": ["llvm", "libcxx", "swift"]}
+```
+
+- 200 with the projects in their new order, as the list returns them.
+- 400 if `order` is missing or `null`, or does not name each project exactly
+  once. The message lists the projects that `order` leaves out, the names in it
+  that are not projects, and the names it repeats.
+- 409 `retry` if the change could not take the locks it needs.
 
 **Update** (`PATCH /api/projects/{project}`): the body has `name` and
 `display_name`, both optional. An omitted key is left unchanged, and

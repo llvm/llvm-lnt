@@ -9,19 +9,27 @@ is what a write reads instead.
 
 from __future__ import annotations
 
-from collections.abc import Iterator
+from collections.abc import Iterator, Sequence
 from contextlib import contextmanager
 from dataclasses import dataclass
+from typing import NamedTuple
 
-from sqlalchemy import Connection, Engine, insert, select, text, update
+from sqlalchemy import Connection, Engine, Table, bindparam, case, insert, select, text, update
 from sqlalchemy.exc import DBAPIError
 
 from lnt_v5.db import is_lock_unavailable
 from lnt_v5.errors import ApiError, ErrorCode
+from lnt_v5.ordering import check_order
 from lnt_v5.suites import migrations
 from lnt_v5.suites import tables as suite_tables
 from lnt_v5.suites.schema import SuiteSchema
-from lnt_v5.tables import SCHEMA_VERSION_ID, project, schema, schema_version
+from lnt_v5.tables import (
+    SCHEMA_VERSION_ID,
+    project,
+    schema,
+    schema_position_sequence,
+    schema_version,
+)
 
 # What tables.py's NAMING_CONVENTION names the unique constraint on `schema(project_id, name)`, and
 # so the constraint a suite name repeated within a project trips; the one on `project.name`, which a
@@ -103,7 +111,8 @@ def add_suite(connection: Connection, project_name: str, suite: SuiteSchema) -> 
     its own.
 
     The tables are created with this build's latest structure, so the suite is recorded at the
-    latest migration version (D6).
+    latest migration version (D6). Its position is the column's default, which puts it last in its
+    project (D7).
     """
     project_id = locked_projects(connection, {project_name}).get(project_name)
     if project_id is None:
@@ -146,17 +155,106 @@ def move_suite(
     """Rename the suite `stored` to `name`, in the project whose id is `project_id`, which may be
     another project than its own, and return its schema under its new name (D7).
 
-    Only names change: the suite keeps its namespace and its tables. `stored` must come from
-    `locked_suite`, once `locked_projects` has locked both projects.
+    Only names change, and a suite moved to another project goes last there: the suite keeps its
+    namespace and its tables. `stored` must come from `locked_suite`, once `locked_projects` has
+    locked both projects.
     """
     renamed = stored.schema.model_copy(update={"name": name})
+    moved = schema.c.project_id != project_id
     connection.execute(
         update(schema)
         .where(schema.c.id == stored.id)
-        .values(project_id=project_id, name=name, schema_json=normalized_json(renamed))
+        .values(
+            project_id=project_id,
+            name=name,
+            schema_json=normalized_json(renamed),
+            position=case((moved, schema_position_sequence.next_value()), else_=schema.c.position),
+        )
     )
     bump(connection)
     return renamed
+
+
+class Member(NamedTuple):
+    """A project, or a suite of a project, as a reorder reads it: its row, name and position."""
+
+    id: int
+    name: str
+    position: int
+
+
+def locked_projects_in_order(connection: Connection) -> list[Member]:
+    """Every project, locked against being renamed, deleted, changed or reordered until the
+    caller's transaction ends, to reorder them (E13).
+
+    FOR NO KEY UPDATE, which writing to a suite and creating a key do not wait for, since they take
+    their projects FOR KEY SHARE (see `locked_projects`), in the order of the ids, which two
+    reorders therefore lock the rows in alike. Nothing keeps a project from being created meanwhile,
+    which then stays after the projects this reads (see `tables.py`).
+
+    The members and their positions come from this one locking statement. A second read would take
+    a snapshot of its own, find a project created since, and refuse an order without it. A project
+    renamed or deleted while this waited for its row comes back renamed or not at all, so an order
+    naming it as it was is refused.
+    """
+    rows = connection.execute(
+        select(project.c.id, project.c.name, project.c.position)
+        .order_by(project.c.id)
+        .with_for_update(key_share=True)
+    )
+    return [Member(*row) for row in rows]
+
+
+def locked_suites_in_order(connection: Connection, project_name: str) -> list[Member]:
+    """Every suite of the project `project_name`, to reorder them (E10), with the project locked
+    against any change to its suites until the caller's transaction ends.
+
+    The project's row FOR UPDATE: every write to a suite, its creation and a move into or out of
+    the project included, takes it FOR KEY SHARE first (see `locked_projects`), so none can change
+    what this reads before the reorder commits. Raises 404 if there is no such project.
+    """
+    project_id = connection.execute(
+        select(project.c.id).where(project.c.name == project_name).with_for_update()
+    ).scalar_one_or_none()
+    if project_id is None:
+        raise project_not_found(project_name)
+    # From the table rather than the registry: a suite whose stored schema the registry cannot
+    # parse is left out of the listing, but is still one of the project's suites, which the order
+    # must name. The 400 refusing an order without it names it.
+    rows = connection.execute(
+        select(schema.c.id, schema.c.name, schema.c.position).where(
+            schema.c.project_id == project_id
+        )
+    )
+    return [Member(*row) for row in rows]
+
+
+def reorder(
+    connection: Connection, table: Table, members: Sequence[Member], order: list[str], what: str
+) -> None:
+    """Put `members`, rows of `table`, in the order of their names in `order`, and announce it to
+    every worker (D2, D7). `what` names them in the error refusing an order that does not name each
+    of them exactly once (I3).
+
+    The members' own positions are handed out again, in the new order (see `tables.py`). An order
+    that is the current one changes nothing.
+    """
+    current = sorted(members, key=lambda member: (member.position, member.id))
+    names = [member.name for member in current]
+    check_order(names, order, f"The order must name each of {what} exactly once")
+    if names == order:
+        return
+    ids = {member.name: member.id for member in members}
+    connection.execute(
+        update(table)
+        .where(table.c.id == bindparam("member_id"))
+        .values(position=bindparam("new_position")),
+        [
+            {"member_id": ids[name], "new_position": member.position}
+            for name, member in zip(order, current, strict=True)
+        ],
+    )
+    bump(connection)
 
 
 def project_not_found(name: str) -> ApiError:
@@ -227,9 +325,17 @@ def suite_write(engine: Engine, project_name: str, name: str) -> Iterator[Connec
 
 @contextmanager
 def project_write(engine: Engine, name: str) -> Iterator[Connection]:
-    """One transaction that changes or deletes the project `name`, with the same bounded wait for
-    its locks as `suite_write` (D2)."""
+    """One transaction that changes or deletes the project `name`, or reorders its suites, with the
+    same bounded wait for its locks as `suite_write` (D2)."""
     with _bounded_write(engine, f"Project '{name}'") as connection:
+        yield connection
+
+
+@contextmanager
+def projects_write(engine: Engine) -> Iterator[Connection]:
+    """One transaction that reorders the projects, with the same bounded wait for its locks as
+    `suite_write` (D2)."""
+    with _bounded_write(engine, "The order of the projects") as connection:
         yield connection
 
 

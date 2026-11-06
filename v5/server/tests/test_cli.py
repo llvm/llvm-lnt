@@ -511,9 +511,10 @@ class TestSweep:
 
         assert cli.main(["server", "sweep"]) == 0
 
+        # In the order of the projects, which is the order they were created in (D7).
         assert capsys.readouterr().out == (
-            "Deleted 1 inactive machine(s) from test suite 'llvm/nts': pr-1.\n"
             "Deleted 1 inactive machine(s) from test suite 'other/nts': pr-1.\n"
+            "Deleted 1 inactive machine(s) from test suite 'llvm/nts': pr-1.\n"
         )
         with configured_database.connect() as connection:
             for machine in machines:

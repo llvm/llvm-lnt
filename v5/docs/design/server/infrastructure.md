@@ -189,7 +189,12 @@ with an empty result.
 
 These rules cover names a request uses to refer to something. A schema change
 that updates or removes an entry is addressing that entry instead, and returns
-404 for an unknown one like any other missing target (see E10).
+404 for an unknown one like any other missing target (see E10). An `order` in a
+request does not refer to things in this sense. It lists the members of a list
+in their new order: a suite's metrics, commit fields or machine fields, the
+suites of a project (see E10), or the projects (see E13). An order that leaves a
+member out, names something that is not a member, or names a member twice is a
+400.
 
 
 ## I4: Response Format
@@ -338,8 +343,8 @@ covers (see Restrictions below).
   (`POST /api/projects/{project}/suites/{suite}/commits`)
 - **triage** -- create/update/delete regressions, manage regression indicators
 - **manage** -- create/update/delete machines; update/delete commits; delete
-  runs; create/rename/move/delete test suites and change their schemas;
-  create/update/delete projects
+  runs; create/rename/move/delete/reorder test suites and change their schemas;
+  create/update/delete/reorder projects
 - **admin** -- list, create, and revoke API keys
 
 A key has one of `submit`, `triage`, `manage` and `admin`. `read` needs no key
@@ -370,8 +375,8 @@ access gets, so reads are unaffected:
 |-----------|-----------------------------|
 | A request addressing a suite, other than a move | To cover the suite |
 | Moving a suite to another project (E10) | To cover the suite, and the destination project in full |
-| A request addressing a project: creating a suite in it (E10), changing or deleting it (E13) | To cover the project in full |
-| Creating a project (E13) | Nothing it can have: this requires an instance-wide key |
+| A request addressing a project: creating a suite in the project, reordering the project's suites (E10), changing or deleting the project (E13) | To cover the project in full |
+| Creating a project, or reordering the projects (E13) | Nothing it can have: this requires an instance-wide key |
 
 The body is validated once what the path addresses is authorized. What a move
 needs beyond covering the suite is checked once the body is valid, still before the suite or the

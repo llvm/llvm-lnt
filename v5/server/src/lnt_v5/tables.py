@@ -88,6 +88,29 @@ KEY_NAME_MAX_LENGTH = 256
 SCHEMA_VERSION_ID = 1
 
 
+project_position_sequence = Sequence("project_position_seq", metadata=metadata)
+"""Numbers the positions of new projects (see below). Owned by `project.position`, as revision 0011
+says, and checked like `namespace_sequence`."""
+
+schema_position_sequence = Sequence("schema_position_seq", metadata=metadata)
+"""Numbers the positions of new suites, and of suites moved to another project (see below). Shared
+by every project: only the positions of one project's suites are compared. Owned by
+`schema.position`, as revision 0011 says, and checked like `namespace_sequence`."""
+
+# How a row's place in its order is kept (D5, D7). A new row draws its position from a sequence, so
+# it is larger than every position that existed when it drew it, and goes last. A reorder hands the
+# positions its members already have out again in the new order (see `store.reorder`), rather than
+# drawing new ones, so that it cannot put itself after a row created while it runs.
+#
+# Deliberately not unique. Ties cannot arise -- every position comes from a sequence, and a
+# reorder only permutes them -- and a unique index would cost more than it checks: PostgreSQL
+# treats a column with a usable unique index as a key column, so updating `project.position` would
+# lock each row FOR UPDATE rather than FOR NO KEY UPDATE, and a reorder of the projects would then
+# wait for, and hold up, every suite write and key creation in the instance, which take their
+# projects FOR KEY SHARE. It would also refuse the permutation itself, since PostgreSQL checks a
+# non-deferrable unique constraint row by row rather than at the end of the statement.
+
+
 project = Table(
     "project",
     metadata,
@@ -95,6 +118,13 @@ project = Table(
     Column("id", Integer, Identity(), primary_key=True),
     Column("name", String(SUITE_NAME_MAX_LENGTH), nullable=False, unique=True),
     Column("display_name", String(DISPLAY_NAME_MAX_LENGTH), nullable=True),
+    # Its place in the instance's order of projects, lowest first (D7).
+    Column(
+        "position",
+        Integer,
+        nullable=False,
+        server_default=project_position_sequence.next_value(),
+    ),
 )
 """One row per project, which groups test suites (D5, D7)."""
 
@@ -118,6 +148,13 @@ schema = Table(
     # `suites/migrations.py`). A suite recorded at too low a version would have steps applied again
     # to tables that already have them.
     Column("migration_version", Integer, nullable=False),
+    # Its place in its project's order of suites, lowest first (D7).
+    Column(
+        "position",
+        Integer,
+        nullable=False,
+        server_default=schema_position_sequence.next_value(),
+    ),
     # A suite's name is unique within its project only (D7).
     UniqueConstraint("project_id", "name"),
 )

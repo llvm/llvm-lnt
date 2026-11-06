@@ -111,6 +111,21 @@ SUITE_SCHEMA: dict[str, Any] = {
     "repository": REPOSITORY,
 }
 
+# Another suite of the example project, as in the seed data.
+OTHER_SUITE_SCHEMA: dict[str, Any] = {
+    "name": "header-sizes",
+    "display_name": "Header Sizes",
+    "metrics": [
+        {
+            "name": "preprocessed_size",
+            "type": "integer",
+            "display_name": "Preprocessed Size",
+            "unit": "bytes",
+            "unit_abbrev": "B",
+        }
+    ],
+}
+
 # The project holding the example suite (D7), as the API returns it.
 PROJECT: dict[str, Any] = {"name": "libcxx", "display_name": "libc++", "suites": [SUITE_SCHEMA]}
 

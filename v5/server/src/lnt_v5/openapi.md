@@ -7,6 +7,8 @@ machines, commits, runs, samples, profiles and regressions) and to common workfl
 Test suites are grouped into projects. A suite's name is unique within its project, so every path
 of a suite names both: `/api/projects/{project}/suites/{suite}/...`. Suites can be renamed and
 moved to other projects, and projects renamed: every URL under the old names then answers 404.
+The projects have an order, and so do the test suites of each project. Lists follow these orders.
+`PATCH /api/projects` and `PATCH /api/projects/{project}/suites` change them.
 
 ## Authentication
 
@@ -18,8 +20,9 @@ Each operation lists the scope it requires, and the `KeyScope` schema describes 
 allows. Scopes are ordered `read` < `submit` < `triage` < `manage` < `admin`, and a key can do
 everything its scope and the scopes below it allow. `read` is the scope of the operations that don't
 need a key. A key can also be restricted to some whole projects and some single test suites, and
-then has its scope only in the suites it covers. A key covering a project as a whole can also create test suites in it, move test suites into it, and
-change or delete the project. Creating a project always needs an unrestricted key.
+then has its scope only in the suites it covers. A key covering a project as a whole can also
+create test suites in it, move test suites into it, reorder its test suites, and change or delete
+the project. Creating a project, or reordering the projects, always needs an unrestricted key.
 Restrictions follow renames: a key listing a suite keeps covering it under its new names, and a key
 listing a project covers the suites the project holds now. Keys are created with
 `POST /api/admin/api-keys`, which requires the `admin` scope; ask the instance's administrator for
@@ -118,4 +121,5 @@ without one, such as one sent by plain `curl`, gets an uncompressed response.
   those that have no value. In general, every documented key is present in a response, with
   `null` when there is no value.
 - In a `PATCH` request, leave out the keys you don't want to change. Set a key to `null` to clear
-  it, where that is allowed.
+  it, where that is allowed. The `order` of `PATCH /api/projects` and
+  `PATCH /api/projects/{project}/suites` is the exception: it is required.

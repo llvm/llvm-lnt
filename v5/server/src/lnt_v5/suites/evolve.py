@@ -15,7 +15,6 @@ second is changed key by key, like an entry's `update`. Neither adds or removes 
 
 from __future__ import annotations
 
-from collections import Counter
 from collections.abc import Iterator, Sequence
 from dataclasses import dataclass
 from typing import Any
@@ -24,6 +23,7 @@ from pydantic import BaseModel, ConfigDict, Field, ValidationError, model_valida
 from sqlalchemy import Connection, update
 
 from lnt_v5.errors import ApiError, ErrorCode, validation_problems
+from lnt_v5.ordering import check_order
 from lnt_v5.patching import omit_defaults
 from lnt_v5.suites import tables as suite_tables
 from lnt_v5.suites.schema import (
@@ -329,32 +329,15 @@ def _apply(
 
 
 def _reordered(of: _List, entries: list[dict[str, Any]], order: list[str]) -> list[dict[str, Any]]:
-    """`entries` in the `order` the request gives them, which must name each exactly once (D2).
-
-    The refusal names what is wrong: an `order` that is out of date, from a client that missed an
-    entry added or removed meanwhile, is the likeliest mistake, and the names say so.
-    """
+    """`entries` in the `order` the request gives them, which must name each exactly once (D2)."""
     by_name = {entry["name"]: entry for entry in entries}
-    # Counted once, and looked up rather than searched: the request decides how long it is.
-    counts = Counter(order)
-    problems = []
-    if missing := [name for name in by_name if name not in counts]:
-        problems.append(f"leaves out {_quoted(missing)}")
-    if unknown := [name for name in counts if name not in by_name]:
-        problems.append(f"names {_quoted(unknown)}, which the list does not have")
-    if repeated := [name for name, count in counts.items() if count > 1]:
-        problems.append(f"names {_quoted(repeated)} more than once")
-    if problems:
-        raise ApiError(
-            ErrorCode.INVALID_REQUEST,
-            f"The new order of {of.attribute} must name each of its entries exactly once, after "
-            f"the additions and removals, but it {'; it '.join(problems)}",
-        )
+    check_order(
+        list(by_name),
+        order,
+        f"The new order of {of.attribute} must name each of its entries exactly once, after the "
+        "additions and removals",
+    )
     return [by_name[name] for name in order]
-
-
-def _quoted(names: list[str]) -> str:
-    return ", ".join(f"'{name}'" for name in names)
 
 
 def resulting_schema(current: SuiteSchema, patch: SchemaPatch) -> SuiteSchema:

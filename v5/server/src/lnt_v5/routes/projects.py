@@ -1,8 +1,8 @@
 """Projects, which group test suites (E13, D7).
 
 A project's suites are managed through E10, under the project's path. Here are the projects
-themselves: listing them with their suites, creating them, renaming them, changing their display
-names and deleting them.
+themselves: listing them with their suites, creating them, reordering them, renaming them, changing
+their display names and deleting them.
 """
 
 from __future__ import annotations
@@ -19,8 +19,9 @@ from lnt_v5.db import EngineDep, reporting_violation
 from lnt_v5.errors import ErrorCode, ErrorEnvelope
 from lnt_v5.patching import omit_defaults
 from lnt_v5.responses import Items
-from lnt_v5.routes.suites import PROJECTS_PATH, sorted_schemas
+from lnt_v5.routes.suites import PROJECTS_PATH
 from lnt_v5.scopes import Scope
+from lnt_v5.strings import Storable
 from lnt_v5.suites.registry import Project as CachedProject
 from lnt_v5.suites.registry import RegistryDep
 from lnt_v5.suites.schema import NAME_RULE, DisplayName, SuiteNameStr, SuiteSchema
@@ -29,8 +30,11 @@ from lnt_v5.suites.store import (
     PROJECT_NAME_CONSTRAINT,
     SCHEMA_PROJECT_CONSTRAINT,
     bump,
+    locked_projects_in_order,
     project_not_found,
     project_write,
+    projects_write,
+    reorder,
 )
 from lnt_v5.tables import project as project_table
 
@@ -60,14 +64,14 @@ class Project(BaseModel):
 
     name: str = Field(description=_PROJECT_NAME)
     display_name: str | None = Field(description=f"{_DISPLAY_NAME} Null if there is none.")
-    suites: list[SuiteSchema] = Field(description="The project's test suites, sorted by name.")
+    suites: list[SuiteSchema] = Field(description="The project's test suites, in their order.")
 
     @classmethod
     def of(cls, cached: CachedProject) -> Project:
         return cls(
             name=cached.name,
             display_name=cached.display_name,
-            suites=sorted_schemas(cached.suites),
+            suites=[suite.schema for suite in cached.suites.values()],
         )
 
 
@@ -100,10 +104,31 @@ class ProjectUpdate(BaseModel):
     )
 
 
+class ProjectOrder(BaseModel):
+    """The projects, in their new order."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    # Any string: one that is not a project's name is refused as such.
+    order: list[Annotated[str, Storable]] = Field(
+        description=(
+            "The names of all the projects, each exactly once, in their new order. Can't be null."
+        ),
+    )
+
+
 _CREATE_EXAMPLES = {
     "libcxx": {
         "summary": "The project of libc++",
         "value": {"name": examples.PROJECT["name"], "display_name": "libc++"},
+    },
+}
+
+# Projects `llvm` and `libcxx`, which the example above creates.
+_REORDER_EXAMPLES = {
+    "reorder": {
+        "summary": "List LLVM first",
+        "value": {"order": ["llvm", examples.PROJECT["name"]]},
     },
 }
 
@@ -122,11 +147,11 @@ _PATCH_EXAMPLES = {
 
 @router.get("", dependencies=[require_scope(Scope.READ)], summary="List projects")
 def list_projects(engine: EngineDep, registry: RegistryDep) -> Items[Project]:
-    """Every project, with its test suites and their schemas, sorted by name. Projects without test
-    suites are included."""
+    """Every project, with its test suites and their schemas, in the order of the projects. Projects
+    without test suites are included."""
     with engine.connect() as connection:
         projects = registry.fresh(connection)
-    return Items(items=[Project.of(projects[name]) for name in sorted(projects)])
+    return Items(items=[Project.of(found) for found in projects.values()])
 
 
 @router.post(
@@ -143,7 +168,8 @@ def create_project(
     engine: EngineDep,
     response: Response,
 ) -> Project:
-    """Create a project, without test suites. Its `Location` header points to the new project."""
+    """Create a project, without test suites. The new project goes last. The response's `Location`
+    header points to it."""
     taken = f"A project named '{body.name}' already exists"
     with (
         reporting_violation(PROJECT_NAME_CONSTRAINT, ErrorCode.DUPLICATE, taken),
@@ -155,6 +181,37 @@ def create_project(
         bump(connection)
     response.headers["Location"] = f"{PROJECTS_PATH}/{body.name}"
     return Project(name=body.name, display_name=body.display_name, suites=[])
+
+
+@router.patch(
+    "",
+    dependencies=[require_scope(Scope.MANAGE)],
+    summary="Reorder projects",
+    responses={
+        409: {
+            "model": ErrorEnvelope,
+            "description": (
+                "`retry`: the projects were busy, for example because one of them was being "
+                "renamed, so the change couldn't start. Nothing was saved: send the request again."
+            ),
+        }
+    },
+)
+def reorder_projects(
+    body: Annotated[ProjectOrder, Body(openapi_examples=_REORDER_EXAMPLES)],
+    engine: EngineDep,
+    registry: RegistryDep,
+) -> Items[Project]:
+    """Put the projects in a new order. Lists of projects follow this order. Returns the projects in
+    the new order, with their test suites, as listing them does.
+
+    `order` must name every project exactly once. An order that leaves a project out, names one
+    twice, or names something that isn't a project is refused. If the order is the current one,
+    nothing changes. Projects created later go last."""
+    with projects_write(engine) as connection:
+        members = locked_projects_in_order(connection)
+        reorder(connection, project_table, members, body.order, "the projects")
+    return list_projects(engine, registry)
 
 
 @router.get(

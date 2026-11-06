@@ -105,7 +105,7 @@ class TestCreate:
 
 
 class TestRead:
-    def test_lists_every_project_by_name_with_its_suites_by_name(
+    def test_lists_every_project_in_order_with_its_suites_in_order(
         self, api_client: TestClient, create: Callable[..., Any], manage: dict[str, str]
     ) -> None:
         for name in ("swift", "llvm", "libcxx"):
@@ -117,11 +117,12 @@ class TestRead:
 
         items = api_client.get(PROJECTS_PATH).json()["items"]
 
-        assert [item["name"] for item in items] == ["libcxx", "llvm", "swift"]
+        # Each created last (D7), rather than by name.
+        assert [item["name"] for item in items] == ["swift", "llvm", "libcxx"]
         llvm = items[1]
-        assert [suite["name"] for suite in llvm["suites"]] == ["alpha", "zeta"]
+        assert [suite["name"] for suite in llvm["suites"]] == ["zeta", "alpha"]
         # Whole schemas, as E10 returns them.
-        assert llvm["suites"][0] == api_client.get(suite_path("alpha", "llvm")).json()
+        assert llvm["suites"][0] == api_client.get(suite_path("zeta", "llvm")).json()
         # Projects without suites are listed too.
         assert items[0]["suites"] == []
 

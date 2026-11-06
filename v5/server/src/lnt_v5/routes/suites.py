@@ -1,5 +1,5 @@
-"""Test suite creation, inspection, renaming and moving, evolution and deletion (E10), in a project
-(D7).
+"""Test suite creation, inspection, reordering, renaming and moving, evolution and deletion (E10),
+in a project (D7).
 
 A suite's schema is the whole document here: the body `POST /api/projects/{project}/suites`
 accepts, the body a `GET` returns, and what the `schema` table stores (D4). So one suite fetched
@@ -12,7 +12,6 @@ The schema document lives in `suites/schema.py`, the patch document and what app
 
 from __future__ import annotations
 
-from collections.abc import Mapping
 from typing import Annotated
 
 from fastapi import APIRouter, Body, Query, Response
@@ -30,7 +29,7 @@ from lnt_v5.strings import Storable
 from lnt_v5.suites import evolve
 from lnt_v5.suites import tables as suite_tables
 from lnt_v5.suites.evolve import SchemaPatch
-from lnt_v5.suites.registry import RegistryDep, Suite
+from lnt_v5.suites.registry import RegistryDep
 from lnt_v5.suites.schema import NAME_RULE, SuiteNameStr, SuiteSchema
 from lnt_v5.suites.scope import SUITE_NOT_FOUND, ProjectName, SuiteName
 from lnt_v5.suites.store import (
@@ -40,8 +39,11 @@ from lnt_v5.suites.store import (
     full_name,
     locked_projects,
     locked_suite,
+    locked_suites_in_order,
     move_suite,
     project_not_found,
+    project_write,
+    reorder,
     suite_write,
 )
 from lnt_v5.tables import schema as schema_table
@@ -71,6 +73,7 @@ ConfirmRemoval = Annotated[
 ]
 
 _NOT_FOUND = {"model": ErrorEnvelope, "description": SUITE_NOT_FOUND}
+_PROJECT_NOT_FOUND = {"model": ErrorEnvelope, "description": "The project doesn't exist."}
 # Every write can answer this: the suite was busy and the change could not take its locks (D2).
 _BUSY = (
     "`retry`: the suite was busy, for example because another request was reading it, so the "
@@ -79,6 +82,18 @@ _BUSY = (
 
 _CREATE_EXAMPLES = {
     "libcxx": {"summary": "The suite for libc++'s benchmarks", "value": examples.SUITE_SCHEMA},
+    "header_sizes": {
+        "summary": "A suite for libc++'s header sizes, with one metric",
+        "value": examples.OTHER_SUITE_SCHEMA,
+    },
+}
+
+# The two suites the examples above create.
+_REORDER_EXAMPLES = {
+    "reorder": {
+        "summary": "List the header sizes first",
+        "value": {"order": [examples.OTHER_SUITE_SCHEMA["name"], examples.SUITE]},
+    },
 }
 
 _PATCH_EXAMPLES = {
@@ -146,6 +161,20 @@ class SuiteUpdate(BaseModel):
     )
 
 
+class SuiteOrder(BaseModel):
+    """The project's test suites, in their new order."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    # Any string: one that is not the name of one of the project's suites is refused as such.
+    order: list[Annotated[str, Storable]] = Field(
+        description=(
+            "The names of all the project's test suites, each exactly once, in their new order. "
+            "Can't be null."
+        ),
+    )
+
+
 def _confirmed(confirm: bool, what: str) -> None:
     if not confirm:
         raise ApiError(ErrorCode.INVALID_REQUEST, f"{what} Pass ?confirm=true to proceed.")
@@ -155,26 +184,22 @@ def _confirmed(confirm: bool, what: str) -> None:
 # so they are written for API users.
 
 
-def sorted_schemas(suites: Mapping[str, Suite]) -> list[SuiteSchema]:
-    """The schemas of `suites`, by name (E10, E13)."""
-    return [suites[name].schema for name in sorted(suites)]
-
-
 # Schemas rather than names alone: suites are limited in number, and parts of the client need every
 # suite's metric list up front (E10).
 @router.get(
     "",
     dependencies=[require_scope(Scope.READ)],
     summary="List a project's test suites",
-    responses={404: {"model": ErrorEnvelope, "description": "The project doesn't exist."}},
+    responses={404: _PROJECT_NOT_FOUND},
 )
 def list_suites(
     project: ProjectName, engine: EngineDep, registry: RegistryDep
 ) -> Items[SuiteSchema]:
-    """The project's test suites, with their schemas, sorted by name."""
+    """The project's test suites, with their schemas, in their order. New test suites go last, and
+    so do test suites moved to the project."""
     with engine.connect() as connection:
         found = registry.resolve_project(connection, project)
-    return Items(items=sorted_schemas(found.suites))
+    return Items(items=[suite.schema for suite in found.suites.values()])
 
 
 @router.post(
@@ -183,7 +208,7 @@ def list_suites(
     dependencies=[require_scope(Scope.MANAGE)],
     summary="Create a test suite",
     responses={
-        404: {"model": ErrorEnvelope, "description": "The project doesn't exist."},
+        404: _PROJECT_NOT_FOUND,
         409: {
             "model": ErrorEnvelope,
             "description": (
@@ -198,7 +223,8 @@ def create_suite(
     engine: EngineDep,
     response: Response,
 ) -> SuiteSchema:
-    """Create a test suite in the project, from a schema.
+    """Create a test suite in the project, from a schema. The new test suite goes last among the
+    project's test suites.
 
     The response is the schema with all optional keys filled in. Its `Location` header points to
     the new suite.
@@ -212,6 +238,47 @@ def create_suite(
     # Both names are slugs (D4, D7), which need no quoting.
     response.headers["Location"] = f"{SUITES_PATH.format(project=project)}/{body.name}"
     return body
+
+
+@router.patch(
+    "",
+    dependencies=[require_scope(Scope.MANAGE)],
+    summary="Reorder a project's test suites",
+    responses={
+        404: _PROJECT_NOT_FOUND,
+        409: {
+            "model": ErrorEnvelope,
+            "description": (
+                "`retry`: the project was busy, for example because one of its test suites was "
+                "being changed, so the change couldn't start. Nothing was saved: send the request "
+                "again."
+            ),
+        },
+    },
+)
+def reorder_suites(
+    project: ProjectName,
+    body: Annotated[SuiteOrder, Body(openapi_examples=_REORDER_EXAMPLES)],
+    engine: EngineDep,
+    registry: RegistryDep,
+) -> Items[SuiteSchema]:
+    """Put the project's test suites in a new order. Lists of the project's test suites follow this
+    order. Returns the test suites in the new order.
+
+    `order` must name each test suite of the project exactly once. An order that leaves a test suite
+    out, names one twice, or names something that isn't a test suite of the project is refused. If
+    the order is the current one, nothing changes. Test suites created in the project or moved to it
+    later go last."""
+    with project_write(engine, project) as connection:
+        members = locked_suites_in_order(connection, project)
+        reorder(
+            connection,
+            schema_table,
+            members,
+            body.order,
+            f"the test suites of project '{project}'",
+        )
+    return list_suites(project, engine, registry)
 
 
 @router.get(
@@ -259,11 +326,11 @@ def patch_suite(
     """Rename a test suite, move it to another project, or both. Returns its schema, under its new
     name. A body that changes nothing, an empty one included, changes nothing.
 
-    Only names change: the suite keeps all of its data. Its old name isn't kept: every URL of the
-    suite changes, and the old ones answer 404. API keys that list the suite keep covering it. A
-    move takes the suite away from the keys that list its old project as a whole, and gives it to
-    those that list the new one, so a move also needs a key that is unrestricted or covers the new
-    project in full.
+    Only names change, and the suite keeps all of its data. A suite moved to another project goes
+    last among that project's test suites. The old name isn't kept: every URL of the suite changes,
+    and the old ones answer 404. API keys that list the suite keep covering it. A move takes the
+    suite away from the keys that list its old project as a whole, and gives it to those that list
+    the new one, so a move also needs a key that is unrestricted or covers the new project in full.
     """
     changes = body.model_dump(exclude_unset=True)
     new_name = changes.get("name", name)

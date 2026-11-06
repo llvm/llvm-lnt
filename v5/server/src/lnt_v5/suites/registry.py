@@ -87,7 +87,7 @@ class Suite:
 
 @dataclass(frozen=True)
 class Project:
-    """One project, and its suites by name (D7)."""
+    """One project, and its suites by name, in the project's order (D7)."""
 
     name: str
     display_name: str | None
@@ -111,8 +111,8 @@ class SuiteRegistry:
         self._projects: Mapping[str, Project] = {}
 
     def fresh(self, connection: Connection) -> Mapping[str, Project]:
-        """Every project, with its suites, reloaded first if anyone has changed one since the last
-        look (D2).
+        """Every project by name, in the instance's order, with its suites, reloaded first if anyone
+        has changed one, or the order of any, since the last look (D2).
 
         Call this as the first statement of the endpoint's own unit of work, on the connection it
         already holds: D2 wants the comparison on every request path, and doing it here costs no
@@ -135,12 +135,9 @@ class SuiteRegistry:
             return self._projects
 
     def suites(self, connection: Connection) -> list[Suite]:
-        """Every suite, fresh (see `fresh`), by project name, then by name."""
-        projects = self.fresh(connection)
+        """Every suite, fresh (see `fresh`), in the order of the projects, then of their suites."""
         return [
-            projects[project_name].suites[name]
-            for project_name in sorted(projects)
-            for name in sorted(projects[project_name].suites)
+            suite for found in self.fresh(connection).values() for suite in found.suites.values()
         ]
 
     def resolve_project(self, connection: Connection, name: str) -> Project:
@@ -174,6 +171,9 @@ class SuiteRegistry:
         names: one deleted and created again under the same name, from the same schema, is a suite
         of its own, in a namespace of its own (D5), and the copy of the suite it replaced would
         address tables that are gone.
+
+        The maps are built anew in the order of `rows`, even when every suite is reused, since a
+        reorder changes nothing but that order.
         """
         previous = {
             suite.id: suite for found in self._projects.values() for suite in found.suites.values()
@@ -248,6 +248,9 @@ def _read(connection: Connection, cached: int | None) -> tuple[int, list[_Row]]:
     The outer joins are what keep the counter readable when there is nothing to load -- either
     because no project exists, or because nothing has changed -- and what keep a project without
     suites.
+
+    The rows come in the order of the projects, then of each project's suites (D7), which `_parse`
+    keeps. The ids break ties, which should never arise, so that the order is never left to chance.
     """
     moved = schema_version.c.version != (_NEVER_LOADED if cached is None else cached)
     catalog = project.outerjoin(schema, schema.c.project_id == project.c.id)
@@ -263,6 +266,7 @@ def _read(connection: Connection, cached: int | None) -> tuple[int, list[_Row]]:
         )
         .select_from(schema_version.outerjoin(catalog, moved))
         .where(schema_version.c.id == SCHEMA_VERSION_ID)
+        .order_by(project.c.position, project.c.id, schema.c.position, schema.c.id)
     ).all()
     # The check constraint guarantees the counter row, so `rows` is never empty.
     version = int(rows[0].version)
