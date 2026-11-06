@@ -93,12 +93,14 @@ status, so it is aborted instead.
 
 **Schema evolution.** A suite's `metrics`, `commit_fields` and `machine_fields`
 lists can be changed after creation with
-`PATCH /api/projects/{project}/suites/{suite}/schema`, which adds, updates
-and/or removes entries in any of the three. This is the only way a suite can
-start accepting metadata it did not declare at creation: undeclared keys are
-rejected on submission, for both machines and commits (see O2).
+`PATCH /api/projects/{project}/suites/{suite}/schema`, which adds, updates,
+removes and/or reorders entries in any of the three. This is the only way a
+suite can start accepting metadata it did not declare at creation: undeclared
+keys are rejected on submission, for both machines and commits (see O2).
 
-- **Adding** an entry leaves existing rows with no value for it.
+- **Adding** an entry puts it at the end of its list. Entries added together
+  keep the order the request gives them. Existing rows have no value for a new
+  entry.
 - Only presentation metadata can be **updated**: whichever of `display_name`,
   `unit`, `unit_abbrev`, `bigger_is_better`, `dashboard`, `searchable`,
   `display` and `listed` the entry accepts (see D4). A `type` cannot be changed
@@ -109,6 +111,10 @@ rejected on submission, for both machines and commits (see O2).
   removed entry used. Removing a metric also removes every regression
   indicator naming it and every run summary of it (see D5); re-adding a metric
   with the same name brings none of them back.
+- **Reordering** a list gives it a new order. The new order must name every
+  entry of the list exactly once, as the list stands after the request's
+  additions and removals. It is applied last. An order that moves nothing
+  changes nothing.
 
 In an `update` entry, an omitted key leaves the stored value unchanged. An
 explicit `null` clears one of the nullable keys (`display_name`, `unit`,
@@ -121,15 +127,17 @@ The same request can change the suite's `display_name` and its `repository`
 (D4), with the same rule: an omitted key is left unchanged, and an explicit
 `null` clears the display name or one of the repository's keys. `null` for the
 whole `repository` is rejected with 400, since there is one way to clear it, key
-by key. A change to either destroys nothing and changes no table, but it is a
-schema write all the same: it takes the lock above, and bumps `schema_version`.
+by key. A change to either, or a new order for a list, destroys nothing and
+changes no table. It is still a schema write: it takes the lock above, and
+bumps `schema_version`.
 
 Notes:
 - Renaming an entry is not supported: it is semantically a remove plus an add.
 - A schema change is atomic: it applies entirely or not at all.
 - A field cannot be the target of more than one add, update or remove
   operation in a single request, including by being repeated within one
-  operation's own list.
+  operation's own list. Naming an entry in a list's new order does not count
+  as one of these operations.
 - The resulting schema is validated in full, exactly as if it had been sent to
   `POST /api/projects/{project}/suites`, not just the entries the request
   touched.
@@ -247,6 +255,8 @@ Notes:
   from the shared attribute types (see D3).
 - `commit_fields` and `machine_fields` define optional metadata columns on the
   Commit and Machine tables, respectively.
+- The order of each list matters. The API stores it, and returns the entries
+  of each list in that order. D2 says how to change it.
 - `searchable: true` on a commit or machine field makes `?search=` match that
   field in the list endpoints that search commits or machines (see O4). It is
   only valid on `text` fields (see D3).

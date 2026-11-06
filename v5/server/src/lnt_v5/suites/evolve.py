@@ -15,6 +15,7 @@ second is changed key by key, like an entry's `update`. Neither adds or removes 
 
 from __future__ import annotations
 
+from collections import Counter
 from collections.abc import Iterator, Sequence
 from dataclasses import dataclass
 from typing import Any
@@ -170,18 +171,27 @@ class _Changes[E: Entry, U: _EntryUpdate](BaseModel):
             "must include `confirm=true`."
         ),
     )
+    # Only read when the request sends it (see `_apply`), so its default never is.
+    order: list[EntryName] = Field(
+        default_factory=list,
+        description=(
+            "The names of the list's entries in their new order, after the additions and removals: "
+            "every entry exactly once. Leave it out to keep the order, with new entries at the end."
+            " Can't be null."
+        ),
+    )
 
 
 class MetricChanges(_Changes[Metric, MetricUpdate]):
-    """Metrics to add, update or remove."""
+    """Metrics to add, update, remove or reorder."""
 
 
 class CommitFieldChanges(_Changes[CommitField, CommitFieldUpdate]):
-    """Commit fields to add, update or remove."""
+    """Commit fields to add, update, remove or reorder."""
 
 
 class MachineFieldChanges(_Changes[MachineField, MachineFieldUpdate]):
-    """Machine fields to add, update or remove."""
+    """Machine fields to add, update, remove or reorder."""
 
 
 class RepositoryUpdate(BaseModel):
@@ -202,11 +212,12 @@ class SchemaPatch(BaseModel):
     What you leave out is not changed.
 
     Either all the changes are applied or none are, and the resulting schema must be valid. Each
-    metric or field can only be changed once per request. A new metric or field has no value for
-    existing data. Removing one permanently deletes its data (and, for a metric, the regression
-    indicators that refer to it), so the request must include `confirm=true`. To rename a metric
-    or field, remove it and add it again. Changing the display name or the repository needs no
-    confirmation.
+    metric or field can only be added, updated or removed once per request, and a list's new
+    `order` comes after those changes. New metrics and fields go at the end of their list, in the
+    order given, and have no value for existing data. Removing one permanently deletes its data
+    (and, for a metric, the regression indicators that refer to it), so the request must include
+    `confirm=true`. To rename a metric or field, remove it and add it again. Changing the display
+    name, the repository or an order needs no confirmation.
     """
 
     # As `_EntryUpdate`: only a `display_name` the request sends is read, so its default never is.
@@ -265,8 +276,12 @@ def _apply(
     does not revalidate an instance it is handed -- and an `update` could then set `searchable` on a
     non-text entry, which is exactly what full revalidation exists to catch.
 
-    Order within the list is preserved and additions go on the end, because the entry order is what
-    decides the column order of the suite's tables (D5) and clients see it.
+    The entries keep their order, additions go on the end in the order given, and a new `order`
+    applies last (D2): the entry order is the list's order in the schema, which clients show.
+
+    It is also the order of the columns the suite's tables declare, and so of those every query
+    selects. Reordering does not move the columns in the database, which nothing reads by position,
+    but it does change the queries, so that the cursors issued before no longer match (I2).
     """
     seen: set[str] = set()
     for name in (
@@ -307,7 +322,39 @@ def _apply(
         for entry in current
         if entry.name not in removed
     ]
-    return kept + [entry.model_dump() for entry in changes.add]
+    entries = kept + [entry.model_dump() for entry in changes.add]
+    if "order" not in changes.model_fields_set:
+        return entries
+    return _reordered(of, entries, changes.order)
+
+
+def _reordered(of: _List, entries: list[dict[str, Any]], order: list[str]) -> list[dict[str, Any]]:
+    """`entries` in the `order` the request gives them, which must name each exactly once (D2).
+
+    The refusal names what is wrong: an `order` that is out of date, from a client that missed an
+    entry added or removed meanwhile, is the likeliest mistake, and the names say so.
+    """
+    by_name = {entry["name"]: entry for entry in entries}
+    # Counted once, and looked up rather than searched: the request decides how long it is.
+    counts = Counter(order)
+    problems = []
+    if missing := [name for name in by_name if name not in counts]:
+        problems.append(f"leaves out {_quoted(missing)}")
+    if unknown := [name for name in counts if name not in by_name]:
+        problems.append(f"names {_quoted(unknown)}, which the list does not have")
+    if repeated := [name for name, count in counts.items() if count > 1]:
+        problems.append(f"names {_quoted(repeated)} more than once")
+    if problems:
+        raise ApiError(
+            ErrorCode.INVALID_REQUEST,
+            f"The new order of {of.attribute} must name each of its entries exactly once, after "
+            f"the additions and removals, but it {'; it '.join(problems)}",
+        )
+    return [by_name[name] for name in order]
+
+
+def _quoted(names: list[str]) -> str:
+    return ", ".join(f"'{name}'" for name in names)
 
 
 def resulting_schema(current: SuiteSchema, patch: SchemaPatch) -> SuiteSchema:

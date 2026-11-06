@@ -11,6 +11,7 @@
 import type { Schemas } from '../../../api/client'
 import type { SuiteSchema } from '../../../api/suites'
 import { templateFieldProblem, templateProblem, type Repository } from '../../../repository'
+import { sameElements } from '../../../same-elements'
 import {
   flagAllowed,
   isTextKey,
@@ -29,7 +30,10 @@ import {
  * shape serves the three. A text key holds what its input shows.
  */
 export interface DraftEntry {
-  /** Identifies the entry's row, whatever its name. */
+  /**
+   * Identifies the entry's row, whatever its name. Increasing in the order entries are drafted, so
+   * that a schema's entries, drafted in order, have theirs in its order, which `patchOf` relies on.
+   */
   id: number
   /** The entry as stored, if it existed when the editor opened; null for one added since. */
   original: AnyEntry | null
@@ -161,6 +165,22 @@ export function removeEntry(draft: Draft, list: ListName, id: number): Draft {
       return entry.original === null ? [] : [{ ...entry, removed: true }]
     }),
   }
+}
+
+/**
+ * `draft` with the entry `id` of `list` moved to the place of the entry `target`: just before it if
+ * it came from after it, and just after it otherwise. Neither can be a removed entry (TS7).
+ */
+export function moveEntryTo(draft: Draft, list: ListName, id: number, target: number): Draft {
+  const entries = draft[list]
+  const from = entries.findIndex((entry) => entry.id === id)
+  const to = entries.findIndex((entry) => entry.id === target)
+  if (from < 0 || to < 0 || from === to || entries[from].removed || entries[to].removed) {
+    return draft
+  }
+  const moved = entries.filter((entry) => entry.id !== id)
+  moved.splice(moved.indexOf(entries[to]) + (from < to ? 1 : 0), 0, entries[from])
+  return { ...draft, [list]: moved }
 }
 
 export function restoreEntry(draft: Draft, list: ListName, id: number): Draft {
@@ -392,11 +412,23 @@ export function displayNameChange(text: string, stored: string | null): Schemas[
 }
 
 /**
+ * The new order of `entries`, if the user changed it (TS7): their names, removed ones aside, unless
+ * they are in the order the list has without one, its stored entries in their stored order -- that
+ * of their ids -- followed by the added ones, as `patchOf` adds them.
+ */
+function orderOf(entries: readonly DraftEntry[]): string[] | undefined {
+  const kept = entries.filter((entry) => !entry.removed)
+  const stored = kept.filter((entry) => entry.original !== null).sort((a, b) => a.id - b.id)
+  const added = kept.filter((entry) => entry.original === null)
+  return sameElements([...stored, ...added], kept) ? undefined : kept.map((entry) => entry.name)
+}
+
+/**
  * The body of `PATCH /api/projects/{project}/suites/{suite}/schema` making the changes in `draft` (E10): an entry added
  * in full, an existing one updated with only the keys the user changed, a removed one by its name,
- * and the repository with only the keys the user changed. It says nothing of what the user left
- * alone, so that saving does not undo changes others made since the editor opened (TS7). Empty
- * when the user changed nothing.
+ * the list's new order if the user changed it, and the repository with only the keys the user
+ * changed. It says nothing of what the user left alone, so that saving does not undo changes others
+ * made since the editor opened (TS7). Empty when the user changed nothing.
  */
 export function patchOf(draft: Draft): Schemas['SchemaPatch'] {
   const patch: Record<string, Record<string, unknown>> = {}
@@ -417,6 +449,8 @@ export function patchOf(draft: Draft): Schemas['SchemaPatch'] {
       }
     }
     const operations = Object.entries({ add, update, remove }).filter(([, items]) => items.length)
+    const order = orderOf(draft[list])
+    if (order !== undefined) operations.push(['order', order])
     if (operations.length > 0) patch[list] = Object.fromEntries(operations)
   }
   const { repository } = draft

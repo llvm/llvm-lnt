@@ -3,14 +3,20 @@ import {
   useCallback,
   useId,
   useLayoutEffect,
+  useMemo,
   useRef,
+  type HTMLAttributes,
   type InputHTMLAttributes,
   type ReactNode,
   type Ref,
+  type RefObject,
 } from 'react'
+import clsx from 'clsx'
 import { VisuallyHidden } from 'react-aria-components'
 import { ActionButton } from '../../../components/action-button'
 import type { Column } from '../../../components/data-table'
+import { Reorderable, ReorderGrip } from '../../../components/drag-reorder'
+import { useReorderTarget } from '../../../components/drag-reorder-target'
 import { Select } from '../../../components/select'
 import type { UrlKey } from '../../../repository'
 import { RepositoryBox, SchemaList, SuiteBox } from './schema-tables'
@@ -18,6 +24,7 @@ import {
   addEntry,
   changeEntry,
   changeRepository,
+  moveEntryTo,
   nameProblems,
   newEntry,
   removeEntry,
@@ -60,7 +67,7 @@ interface Props {
 
 /**
  * The schema editor's three tables and its repository (TS7): the viewer's, with an input for each
- * value. Each table adds an entry at its end, and each entry can be removed.
+ * value. Each table adds an entry at its end, and each entry can be dragged elsewhere, or removed.
  */
 export function SchemaEditorTables({ draft, onChange, busy }: Props) {
   const container = useRef<HTMLDivElement>(null)
@@ -222,13 +229,25 @@ const ListTable = memo(function ListTable({ list, entries, busy, change }: ListP
 
   const columns: Column<DraftEntry>[] = [
     {
+      id: 'grip',
+      header: <VisuallyHidden>Order</VisuallyHidden>,
+      className: styles.editorCell,
+      // A removed entry cannot move (TS7).
+      cell: (entry) =>
+        !entry.removed && (
+          <ReorderGrip itemKey={rowKey(entry)} busy={busy} data-focus={`${entry.id}-grip`} />
+        ),
+    },
+    {
       id: 'name',
       header: 'Name',
       className: styles.editorCell,
       // An existing entry's name and type cannot change (D2).
       cell: (entry) =>
         entry.original !== null ? (
-          <span className={entry.removed ? styles.removedName : undefined}>{entry.name}</span>
+          <span className={clsx(styles.entryName, entry.removed && styles.removedName)}>
+            {entry.name}
+          </span>
         ) : (
           <NameInput
             // By its place in the list, rather than by what is typed into it.
@@ -245,6 +264,7 @@ const ListTable = memo(function ListTable({ list, entries, busy, change }: ListP
     {
       id: 'type',
       header: 'Type',
+      looks: ['nowrap'],
       className: styles.editorCell,
       cell: (entry) =>
         entry.original !== null ? (
@@ -271,7 +291,7 @@ const ListTable = memo(function ListTable({ list, entries, busy, change }: ListP
       },
     })),
     {
-      id: 'remove',
+      id: 'actions',
       header: <VisuallyHidden>Actions</VisuallyHidden>,
       className: styles.editorCell,
       // Remove, or for an entry removed already, Undo, each giving the focus to the other.
@@ -295,9 +315,23 @@ const ListTable = memo(function ListTable({ list, entries, busy, change }: ListP
     },
   ]
 
+  const itemKeys = useMemo(() => entries.map(rowKey), [entries])
+  const labelOf = (key: string) => entryLabel(entries.find((entry) => rowKey(entry) === key)!)
+  // Once dropped, the entry's grip keeps the focus.
+  const onMove = (key: string, target: string) =>
+    change((draft) => moveEntryTo(draft, list, Number(key), Number(target)), `${key}-grip`)
+
   return (
     <section aria-label={heading}>
-      <SchemaList list={list} columns={columns} rows={entries} rowKey={rowKey} />
+      <Reorderable keys={itemKeys} labelOf={labelOf} onMove={onMove}>
+        <SchemaList
+          list={list}
+          columns={columns}
+          rows={entries}
+          rowKey={rowKey}
+          useRowProps={useEntryRowProps}
+        />
+      </Reorderable>
       <ActionButton
         className={styles.addEntry}
         busy={busy}
@@ -314,6 +348,14 @@ const ListTable = memo(function ListTable({ list, entries, busy, change }: ListP
 })
 
 const rowKey = (entry: DraftEntry) => String(entry.id)
+
+/** An entry's row is where another entry of its list is dropped, unless it is removed (TS7). */
+function useEntryRowProps(
+  entry: DraftEntry,
+  element: RefObject<HTMLTableRowElement | null>,
+): HTMLAttributes<HTMLTableRowElement> {
+  return useReorderTarget({ itemKey: rowKey(entry), element, isDisabled: entry.removed })
+}
 
 interface SuiteFieldsProps {
   /** The suite's project: its label, or the dropdown of the project to move the suite to. */

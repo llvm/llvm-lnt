@@ -1,12 +1,15 @@
 import {
   memo,
   useMemo,
+  useRef,
   useSyncExternalStore,
   type HTMLAttributes,
   type ReactNode,
   type Ref,
+  type RefObject,
 } from 'react'
 import clsx from 'clsx'
+import { mergeProps } from 'react-aria'
 import { nextSort, sortRows, sortRowsBy, type SortKey, type TableSort } from './table-sort'
 import styles from './data-table.module.css'
 
@@ -65,6 +68,15 @@ interface Props<Row> {
   rowKey: (row: Row) => string
   /** Attributes of a row's `<tr>`: a click handler, or a class to grey it out, say. */
   rowProps?: (row: Row) => RowAttributes
+  /**
+   * A hook giving more attributes of a row's `<tr>`, called as each row renders, with the row's
+   * element: to make it a drop target, say (see `drag-reorder.tsx`). The same for as long as the
+   * table is shown, as hooks must be, and given the rows' own state through a context.
+   */
+  useRowProps?: (
+    row: Row,
+    element: RefObject<HTMLTableRowElement | null>,
+  ) => HTMLAttributes<HTMLTableRowElement>
   /** Classes of the rows that change without the table rendering again (see `RowClasses`). */
   rowClasses?: RowClasses<Row>
   /** What to say, in place of the rows, when there are none. */
@@ -99,11 +111,10 @@ interface Props<Row> {
  *
  * It renders again only when one of its props changes, so that a page can render again around a
  * table of thousands of rows -- on every keystroke in a filter, say -- without rendering them. Even
- * then, a row renders again only when it, the columns, `rowProps`, whether it is `confirming` or its
- * classes in `rowClasses` change, so that sorting or filtering the rows does not render those it
- * keeps. Such a page passes
- * it props that keep their identity: memoized rows and columns, and functions that are not created
- * anew on each render.
+ * then, a row renders again only when it, the columns, `rowProps`, `useRowProps` or what that hook
+ * reads, whether it is `confirming` or its classes in `rowClasses` change, so that sorting or
+ * filtering the rows does not render those it keeps. Such a page passes it props that keep their
+ * identity: memoized rows and columns, and functions that are not created anew on each render.
  */
 export const DataTable = memo(DataTableImpl) as typeof DataTableImpl
 
@@ -113,6 +124,7 @@ function DataTableImpl<Row>({
   rows,
   rowKey,
   rowProps,
+  useRowProps,
   rowClasses,
   empty,
   busy = false,
@@ -187,6 +199,7 @@ function DataTableImpl<Row>({
               row={row}
               columns={columns}
               rowProps={rowProps}
+              useRowProps={useRowProps}
               rowClasses={rowClasses}
               confirming={confirming?.(row) ?? false}
             />
@@ -197,7 +210,7 @@ function DataTableImpl<Row>({
   )
 }
 
-type DataRowProps<Row> = Pick<Props<Row>, 'columns' | 'rowProps' | 'rowClasses'> & {
+type DataRowProps<Row> = Pick<Props<Row>, 'columns' | 'rowProps' | 'useRowProps' | 'rowClasses'> & {
   row: Row
   confirming: boolean
 }
@@ -208,15 +221,24 @@ const subscribeToNothing = () => () => {}
 /** A row of the table, which renders again only when one of its props, or its classes, change. */
 const DataRow = memo(DataRowImpl) as typeof DataRowImpl
 
-function DataRowImpl<Row>({ row, columns, rowProps, rowClasses, confirming }: DataRowProps<Row>) {
+function DataRowImpl<Row>({
+  row,
+  columns,
+  rowProps,
+  useRowProps,
+  rowClasses,
+  confirming,
+}: DataRowProps<Row>) {
   const classes = useSyncExternalStore(rowClasses?.subscribe ?? subscribeToNothing, () =>
     rowClasses?.of(row),
   )
-  const props = rowProps?.(row)
+  const element = useRef<HTMLTableRowElement>(null)
+  const props = mergeProps(rowProps?.(row), useRowProps?.(row, element))
   return (
     <tr
+      ref={element}
       {...props}
-      className={clsx(styles.row, confirming && styles.confirming, props?.className, classes)}
+      className={clsx(styles.row, confirming && styles.confirming, props.className, classes)}
     >
       {columns.map((column) => (
         <td key={column.id} className={cellClass(column, false)}>

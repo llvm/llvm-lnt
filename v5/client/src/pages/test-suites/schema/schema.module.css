@@ -54,6 +54,13 @@
   vertical-align: middle;
 }
 
+/* An existing entry's name, which the inputs beside it would otherwise squeeze until it broke
+   anywhere: wide enough for most names to stay whole. */
+.entryName {
+  display: inline-block;
+  min-width: 10rem;
+}
+
 /* An existing entry removed in this edit, until saved or undone (TS7). */
 .removedName {
   color: var(--lnt-muted);

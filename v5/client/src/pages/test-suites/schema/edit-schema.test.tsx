@@ -36,6 +36,7 @@ import {
   type SuiteStore,
 } from '../../../test/page'
 import { pickOption, selectButton } from '../../../test/select'
+import { dragByKeyboard, press } from '../../../test/drag-reorder'
 import { server } from '../../../test/server'
 
 // The machines of a suite whose Runs tab a test ends up on, which name runs' machines (AR23).
@@ -170,7 +171,7 @@ describe('opening the editor on a suite', () => {
     expect(store.fresh.count).toBe(1)
     expect(screen.queryByRole('button', { name: 'Delete This Suite' })).not.toBeInTheDocument()
     // An existing entry's name and type are shown, not edited.
-    expect(rowsOf(await table('Metrics'))[1]).toMatch(/^code_size \| real \| /)
+    expect(rowsOf(await table('Metrics'))[1]).toMatch(/^⠿ \| code_size \| real \| /)
     expect(screen.queryByRole('textbox', { name: /^Name of metric/ })).not.toBeInTheDocument()
 
     fireEvent.click(within(editor()!).getByRole('button', { name: 'Cancel' }))
@@ -394,6 +395,22 @@ describe('leaving the tab', () => {
     expect(confirm).not.toHaveBeenCalled()
   })
 
+  it('asks first once an entry is moved, and nothing once it is moved back', async () => {
+    mockRuns(() => cursorPage([]))
+    await openEditor()
+    const confirm = answerLeaving(false)
+    await dragByKeyboard('Drag machine field os', 'After machine field core_count')
+
+    fireEvent.click(screen.getByRole('tab', { name: 'Runs' }))
+    expect(confirm).toHaveBeenCalledOnce()
+    expect(currentUrl()).toBe('/projects/llvm/suites/libcxx?tab=schema')
+
+    await dragByKeyboard('Drag machine field os', 'Before machine field core_count')
+    fireEvent.click(screen.getByRole('tab', { name: 'Runs' }))
+    await waitFor(() => expect(currentUrl()).toBe('/projects/llvm/suites/libcxx'))
+    expect(confirm).toHaveBeenCalledOnce()
+  })
+
   it('asks first with an entry added, even without a name', async () => {
     await openEditor()
     const confirm = answerLeaving(false)
@@ -432,7 +449,7 @@ describe('editing', () => {
 
     const undo = screen.getByRole('button', { name: 'Undo removing metric code_size' })
     expect(undo).toHaveFocus()
-    expect(rowsOf(await table('Metrics'))[1]).toMatch(/^code_size \| real \| \(removed\)/)
+    expect(rowsOf(await table('Metrics'))[1]).toMatch(/^ \| code_size \| real \| \(removed\)/)
     expect(
       screen.queryByRole('textbox', { name: 'Display name of metric code_size' }),
     ).not.toBeInTheDocument()
@@ -442,6 +459,29 @@ describe('editing', () => {
     expect(screen.getByRole('textbox', { name: 'Display name of metric code_size' })).toHaveValue(
       'Size',
     )
+  })
+
+  it('moves entries past a removed one, which cannot move, and is undone in its place', async () => {
+    await openEditor()
+    fireEvent.click(screen.getByRole('button', { name: 'Remove machine field os' }))
+    expect(screen.queryByRole('button', { name: 'Drag machine field os' })).toBeNull()
+
+    // The places start from the entry's own, and go round the list through its grip, which
+    // cancels; never through the removed entry.
+    const own = 'Leave machine field core_count where it is'
+    expect(
+      await dragByKeyboard('Drag machine field core_count', 'Before machine field hardware'),
+    ).toEqual([own, 'Before machine field hardware'])
+    expect(
+      await dragByKeyboard('Drag machine field core_count', 'Drag machine field core_count'),
+    ).toEqual([own, 'After machine field hardware', 'Drag machine field core_count'])
+
+    fireEvent.click(screen.getByRole('button', { name: 'Undo removing machine field os' }))
+    expect(rowsOf(await table('Machine fields')).map((row) => row.split(' | ')[1])).toEqual([
+      'core_count',
+      'hardware',
+      'os',
+    ])
   })
 
   it("keeps a removed entry's name taken until saved", async () => {
@@ -617,14 +657,41 @@ describe('saving', () => {
     ).toBeUndefined()
   })
 
+  it('sends the new order of a list reordered, without asking, then shows it saved', async () => {
+    const store = await openEditor()
+    const sent = mockPatch(store, (schema) => {
+      const [hardware, os, cores] = schema.machine_fields
+      return { ...schema, machine_fields: [hardware, cores, os] }
+    })
+
+    await dragByKeyboard('Drag machine field core_count', 'Before machine field os')
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: 'Drag machine field core_count' })).toHaveFocus(),
+    )
+    fireEvent.click(saveButton())
+
+    await waitFor(() => expect(editor()).not.toBeInTheDocument())
+    expect(prompt()).not.toBeInTheDocument()
+    expect(sent).toEqual([
+      { body: { machine_fields: { order: ['hardware', 'core_count', 'os'] } }, confirm: null },
+    ])
+    expect(rowsOf(await table('Machine fields')).map((row) => row.split(' | ')[0])).toEqual([
+      'hardware',
+      'core_count',
+      'os',
+    ])
+  })
+
   it('closes without sending anything when nothing changed', async () => {
     const store = await openEditor()
     const sent = mockPatch(store, (schema) => schema)
 
-    // Changed, then changed back.
+    // Changed, then changed back; and dragged away, then back.
     const input = screen.getByRole('textbox', { name: 'Display name of metric code_size' })
     typeInto(input, 'Other')
     typeInto(input, 'Size')
+    await dragByKeyboard('Drag machine field hardware', 'After machine field core_count')
+    await dragByKeyboard('Drag machine field hardware', 'Before machine field os')
     fireEvent.click(saveButton())
 
     expect(editor()).not.toBeInTheDocument()
@@ -811,6 +878,23 @@ describe('saving', () => {
     expect(editor()).toBeInTheDocument()
   })
 
+  it('has the list of suites fetched again when a new order is refused', async () => {
+    // A machine field added elsewhere, which the order sent leaves out.
+    const store = await openEditor()
+    mockPatch(store, (schema) => schema, {
+      fail: () =>
+        errorResponse(400, 'invalid_request', "The new order of machine_fields leaves out 'kernel'"),
+    })
+    const before = store.requests
+    await dragByKeyboard('Drag machine field os', 'Before machine field hardware')
+
+    fireEvent.click(saveButton())
+
+    expect(await within(editor()!).findByRole('alert')).toHaveTextContent("leaves out 'kernel'")
+    await waitFor(() => expect(store.requests).toBe(before + 1))
+    expect(editor()).toBeInTheDocument()
+  })
+
   it('stays open, with the page, when the list fetched again fails', async () => {
     const store = await openEditor()
     mockPatch(store, (schema) => schema, {
@@ -855,6 +939,13 @@ describe('saving', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Remove metric code_size' }))
     fireEvent.click(within(editor()!).getByRole('button', { name: 'Cancel' }))
     expect(screen.queryByRole('button', { name: /^Undo/ })).not.toBeInTheDocument()
+    // A grip keeps the focus, but drags nothing.
+    const grip = screen.getByRole('button', { name: 'Drag metric code_size' })
+    expect(grip).toHaveAttribute('aria-disabled', 'true')
+    act(() => grip.focus())
+    press('Enter')
+    expect(grip).toHaveFocus()
+    expect(screen.queryByLabelText(/^(Before|After) /)).not.toBeInTheDocument()
     expect(editor()).toBeInTheDocument()
 
     await act(async () => reply.open())

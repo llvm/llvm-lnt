@@ -10,6 +10,7 @@ import {
   draftOf,
   EMPTY_DRAFT,
   draftProblem,
+  moveEntryTo,
   newEntry,
   patchOf,
   projectNameProblem,
@@ -427,6 +428,95 @@ describe('patchOf', () => {
         remove: ['svn_revision'],
       },
     })
+  })
+})
+
+/** The names of `list` in `draft`, in order, a removed entry's in parentheses. */
+function namesOf(draft: Draft, list: ListName) {
+  return draft[list].map((entry) => (entry.removed ? `(${entry.name})` : entry.name))
+}
+
+/** `draft` with the entry `name` of `list` dropped on the entry `target`. */
+function moved(draft: Draft, list: ListName, name: string, target: string) {
+  return moveEntryTo(
+    draft,
+    list,
+    entryNamed(draft, list, name).id,
+    entryNamed(draft, list, target).id,
+  )
+}
+
+describe('moveEntryTo', () => {
+  it("takes the target's place: before it from below, and after it from above", () => {
+    const draft = draftOf(SUITE)
+    expect(namesOf(moved(draft, 'machine_fields', 'os', 'hardware'), 'machine_fields')).toEqual([
+      'os',
+      'hardware',
+      'core_count',
+    ])
+    expect(namesOf(moved(draft, 'machine_fields', 'os', 'core_count'), 'machine_fields')).toEqual([
+      'hardware',
+      'core_count',
+      'os',
+    ])
+    expect(
+      namesOf(moved(draft, 'machine_fields', 'core_count', 'hardware'), 'machine_fields'),
+    ).toEqual(['core_count', 'hardware', 'os'])
+    expect(moved(draft, 'machine_fields', 'os', 'os')).toBe(draft)
+  })
+
+  it('moves an entry past the removed ones, which stay beside their neighbours', () => {
+    const base = draftOf(SUITE)
+    const draft = removeEntry(base, 'machine_fields', entryNamed(base, 'machine_fields', 'os').id)
+    expect(
+      namesOf(moved(draft, 'machine_fields', 'core_count', 'hardware'), 'machine_fields'),
+    ).toEqual(['core_count', 'hardware', '(os)'])
+    expect(
+      namesOf(moved(draft, 'machine_fields', 'hardware', 'core_count'), 'machine_fields'),
+    ).toEqual(['(os)', 'core_count', 'hardware'])
+    // A removed entry neither moves nor is dropped on.
+    expect(moved(draft, 'machine_fields', 'os', 'hardware')).toBe(draft)
+    expect(moved(draft, 'machine_fields', 'core_count', 'os')).toBe(draft)
+  })
+})
+
+describe('patchOf, for the order', () => {
+  it('sends the new order of a list the user reordered, and of it alone', () => {
+    const draft = moved(draftOf(SUITE), 'machine_fields', 'core_count', 'os')
+    expect(patchOf(draft)).toEqual({
+      machine_fields: { order: ['hardware', 'core_count', 'os'] },
+    })
+  })
+
+  it('sends no order once the entries are back in their stored order', () => {
+    const away = moved(draftOf(SUITE), 'machine_fields', 'hardware', 'os')
+    expect(patchOf(away)).not.toEqual({})
+    expect(patchOf(moved(away, 'machine_fields', 'hardware', 'os'))).toEqual({})
+    // Nor when a draft is made afresh from a stored schema, as after a failed rename.
+    const stored = { ...SUITE, machine_fields: [...SUITE.machine_fields].reverse() }
+    expect(patchOf(draftOf(stored))).toEqual({})
+  })
+
+  it('sends no order for added entries moved among themselves, which are added in order', () => {
+    const one = withEntry(draftOf(SUITE), 'metrics', 'a')
+    const two = withEntry(one.draft, 'metrics', 'b')
+    expect(patchOf(moved(two.draft, 'metrics', 'b', 'a')).metrics).toEqual({
+      add: [expect.objectContaining({ name: 'b' }), expect.objectContaining({ name: 'a' })],
+    })
+  })
+
+  it('sends the order of an added entry moved among stored ones, the removed ones aside', () => {
+    const base = draftOf(SUITE)
+    const display = entryNamed(base, 'commit_fields', 'svn_revision')
+    const removed = removeEntry(base, 'commit_fields', display.id)
+    const { draft } = withEntry(removed, 'commit_fields', 'sha')
+    expect(patchOf(moved(draft, 'commit_fields', 'sha', 'commit_info')).commit_fields).toEqual({
+      add: [expect.objectContaining({ name: 'sha' })],
+      remove: ['svn_revision'],
+      order: ['sha', 'commit_info'],
+    })
+    // A removed entry's place does not count.
+    expect(patchOf(draft).commit_fields).not.toHaveProperty('order')
   })
 })
 
