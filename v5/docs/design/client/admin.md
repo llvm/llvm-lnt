@@ -9,7 +9,7 @@ This page provides various tabs with different tools.
 
 | Tab | Shows | API Calls |
 |-----|-------|-----------|
-| API Keys | List, create, revoke API keys (global to instance) | `GET/POST/DELETE admin/api-keys`, `GET projects` |
+| API Keys | List, create, change, revoke API keys (global to instance) | `GET/POST admin/api-keys`, `PATCH/DELETE admin/api-keys/{prefix}`, `GET projects` |
 | Projects | List, create, reorder, rename and delete projects, change their display names, create suites | `GET/POST/PATCH projects`, `PATCH/DELETE projects/{project}`, `POST projects/{project}/suites` |
 
 The URL keeps the selected tab as `tab` (`projects` for Projects, and nothing for API Keys, the
@@ -18,8 +18,8 @@ Switching tabs clears the setting of the tab left.
 
 ### AD1: API Keys tab detail
 
-This tab requires `admin` scope -- listing keys needs `admin` just as creating and
-revoking them do. Otherwise, a red banner saying that permission is denied, and why, as the hover of
+This tab requires `admin` scope -- listing keys needs `admin` just as creating,
+changing and revoking them do. Otherwise, a red banner saying that permission is denied, and why, as the hover of
 a control that needs `admin` would (see AR17), is shown in place of the tab's content.
 
 While the token is being checked (see AR17), the tab says so, unless it is already showing its
@@ -57,13 +57,13 @@ names what is checked as AR22 shows what a key covers, or says how many entries 
 are more than two. "Create key" is disabled, saying why on hover, while "Only these:" is selected
 with nothing checked. Only `submit`, `triage` and `manage` keys can be restricted (see I5): for an
 `admin` key, "Only these:" is disabled, saying why on hover, and the choice goes back to
-"Everything (instance-wide)". While the projects are not loaded, or there are none, only "Only
-these:" is unavailable.
+"Everything (instance-wide)". While the projects are not loaded, or there are none, "Only these:"
+cannot be picked, saying why on hover, but a choice of it already made stays.
 
 On creation, a banner shows:
 
 ```
-  Key created. Copy the token now -- it will not be shown again:
+  Key ci-bot created. Copy the token now -- it will not be shown again:
   +---------------------------------------------------------------------------+
   | KEY HERE                                     [copy to clipboard button]   |
   +---------------------------------------------------------------------------+
@@ -72,20 +72,21 @@ On creation, a banner shows:
 The token stays shown until the user asks for another key, whether or not that succeeds, or the
 tab stops showing its content: when the user leaves it, say.
 
-Below the creation widget, a table like this shows the existing API keys:
+Below the form, a table like this shows the existing API keys:
 
 ```
 Prefix      Name          Scope       Covers                     Created                     Last Used                   Active
 --------------------------------------------------------------------------------------------------------------------------------------------------------
-229d78c5    test-key2     triage      All                        2026-08-13, 3:01:04 AM      Never                       Yes           [red Revoke button]
-135f502b    test-key      manage      libc++ (all), LLVM › nts   2026-08-11, 1:04:23 PM      2026-08-18, 3:49:26 AM      Yes           [red Revoke button]
-7d1e40aa    swift-bot     submit      Nothing                    2026-08-02, 4:40:10 PM      2026-08-09, 1:15:57 AM      Yes           [red Revoke button]
+229d78c5    test-key2     triage      All                        2026-08-13, 3:01:04 AM      Never                       Yes           [Edit] [red Revoke button]
+135f502b    test-key      manage      libc++ (all), LLVM › nts   2026-08-11, 1:04:23 PM      2026-08-18, 3:49:26 AM      Yes           [Edit] [red Revoke button]
+7d1e40aa    swift-bot     submit      Nothing                    2026-08-02, 4:40:10 PM      2026-08-09, 1:15:57 AM      Yes           [Edit] [red Revoke button]
 3f0ac112    old-bot       submit      All                        2026-07-02, 9:12:44 AM      2026-08-01, 6:20:11 PM      No
 ```
 
 Active keys are listed first, newest first, so a newly created key appears at the top of the table
 without a reload. Revoked keys remain in the table, since revoking does not delete them: they come
-after every active key, whatever the sort, muted, with `Active` showing `No` and no Revoke button.
+after every active key, whatever the sort, muted, with `Active` showing `No` and no Edit or Revoke
+button: a revoked key cannot be changed (see E11).
 `Covers` shows what the key covers, as AR22 says. `Nothing` is muted, and its hover says that what
 the key listed was deleted, so that it grants only `read` (see I5). `Last Used` shows `Never` for a
 key that has not yet authenticated a request, and is otherwise a best-effort value that may lag
@@ -108,6 +109,20 @@ row moves among the revoked keys -- it is not removed. Revoking the key of the t
 checks the token again at once, so that the Settings panel, this tab and every control gated on the
 token show straight away that it is no longer valid. The confirmation of that revocation warns that
 the tab will no longer be available, and that a token shown and not copied yet will be lost.
+
+Each active key has an Edit button, which turns the form into one changing the key, titled
+`Edit key 229d78c5 · ci-bot`. It starts with the key's name, scope and what it covers, and has Save and Cancel
+in place of "Create key". What the key covers stays as stored until the user changes it, so that the
+key keeps entries the form cannot show, such as a project created since the projects were listed, or
+a suite listed along with its whole project (see I5). Saving sends only what the user changed, and
+nothing when nothing changed. A change to the scope or to what the key covers first asks for a plain
+confirmation (see AR16) showing the old and new values. A change to the name alone does not. If
+saving fails, the form stays open and says why. Once the key has been revoked, Save is disabled,
+saying why on hover.
+
+Changing the key of the token set in Settings checks the token again, as revoking it does, and the
+confirmation of a change that takes `admin` away from that token warns as that of its revocation
+does.
 
 ### AD3: Projects tab detail
 

@@ -67,9 +67,9 @@ const KEYS: ApiKey[] = [
 ]
 
 const ROWS = [
-  '229d78c5 | test-key2 | triage | All | 2026-08-13, 3:01:04 AM | Never | Yes | Revoke',
-  '135f502b | test-key | manage | llvm › libcxx, llvm › nts | 2026-08-11, 1:04:23 PM | 2026-08-18, 3:49:26 AM | Yes | Revoke',
-  'aaaaaaaa | my-admin | admin | All | 2026-08-05, 10:00:00 AM | 2026-08-20, 8:00:00 AM | Yes | Revoke',
+  '229d78c5 | test-key2 | triage | All | 2026-08-13, 3:01:04 AM | Never | Yes | EditRevoke',
+  '135f502b | test-key | manage | llvm › libcxx, llvm › nts | 2026-08-11, 1:04:23 PM | 2026-08-18, 3:49:26 AM | Yes | EditRevoke',
+  'aaaaaaaa | my-admin | admin | All | 2026-08-05, 10:00:00 AM | 2026-08-20, 8:00:00 AM | Yes | EditRevoke',
   '3f0ac112 | old-bot | submit | llvm › nts | 2026-07-02, 9:12:44 AM | 2026-08-01, 6:20:11 PM | No | ',
 ]
 
@@ -105,7 +105,7 @@ const CREATED_KEY = apiKey('submit', {
 const CREATED: Schemas['ApiKeyCreated'] = { ...CREATED_KEY, token: '5e5e5e5e' + 'f'.repeat(56) }
 
 const CREATED_ROW =
-  '5e5e5e5e | ci-bot | submit | All | 2026-08-21, 12:00:00 PM | Never | Yes | Revoke'
+  '5e5e5e5e | ci-bot | submit | All | 2026-08-21, 12:00:00 PM | Never | Yes | EditRevoke'
 
 type Failure = ReturnType<typeof errorResponse>
 
@@ -428,7 +428,7 @@ describe('sorting the keys', () => {
     const { list } = await renderKeys({ keys: [...KEYS.slice(0, 3), orphan, KEYS[3]] })
 
     expect(rowsOf(list)[3]).toBe(
-      '7d1e40aa | swift-bot | submit | Nothing | 2026-08-02, 4:40:10 PM | Never | Yes | Revoke',
+      '7d1e40aa | swift-bot | submit | Nothing | 2026-08-02, 4:40:10 PM | Never | Yes | EditRevoke',
     )
     expect(within(list).getByText('Nothing')).toHaveAttribute(
       'title',
@@ -580,7 +580,7 @@ describe('creating a key', () => {
       { name: 'ci-bot', scope: 'triage', restricted_to: null },
     ])
     expect(created).toHaveTextContent(
-      'Key created. Copy the token now — it will not be shown again:',
+      'Key ci-bot created. Copy the token now — it will not be shown again:',
     )
     expect(created).toHaveTextContent(CREATED.token)
     expect(nameInput()).toHaveValue('')
@@ -839,6 +839,24 @@ describe('creating a key', () => {
 
     await waitFor(() => expect(suitesButton()).toHaveTextContent('Select projects or suites'))
     expect(createButton()).toBeDisabled()
+    expect(createButton()).toHaveAccessibleDescription('Pick at least one project or suite.')
+  })
+
+  it('keeps "Only these:" chosen once there are no projects any more, asking for one', async () => {
+    const suites = mockSuites()
+    const { queryClient } = await renderKeys()
+    fireEvent.change(nameInput(), { target: { value: 'ci-bot' } })
+    fireEvent.click(within(createForm()).getByRole('radio', { name: 'Only these:' }))
+    await toggleOptions('Projects and suites to restrict to', ['llvm › nts'], createForm())
+
+    // Deleted elsewhere: the list says so once fetched again.
+    suites.suites = []
+    suites.projects = []
+    await act(() => queryClient.invalidateQueries({ queryKey: queryKeys.projects }))
+
+    const only = within(createForm()).getByRole('radio', { name: 'Only these:' })
+    await waitFor(() => expect(only).toBeDisabled())
+    expect(only).toBeChecked()
     expect(createButton()).toHaveAccessibleDescription('Pick at least one project or suite.')
   })
 
@@ -1117,6 +1135,511 @@ describe('revoking a key', () => {
     expect(checks).toHaveLength(1)
     expect(rechecks).toEqual([`Bearer ${TOKEN}`])
     // Nor are the keys asked for again with a token that no longer works.
+    expect(store.requests).toHaveLength(1)
+  })
+})
+
+/**
+ * Answer `PATCH /admin/api-keys/{prefix}` by changing the key in `store` as the body says, or with
+ * `fail`; returns the prefix and the body of each request.
+ */
+function mockChange(store: KeyStore, fail?: () => Failure) {
+  const sent: { prefix: string; body: Schemas['ApiKeyUpdate'] }[] = []
+  server.use(
+    mockApi('patch', '/api/admin/api-keys/{prefix}', async ({ params, request }) => {
+      const body = (await request.json()) as Schemas['ApiKeyUpdate']
+      sent.push({ prefix: params.prefix, body })
+      if (fail) return fail()
+      const key = store.keys.find((item) => item.prefix === params.prefix)!
+      const changed = { ...key, ...body } as ApiKey
+      store.keys = store.keys.map((item) => (item.prefix === params.prefix ? changed : item))
+      return HttpResponse.json(changed)
+    }),
+  )
+  return sent
+}
+
+function editButton(prefix: string) {
+  return screen.getByRole('button', { name: `Edit key ${prefix}` })
+}
+
+function editForm() {
+  return screen.queryByRole('form', { name: /^Edit key / })!
+}
+
+function saveButton() {
+  return within(editForm()).getByRole('button', { name: /^Sav/ })
+}
+
+function cancelButton() {
+  return within(editForm()).getByRole('button', { name: 'Cancel' })
+}
+
+function editName() {
+  return within(editForm()).getByRole('textbox', { name: 'Name' })
+}
+
+function rowOf(list: HTMLElement, prefix: string) {
+  return within(list).getByText(prefix).closest('tr')!
+}
+
+/** Show the keys, as the API lists `keys`, and edit the key `prefix`. */
+async function editKey(prefix: string, { keys }: { keys?: ApiKey[] } = {}) {
+  const rendered = await renderKeys({ keys })
+  const sent = mockChange(rendered.store)
+  const button = editButton(prefix)
+  fireEvent.click(button)
+  await waitFor(() => expect(editForm()).toBeInTheDocument())
+  return { ...rendered, sent, button }
+}
+
+/** Uncheck and check again `option` of the edit form's tree, which leaves it as it was. */
+async function toggleTwice(option: string) {
+  await toggleOptions('Projects and suites to restrict to', [option, option], editForm())
+}
+
+describe('changing a key', () => {
+  it('edits only active keys, in a form saying which, with the focus on its name', async () => {
+    const { list, sent, button } = await editKey('135f502b')
+
+    expect(screen.queryByRole('button', { name: 'Edit key 3f0ac112' })).toBeNull()
+    expect(editForm()).toHaveAccessibleName('Edit key 135f502b · test-key')
+    expect(screen.queryByRole('form', { name: 'Create API Key' })).toBeNull()
+    expect(editName()).toHaveFocus()
+    expect(editName()).toHaveValue('test-key')
+    expect(selectButton('Scope', editForm())).toHaveTextContent('manage')
+    expect(within(editForm()).getByRole('radio', { name: 'Only these:' })).toBeChecked()
+    expect(selectButton('Projects and suites to restrict to', editForm())).toHaveTextContent(
+      'llvm › libcxx, llvm › nts',
+    )
+    // Marked, but not as a row whose revocation is confirmed.
+    expect(rowOf(list, '135f502b')).toHaveClass('editing')
+    expect(rowOf(list, '135f502b')).not.toHaveClass(/confirming/)
+
+    fireEvent.click(cancelButton())
+
+    expect(editForm()).toBeNull()
+    expect(createForm()).toBeInTheDocument()
+    await waitFor(() => expect(button).toHaveFocus())
+    expect(rowOf(list, '135f502b')).not.toHaveClass('editing')
+    expect(sent).toEqual([])
+  })
+
+  it('keeps what the create form holds, and the token shown, while a key is edited', async () => {
+    const { store } = await renderKeys()
+    mockCreate(store)
+    createKey('ci-bot')
+    await findCreatedKey()
+    fireEvent.change(nameInput(), { target: { value: 'next-bot' } })
+
+    fireEvent.click(editButton('229d78c5'))
+    expect(createdKey()).toHaveTextContent('Key ci-bot created.')
+    fireEvent.click(cancelButton())
+
+    expect(nameInput()).toHaveValue('next-bot')
+    expect(createdKey()).toHaveTextContent(CREATED.token)
+  })
+
+  it('leaves the focus in the form when a key created before Edit shows its token', async () => {
+    const { store } = await renderKeys()
+    const answer = gate()
+    mockCreate(store, { wait: () => answer.promise })
+    createKey('ci-bot')
+    await waitFor(() => expect(createButton()).toHaveTextContent('Creating...'))
+    fireEvent.click(editButton('229d78c5'))
+
+    await act(async () => answer.open())
+
+    await findCreatedKey()
+    expect(editName()).toHaveFocus()
+  })
+
+  it('saves a new name alone without asking, and gives the focus back to Edit', async () => {
+    const { list, sent, button, checks } = await editKey('229d78c5')
+
+    fireEvent.change(editName(), { target: { value: ' renamed ' } })
+    fireEvent.click(saveButton())
+
+    expect(prompt()).toBeNull()
+    await waitFor(() => expect(editForm()).toBeNull())
+    expect(sent).toEqual([{ prefix: '229d78c5', body: { name: 'renamed' } }])
+    expect(rowsOf(list)[0]).toContain('229d78c5 | renamed | triage | All |')
+    await waitFor(() => expect(button).toHaveFocus())
+    // Another key than the token's: its check stands.
+    expect(checks).toHaveLength(1)
+  })
+
+  it('cannot edit another key while a change is saved', async () => {
+    const { store } = await renderKeys()
+    const answer = gate()
+    server.use(
+      mockApi('patch', '/api/admin/api-keys/{prefix}', async () => {
+        await answer.promise
+        return HttpResponse.json(store.keys[0])
+      }),
+    )
+    fireEvent.click(editButton('229d78c5'))
+    fireEvent.change(editName(), { target: { value: 'renamed' } })
+    fireEvent.click(saveButton())
+
+    await waitFor(() => expect(saveButton()).toHaveTextContent('Saving...'))
+    expect(editButton('135f502b')).toHaveAttribute('aria-disabled', 'true')
+    fireEvent.click(editButton('135f502b'))
+    expect(editForm()).toHaveAccessibleName('Edit key 229d78c5 · test-key2')
+    await act(async () => answer.open())
+    await waitFor(() => expect(editForm()).toBeNull())
+  })
+
+  it('asks before changing the scope and what a key covers, showing what changes', async () => {
+    const { list, sent, button } = await editKey('229d78c5')
+    await pickOption('Scope', 'manage', editForm())
+    fireEvent.click(within(editForm()).getByRole('radio', { name: 'Only these:' }))
+    await toggleOptions('Projects and suites to restrict to', ['llvm'], editForm())
+
+    fireEvent.click(saveButton())
+
+    expect(prompt()).toHaveTextContent('Change the key test-key2 (229d78c5)?')
+    expect(prompt()).toHaveTextContent('Scope: triage → manage')
+    expect(prompt()).toHaveTextContent('Covers: All → llvm (all)')
+    expect(prompt()).not.toHaveTextContent('Name:')
+    expect(prompt()).toHaveTextContent('Every bot using its token is affected at once.')
+    expect(prompt()).not.toHaveTextContent('Settings')
+    expect(within(prompt()).getByRole('button', { name: 'Cancel' })).toHaveFocus()
+    fireEvent.click(within(prompt()).getByRole('button', { name: 'Cancel' }))
+    expect(prompt()).toBeNull()
+    expect(saveButton()).toHaveFocus()
+    expect(sent).toEqual([])
+
+    fireEvent.click(saveButton())
+    fireEvent.click(within(prompt()).getByRole('button', { name: 'Save' }))
+
+    await waitFor(() => expect(editForm()).toBeNull())
+    expect(sent).toEqual([
+      {
+        prefix: '229d78c5',
+        body: { scope: 'manage', restricted_to: [{ project: 'llvm', suite: null }] },
+      },
+    ])
+    expect(rowsOf(list)[0]).toContain('229d78c5 | test-key2 | manage | llvm (all) |')
+    await waitFor(() => expect(button).toHaveFocus())
+  })
+
+  it('names the old and the new name in the prompt when the name changes too', async () => {
+    const { sent } = await editKey('229d78c5')
+    fireEvent.change(editName(), { target: { value: 'renamed' } })
+    await pickOption('Scope', 'manage', editForm())
+
+    fireEvent.click(saveButton())
+
+    expect(prompt()).toHaveTextContent('Name: test-key2 → renamed')
+    expect(prompt()).toHaveTextContent('Scope: triage → manage')
+    expect(prompt()).not.toHaveTextContent('Covers:')
+    fireEvent.click(within(prompt()).getByRole('button', { name: 'Save' }))
+    await waitFor(() => expect(editForm()).toBeNull())
+    expect(sent.map(({ body }) => body)).toEqual([{ name: 'renamed', scope: 'manage' }])
+  })
+
+  it('makes a key instance-wide when its scope goes to admin, even if restricted since', async () => {
+    const { store, sent } = await editKey('229d78c5')
+    // Restricted elsewhere, after the form opened on it as instance-wide.
+    store.keys = store.keys.map((key) =>
+      key.prefix === '229d78c5' ? { ...key, restricted_to: [entry('nts')] } : key,
+    )
+    await pickOption('Scope', 'admin', editForm())
+
+    fireEvent.click(saveButton())
+
+    expect(prompt()).toHaveTextContent('Scope: triage → admin')
+    // As far as the form knows, it was instance-wide already.
+    expect(prompt()).not.toHaveTextContent('Covers:')
+    fireEvent.click(within(prompt()).getByRole('button', { name: 'Save' }))
+    await waitFor(() => expect(editForm()).toBeNull())
+    expect(sent.map(({ body }) => body)).toEqual([{ scope: 'admin', restricted_to: null }])
+  })
+
+  it('closes without sending anything when nothing changed', async () => {
+    const { sent, button } = await editKey('135f502b')
+    fireEvent.change(editName(), { target: { value: 'test-key ' } })
+    await toggleTwice('llvm › nts')
+
+    fireEvent.click(saveButton())
+
+    expect(prompt()).toBeNull()
+    expect(editForm()).toBeNull()
+    await waitFor(() => expect(button).toHaveFocus())
+    expect(sent).toEqual([])
+  })
+
+  it('compares what a key covers whatever the order of its entries', async () => {
+    // The API lists entries by name, the tree in the instance's order.
+    const key = apiKey('submit', { prefix: '77777777', restricted_to: [entry('nts'), entry('libcxx')] })
+    const { sent } = await editKey('77777777', { keys: [key, ...KEYS] })
+
+    await toggleTwice('llvm › libcxx')
+    fireEvent.click(saveButton())
+
+    expect(editForm()).toBeNull()
+    expect(sent).toEqual([])
+  })
+
+  it('keeps what a key covers that the form does not list, until it is changed', async () => {
+    // A project created since the projects were listed.
+    const key = apiKey('triage', {
+      prefix: '77777777',
+      name: 'swift-bot',
+      restricted_to: [entry('nts'), whole('swift')],
+    })
+    const { sent } = await editKey('77777777', { keys: [key, ...KEYS] })
+    expect(selectButton('Projects and suites to restrict to', editForm())).toHaveTextContent(
+      'llvm › nts',
+    )
+
+    await pickOption('Scope', 'submit', editForm())
+    fireEvent.click(saveButton())
+    expect(prompt()).not.toHaveTextContent('Covers:')
+    fireEvent.click(within(prompt()).getByRole('button', { name: 'Cancel' }))
+    // Once what it covers is changed, the prompt shows what goes.
+    await toggleTwice('llvm › nts')
+    fireEvent.click(saveButton())
+    expect(prompt()).toHaveTextContent('Covers: llvm › nts, swift (all) → llvm › nts')
+    fireEvent.click(within(prompt()).getByRole('button', { name: 'Cancel' }))
+    await pickOption('Scope', 'triage', editForm())
+    fireEvent.click(saveButton())
+    fireEvent.click(within(prompt()).getByRole('button', { name: 'Save' }))
+
+    await waitFor(() => expect(editForm()).toBeNull())
+    expect(sent.map(({ body }) => body)).toEqual([{ restricted_to: [entry('nts')] }])
+  })
+
+  it('shows a suite listed with its whole project as covered by it, keeping both on a rename', async () => {
+    const key = apiKey('manage', {
+      prefix: '77777777',
+      restricted_to: [whole('llvm'), entry('nts')],
+    })
+    const { sent } = await editKey('77777777', { keys: [key, ...KEYS] })
+    const covers = selectButton('Projects and suites to restrict to', editForm())
+    expect(covers).toHaveTextContent('llvm (all)')
+    expect(covers).not.toHaveTextContent('nts')
+
+    fireEvent.change(editName(), { target: { value: 'renamed' } })
+    fireEvent.click(saveButton())
+
+    await waitFor(() => expect(editForm()).toBeNull())
+    expect(sent.map(({ body }) => body)).toEqual([{ name: 'renamed' }])
+  })
+
+  it('shows the suite listed with its whole project going once what the key covers changes', async () => {
+    const key = apiKey('manage', {
+      prefix: '77777777',
+      restricted_to: [whole('llvm'), entry('nts')],
+    })
+    const { sent } = await editKey('77777777', { keys: [key, ...KEYS] })
+
+    await toggleTwice('llvm')
+    fireEvent.click(saveButton())
+
+    expect(prompt()).toHaveTextContent('Covers: llvm (all), llvm › nts → llvm (all)')
+    fireEvent.click(within(prompt()).getByRole('button', { name: 'Save' }))
+    await waitFor(() => expect(editForm()).toBeNull())
+    expect(sent.map(({ body }) => body)).toEqual([{ restricted_to: [whole('llvm')] }])
+  })
+
+  it('needs something checked once what the key covers is changed, but not before', async () => {
+    const nothing = apiKey('submit', { prefix: '77777777', restricted_to: [] })
+    const { sent } = await editKey('77777777', { keys: [nothing, ...KEYS] })
+    expect(selectButton('Projects and suites to restrict to', editForm())).toHaveTextContent(
+      'Select projects or suites',
+    )
+    // A key covering nothing can still be renamed.
+    fireEvent.change(editName(), { target: { value: 'renamed' } })
+    fireEvent.click(saveButton())
+    await waitFor(() => expect(editForm()).toBeNull())
+    expect(sent.map(({ body }) => body)).toEqual([{ name: 'renamed' }])
+
+    // Whereas a key covering something cannot be left covering nothing.
+    fireEvent.click(editButton('135f502b'))
+    await toggleOptions(
+      'Projects and suites to restrict to',
+      ['llvm › libcxx', 'llvm › nts'],
+      editForm(),
+    )
+    expect(saveButton()).toHaveAccessibleDescription('Pick at least one project or suite.')
+  })
+
+  it('makes a restricted key instance-wide through admin, even once back to its scope', async () => {
+    const { sent } = await editKey('135f502b')
+
+    await pickOption('Scope', 'admin', editForm())
+    expect(within(editForm()).getByRole('radio', { name: /Everything/ })).toBeChecked()
+    fireEvent.click(saveButton())
+    expect(prompt()).toHaveTextContent('Scope: manage → admin')
+    expect(prompt()).toHaveTextContent('Covers: llvm › libcxx, llvm › nts → All')
+    fireEvent.click(within(prompt()).getByRole('button', { name: 'Cancel' }))
+    // "Everything" stays chosen.
+    await pickOption('Scope', 'manage', editForm())
+    fireEvent.click(saveButton())
+    expect(prompt()).not.toHaveTextContent('Scope:')
+    fireEvent.click(within(prompt()).getByRole('button', { name: 'Save' }))
+
+    await waitFor(() => expect(editForm()).toBeNull())
+    expect(sent.map(({ body }) => body)).toEqual([{ restricted_to: null }])
+  })
+
+  it('keeps a restricted key restricted while the projects are not listed', async () => {
+    const projects = gate()
+    mockSuites(undefined, { wait: () => projects.promise })
+    const { sent } = await editKey('135f502b')
+    const only = within(editForm()).getByRole('radio', { name: 'Only these:' })
+    expect(only).toBeChecked()
+    expect(only).toBeDisabled()
+
+    await pickOption('Scope', 'triage', editForm())
+    fireEvent.click(saveButton())
+    fireEvent.click(within(prompt()).getByRole('button', { name: 'Save' }))
+
+    await waitFor(() => expect(editForm()).toBeNull())
+    expect(sent.map(({ body }) => body)).toEqual([{ scope: 'triage' }])
+    projects.open()
+  })
+
+  it("keeps the form as it was, with the API's message, when the change fails", async () => {
+    const { store } = await renderKeys()
+    mockChange(store, () => errorResponse(400, 'validation_error', 'The name is too long.'))
+    fireEvent.click(editButton('229d78c5'))
+    fireEvent.change(editName(), { target: { value: 'renamed' } })
+
+    fireEvent.click(saveButton())
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('The name is too long.')
+    expect(editName()).toHaveValue('renamed')
+    expect(saveButton()).toBeEnabled()
+    // Nothing changed elsewhere: the keys are not asked for again.
+    expect(store.requests).toHaveLength(1)
+  })
+
+  it('cannot save a key revoked elsewhere, and gives the focus to the table on Cancel', async () => {
+    const { list, store } = await renderKeys()
+    mockChange(store, () => {
+      store.keys = store.keys.map((key) =>
+        key.prefix === '229d78c5' ? { ...key, is_active: false } : key,
+      )
+      return errorResponse(409, 'conflict', "API key '229d78c5' is revoked.")
+    })
+    fireEvent.click(editButton('229d78c5'))
+    fireEvent.change(editName(), { target: { value: 'renamed' } })
+    saveButton().focus()
+
+    fireEvent.click(saveButton())
+
+    expect(await screen.findByRole('alert')).toHaveTextContent("API key '229d78c5' is revoked.")
+    // The keys are asked for again, which shows it revoked.
+    await waitFor(() => expect(rowOf(list, '229d78c5')).toHaveClass('revoked'))
+    expect(store.requests).toHaveLength(2)
+    expect(saveButton()).toBeDisabled()
+    expect(saveButton()).toHaveAccessibleDescription(
+      'This key has been revoked: it can no longer be changed.',
+    )
+    expect(cancelButton()).toHaveFocus()
+    expect(editName()).toHaveValue('renamed')
+
+    fireEvent.click(cancelButton())
+
+    await waitFor(() => expect(list).toHaveFocus())
+  })
+
+  it('cannot save a key revoked here meanwhile', async () => {
+    const { list, store } = await editKey('229d78c5')
+    mockRevoke(store)
+
+    fireEvent.click(revokeButton('229d78c5'))
+    // Marked as both, its revocation's mark showing over the edit's (see admin.module.css).
+    expect(rowOf(list, '229d78c5')).toHaveClass('editing')
+    expect(rowOf(list, '229d78c5')).toHaveClass(/confirming/)
+    fireEvent.click(within(prompt()).getByRole('button', { name: 'Revoke' }))
+
+    await waitFor(() => expect(saveButton()).toBeDisabled())
+    expect(editForm()).toBeInTheDocument()
+  })
+
+  it('asks for the projects again when one the key would cover is gone', async () => {
+    const suites = mockSuites()
+    const { store } = await renderKeys()
+    await waitFor(() => expect(suites.requests).toBe(1))
+    mockChange(store, () => errorResponse(404, 'not_found', "Project 'llvm' does not exist."))
+    fireEvent.click(editButton('229d78c5'))
+    fireEvent.click(within(editForm()).getByRole('radio', { name: 'Only these:' }))
+    await toggleOptions('Projects and suites to restrict to', ['llvm'], editForm())
+    fireEvent.click(saveButton())
+    fireEvent.click(within(prompt()).getByRole('button', { name: 'Save' }))
+
+    expect(await screen.findByRole('alert')).toHaveTextContent("Project 'llvm' does not exist.")
+    await waitFor(() => expect(suites.requests).toBe(2))
+    expect(store.requests).toHaveLength(2)
+  })
+
+  it('edits another key on its Edit, keeping the form on the same Edit', async () => {
+    const { list } = await editKey('229d78c5')
+    fireEvent.change(editName(), { target: { value: 'half-typed' } })
+    cancelButton().focus()
+
+    fireEvent.click(editButton('229d78c5'))
+    expect(editName()).toHaveValue('half-typed')
+    expect(editName()).toHaveFocus()
+
+    fireEvent.click(editButton('135f502b'))
+    expect(editForm()).toHaveAccessibleName('Edit key 135f502b · test-key')
+    expect(editName()).toHaveValue('test-key')
+    expect(editName()).toHaveFocus()
+    expect(rowOf(list, '229d78c5')).not.toHaveClass('editing')
+    expect(rowOf(list, '135f502b')).toHaveClass('editing')
+  })
+
+  it('keeps the form open, and out of the URL, while the keys are sorted', async () => {
+    const { list } = await editKey('229d78c5')
+    fireEvent.change(editName(), { target: { value: 'half-typed' } })
+
+    fireEvent.click(within(list).getByRole('button', { name: 'Name' }))
+
+    await waitFor(() => expect(currentUrl()).toBe('/admin?sort=name'))
+    expect(editName()).toHaveValue('half-typed')
+  })
+
+  it('checks the token again once its own key is changed, then gives the focus back to Edit', async () => {
+    const { button } = await editKey('aaaaaaaa')
+    const check = gate()
+    const rechecks = mockAuth(async () => {
+      await check.promise
+      return HttpResponse.json({ key: { ...OWN, name: 'renamed' } })
+    })
+    fireEvent.change(editName(), { target: { value: 'renamed' } })
+
+    fireEvent.click(saveButton())
+
+    await waitFor(() => expect(rechecks).toEqual([`Bearer ${TOKEN}`]))
+    // Edit is disabled while the token is checked.
+    expect(button).toBeDisabled()
+    expect(button).not.toHaveFocus()
+    await act(async () => check.open())
+    await waitFor(() => expect(button).toHaveFocus())
+  })
+
+  it('warns before taking admin away from its own token, which then denies permission', async () => {
+    const { store } = await editKey('aaaaaaaa')
+    await pickOption('Scope', 'manage', editForm())
+    fireEvent.click(saveButton())
+    expect(prompt()).toHaveTextContent(
+      'It is the key of the token in Settings: this tab will no longer be available, and a ' +
+        'token shown below, not copied yet, will be lost.',
+    )
+    mockAuth(() => HttpResponse.json({ key: { ...OWN, scope: 'manage' } }))
+
+    fireEvent.click(within(prompt()).getByRole('button', { name: 'Save' }))
+
+    expect(await main().findByRole('alert')).toHaveTextContent(
+      "Permission denied. Needs an API token with the 'admin' scope. The token in Settings has " +
+        "the 'manage' scope.",
+    )
+    // Nor are the keys asked for again with a token that can no longer list them.
     expect(store.requests).toHaveLength(1)
   })
 })

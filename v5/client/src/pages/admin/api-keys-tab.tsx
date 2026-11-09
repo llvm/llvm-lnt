@@ -1,25 +1,17 @@
-import { useId, useMemo, useRef, useState, type FormEvent } from 'react'
-import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { useCallback, useId, useMemo, useRef, useState, type FormEvent, type RefObject } from 'react'
+import { useIsMutating, useMutation, useQueryClient } from '@tanstack/react-query'
 import { VisuallyHidden } from 'react-aria-components'
-import { NAME_LENGTH, useApiKeys, type ApiKey, type ApiKeyList } from '../../api/api-keys'
+import clsx from 'clsx'
+import { CHANGE_KEY, updateCachedKey, useApiKeys, type ApiKey } from '../../api/api-keys'
 import { authedApi, unwrap, type Schemas } from '../../api/client'
 import { queryKeys } from '../../api/keys'
-import {
-  refOf,
-  fullName,
-  useKnownProjects,
-  useProjects,
-  type Project,
-} from '../../api/suites'
+import { useKnownProjects, type Project } from '../../api/suites'
 import {
   grants,
-  KEY_SCOPES,
   refusal,
-  RESTRICTABLE_SCOPES,
   RESTRICTED_TO_NOTHING,
   scopeRank,
   useScopeGate,
-  type KeyScope,
   type ScopeGate,
 } from '../../auth/scope'
 import { acceptedKey, useAuth } from '../../auth/use-auth'
@@ -28,21 +20,15 @@ import { ActionButton } from '../../components/action-button'
 import { DangerButton } from '../../components/danger-button'
 import { DataTable, type Column } from '../../components/data-table'
 import { Alert, ErrorMessage, Loaded, Loading } from '../../components/feedback'
-import { Select, TreeSelect, type TreeParent } from '../../components/select'
 import type { TableSort } from '../../components/table-sort'
+import { useFocusOnceChecked } from '../../components/use-focus-once-checked'
 import { useRowConfirm } from '../../components/use-row-confirm'
 import { formatTimestamp, yesNo } from '../../format'
-import {
-  compareEntryLists,
-  entriesNamed,
-  entryLabel,
-  fullLabel,
-  projectLabel,
-  suiteLabel,
-  type EntryRef,
-  type NamedEntry,
-} from '../../labels'
+import { compareEntryLists, entriesNamed, type NamedEntry } from '../../labels'
 import { CopyButton } from '../../components/copy-button'
+import { EditKey } from './edit-key'
+import { coversText, restrictionOf, useCoversTree, type KeyDraft } from './key-draft'
+import { KeyFields, OwnKeyWarning } from './key-fields'
 import type { KEY_SORT_COLUMNS } from './settings'
 import tableStyles from '../../components/data-table.module.css'
 import styles from './admin.module.css'
@@ -86,9 +72,47 @@ interface KeysProps extends Sorting {
 
 function ApiKeys({ accepted, ownPrefix, ...sorting }: KeysProps) {
   const keys = useApiKeys(accepted)
+  const tableRef = useRef<HTMLTableElement>(null)
+  const nameRef = useRef<HTMLInputElement>(null)
+  // The key being changed, if any.
+  const [editing, setEditing] = useState<ApiKey | null>(null)
+  // The Edit button that opened the form, which the focus goes back to once it closes, or the table
+  // once it has gone: once the token has been checked again, if the change was to its key (see
+  // `EditKey`), since the check disables Edit meanwhile.
+  const returnTo = useRef<HTMLButtonElement | null>(null)
+  const [refocus, setRefocus] = useState(false)
+  useFocusOnceChecked(
+    refocus,
+    useCallback(() => setRefocus(false), []),
+    returnTo,
+    tableRef,
+  )
+
+  const edit = (key: ApiKey, opener: HTMLButtonElement) => {
+    // The form already changing the key keeps what it holds.
+    if (editing?.prefix === key.prefix) return nameRef.current?.focus()
+    returnTo.current = opener
+    setEditing(key)
+  }
+  const closeEdit = () => {
+    setEditing(null)
+    setRefocus(true)
+  }
+  const current = editing && keys.data?.find((key) => key.prefix === editing.prefix)
+
   return (
     <>
-      <CreateKey />
+      {editing && (
+        <EditKey
+          key={editing.prefix}
+          apiKey={editing}
+          revoked={current?.is_active === false}
+          ownPrefix={ownPrefix}
+          nameRef={nameRef}
+          onClose={closeEdit}
+        />
+      )}
+      <CreateKey hidden={editing !== null} />
       <Loaded
         data={keys.data}
         error={keys.error}
@@ -97,25 +121,42 @@ function ApiKeys({ accepted, ownPrefix, ...sorting }: KeysProps) {
           if (accepted) void keys.refetch()
         }}
       >
-        {(data) => <KeysTable keys={data} ownPrefix={ownPrefix} {...sorting} />}
+        {(data) => (
+          <KeysTable
+            keys={data}
+            ownPrefix={ownPrefix}
+            tableRef={tableRef}
+            editing={editing?.prefix}
+            onEdit={edit}
+            {...sorting}
+          />
+        )}
       </Loaded>
     </>
   )
 }
 
-/** The form creating a key, and the token of the key it created last, shown once (AD1). */
-function CreateKey() {
+interface CreateProps {
+  /** Whether the form gives way to the one changing a key, keeping what it holds meanwhile. */
+  hidden: boolean
+}
+
+/**
+ * The form creating a key, and the token of the key it created last, shown once (AD1), which
+ * stays shown while the form gives way to the one changing a key.
+ */
+function CreateKey({ hidden }: CreateProps) {
   const queryClient = useQueryClient()
   const gate = useScopeGate('admin', null)
   const titleId = useId()
   const warningId = useId()
-  const [name, setName] = useState('')
-  const [scope, setScope] = useState<KeyScope>('submit')
-  // Whether "Only these:" is chosen over "Everything", and what is checked under it: projects by
-  // their names, and suites by their full names.
-  const [restrict, setRestrict] = useState(false)
-  const [checked, setChecked] = useState<string[]>([])
-  const projects = useProjects()
+  const [draft, setDraft] = useState<KeyDraft>({
+    name: '',
+    scope: 'submit',
+    restrict: false,
+    checked: [],
+  })
+  const tree = useCoversTree()
   const create = useMutation({
     mutationFn: (body: Schemas['ApiKeyCreate']) =>
       unwrap(authedApi.POST('/api/admin/api-keys', { body })),
@@ -124,7 +165,7 @@ function CreateKey() {
     gcTime: 0,
     onSuccess: async (_, sent) => {
       // A name typed meanwhile is kept.
-      setName((current) => (current.trim() === sent.name ? '' : current))
+      setDraft((current) => (current.name.trim() === sent.name ? { ...current, name: '' } : current))
       // The list is asked for again, without the token waiting for it. One on its way may not hold
       // the new key, and a refetch alone would join it, if it is the first, rather than start
       // another: it is cancelled first.
@@ -133,16 +174,8 @@ function CreateKey() {
     },
   })
 
-  const trimmed = name.trim()
-  const unrestrictable = whyUnrestrictable(scope, projects)
-  // "Only these:" gives way to "Everything" while it cannot be chosen: for good once the scope
-  // cannot be restricted (see the Scope dropdown), and until the projects are listed otherwise.
-  const restricting = restrict && unrestrictable === undefined
-  const covers = useMemo(() => coversTree(projects.data ?? []), [projects.data])
-  // Only what is still listed, should something checked have gone since.
-  const restrictedTo = restricting
-    ? checked.flatMap((value) => covers.entries.get(value) ?? [])
-    : null
+  const trimmed = draft.name.trim()
+  const restrictedTo = restrictionOf(draft, tree)
   const reason =
     gate.title ??
     (trimmed === '' ? 'Give the key a name first.' : undefined) ??
@@ -150,179 +183,50 @@ function CreateKey() {
   const submit = (event: FormEvent) => {
     event.preventDefault()
     if (reason === undefined && !create.isPending) {
-      create.mutate({ name: trimmed, scope, restricted_to: restrictedTo })
+      create.mutate({ name: trimmed, scope: draft.scope, restricted_to: restrictedTo })
     }
   }
 
-  const token = create.data?.token
+  const created = create.data
   return (
     <>
-      <form className={styles.createForm} aria-labelledby={titleId} onSubmit={submit}>
-        <strong id={titleId} className={styles.formTitle}>
-          Create API Key
-        </strong>
-        <div className={styles.fields}>
-          <label className={styles.control}>
-            Name
-            <input
-              type="text"
-              className={styles.nameInput}
-              value={name}
-              maxLength={NAME_LENGTH}
-              autoComplete="off"
-              onChange={(event) => setName(event.target.value)}
-            />
-          </label>
-          <Select
-            label="Scope"
-            options={KEY_SCOPES.map((option) => ({ value: option, label: option }))}
-            value={scope}
-            onChange={(next) => {
-              setScope(next)
-              // The choice goes back to "Everything" (AD1), keeping what is checked.
-              if (!RESTRICTABLE_SCOPES.includes(next)) setRestrict(false)
-            }}
-          />
-          <CoversChoice
-            projects={projects}
-            tree={covers.tree}
-            unrestrictable={unrestrictable}
-            restrict={restricting}
-            onRestrict={setRestrict}
-            checked={checked}
-            onCheck={setChecked}
-          />
-          <ActionButton type="submit" reason={reason} busy={create.isPending}>
-            {create.isPending ? 'Creating...' : 'Create key'}
-          </ActionButton>
-        </div>
-      </form>
-      {create.isError && <ErrorMessage error={create.error} />}
-      {token !== undefined && (
+      {!hidden && (
+        <>
+          <form className={styles.form} aria-labelledby={titleId} onSubmit={submit}>
+            <strong id={titleId} className={styles.formTitle}>
+              Create API Key
+            </strong>
+            <div className={styles.fields}>
+              <KeyFields
+                draft={draft}
+                onChange={(update) => setDraft((current) => ({ ...current, ...update }))}
+                covers={tree}
+              />
+              <ActionButton type="submit" reason={reason} busy={create.isPending}>
+                {create.isPending ? 'Creating...' : 'Create key'}
+              </ActionButton>
+            </div>
+          </form>
+          {create.isError && <ErrorMessage error={create.error} />}
+        </>
+      )}
+      {created !== undefined && (
         <section className={styles.created} aria-label="Created key">
           <p id={warningId} className={styles.createdText}>
-            Key created. Copy the token now — it will not be shown again:
+            Key <strong>{created.name}</strong> created. Copy the token now — it will not be shown
+            again:
           </p>
           <div className={styles.tokenBox}>
-            <code className={styles.token}>{token}</code>
+            <code className={styles.token}>{created.token}</code>
             {/* The focus goes from the button that created the key to the one copying its token,
-                which says why. */}
-            <CopyButton text={token} describedBy={warningId} autoFocus>
+                which says why, unless the user has gone on to edit a key meanwhile. */}
+            <CopyButton text={created.token} describedBy={warningId} autoFocus={!hidden}>
               Copy to clipboard
             </CopyButton>
           </div>
         </section>
       )}
     </>
-  )
-}
-
-/** Why a key of `scope` cannot be restricted for now, given `projects`, if it cannot. */
-function whyUnrestrictable(scope: KeyScope, projects: ReturnType<typeof useProjects>) {
-  if (!RESTRICTABLE_SCOPES.includes(scope)) {
-    return "Only 'submit', 'triage' and 'manage' keys can be restricted."
-  }
-  if (projects.data === undefined) {
-    return projects.isError ? 'The projects could not be loaded.' : 'Loading projects...'
-  }
-  if (projects.data.length === 0) return 'There are no projects yet.'
-}
-
-/**
- * The tree of `projects` and their suites the key form checks what a key covers in (AD1): every
- * project, those without suites included, saying so, with its suites below it, each by its own
- * label, and by its full label to assistive technology. Each option's value stands for an entry of
- * the key, which `entries` maps it to.
- */
-function coversTree(projects: readonly Project[]) {
-  const entries = new Map<string, EntryRef>()
-  const tree = projects.map((project): TreeParent<string> => {
-    const label = projectLabel(project)
-    entries.set(project.name, { project: project.name, suite: null })
-    return {
-      value: project.name,
-      label,
-      summary: entryLabel({ project, suite: null }),
-      note: project.suites.length === 0 ? '(no suites)' : undefined,
-      children: project.suites.map((suite) => {
-        const value = fullName(refOf(suite))
-        entries.set(value, { project: project.name, suite: suite.name })
-        return { value, label: suiteLabel(suite), name: fullLabel(suite) }
-      }),
-    }
-  })
-  return { tree, entries }
-}
-
-interface CoversChoiceProps {
-  projects: ReturnType<typeof useProjects>
-  /** The projects and their suites, to check (see `coversTree`). */
-  tree: TreeParent<string>[]
-  /** Why "Only these:" cannot be chosen, if it cannot. */
-  unrestrictable: string | undefined
-  /** Whether the key is restricted to what is checked, rather than instance-wide. */
-  restrict: boolean
-  onRestrict(restrict: boolean): void
-  checked: string[]
-  onCheck(checked: string[]): void
-}
-
-/**
- * What a key covers (AD1): everything, or only what is checked in a dropdown holding a tree of
- * every project of the instance and its suites.
- */
-function CoversChoice({
-  projects,
-  tree,
-  unrestrictable,
-  restrict,
-  onRestrict,
-  checked,
-  onCheck,
-}: CoversChoiceProps) {
-  const group = useId()
-  const whyId = useId()
-
-  return (
-    <fieldset className={styles.covers}>
-      <legend>Covers</legend>
-      <label>
-        <input type="radio" name={group} checked={!restrict} onChange={() => onRestrict(false)} />
-        Everything (instance-wide)
-      </label>
-      <div className={styles.only}>
-        <label title={unrestrictable}>
-          <input
-            type="radio"
-            name={group}
-            checked={restrict}
-            disabled={unrestrictable !== undefined}
-            aria-describedby={unrestrictable === undefined ? undefined : whyId}
-            onChange={() => onRestrict(true)}
-          />
-          Only these:
-        </label>
-        {unrestrictable !== undefined && (
-          <VisuallyHidden id={whyId}>{unrestrictable}</VisuallyHidden>
-        )}
-        <TreeSelect
-          label="Projects and suites to restrict to"
-          hideLabel
-          placeholder="Select projects or suites"
-          options={tree}
-          value={checked}
-          onChange={onCheck}
-          isDisabled={!restrict}
-        />
-      </div>
-      {projects.isError && projects.data === undefined && (
-        <ErrorMessage
-          context="The projects could not be loaded"
-          error={projects.error}
-          onRetry={() => void projects.refetch()}
-        />
-      )}
-    </fieldset>
   )
 }
 
@@ -367,12 +271,11 @@ function columns(known: Project[] | undefined): (Column<ApiKey> & { id: SortColu
       header: 'Covers',
       cell: (key) => {
         const entries = coveredBy(key)
-        if (entries === null) return 'All'
-        if (entries.length > 0) return entries.map(entryLabel).join(', ')
+        if (entries === null || entries.length > 0) return coversText(entries)
         // What it listed was all deleted, which leaves it restricted to nothing (AD1, I5).
         return (
           <span className={styles.nothing} title={NOTHING_HOVER}>
-            Nothing
+            {coversText(entries)}
           </span>
         )
       },
@@ -413,48 +316,75 @@ const ACTIVE: Column<ApiKey> = {
 /** Revoked keys, listed after the others, whatever the sort (AD1). */
 const revoked = (key: ApiKey) => !key.is_active
 
-const rowProps = (key: ApiKey) => (key.is_active ? {} : { className: styles.revoked })
+interface ActionsProps {
+  gate: ScopeGate
+  /** Whether a change to a key is being saved, during which no other key can be edited. */
+  saving: boolean
+  onEdit(key: ApiKey, button: HTMLButtonElement): void
+  /** Whether a revocation is under way, during which no other key can be revoked. */
+  revoking: boolean
+  onRevoke(key: ApiKey, button: HTMLElement): void
+}
 
-function revokeColumn(
-  gate: ScopeGate,
-  onRevoke: (key: ApiKey, button: HTMLElement) => void,
-): Column<ApiKey> {
+/** The Edit and Revoke buttons of each active key: revoked keys are frozen (AD1). */
+function actionsColumn({ gate, saving, onEdit, revoking, onRevoke }: ActionsProps): Column<ApiKey> {
   return {
-    id: 'revoke',
+    id: 'actions',
     header: <VisuallyHidden>Actions</VisuallyHidden>,
     cell: (key) =>
       key.is_active && (
-        <DangerButton
-          type="button"
-          {...gate}
-          aria-label={`Revoke key ${key.prefix}`}
-          onClick={(event) => onRevoke(key, event.currentTarget)}
-        >
-          Revoke
-        </DangerButton>
+        <span className={styles.actions}>
+          <ActionButton
+            reason={gate.title}
+            busy={saving}
+            aria-label={`Edit key ${key.prefix}`}
+            onClick={(event) => onEdit(key, event.currentTarget)}
+          >
+            Edit
+          </ActionButton>
+          <DangerButton
+            type="button"
+            disabled={gate.disabled || revoking}
+            title={gate.title}
+            aria-label={`Revoke key ${key.prefix}`}
+            onClick={(event) => onRevoke(key, event.currentTarget)}
+          >
+            Revoke
+          </DangerButton>
+        </span>
       ),
   }
 }
 
+interface TableProps extends Sorting {
+  keys: ApiKey[]
+  ownPrefix: string | undefined
+  tableRef: RefObject<HTMLTableElement | null>
+  /** The prefix of the key being changed, if any, whose row is highlighted. */
+  editing: string | undefined
+  onEdit(key: ApiKey, button: HTMLButtonElement): void
+}
+
 /**
- * The keys, active ones first, sortable by any column but the last two: Active, and the Revoke
- * button each active key has.
+ * The keys, active ones first, sortable by any column but the last two: Active, and the Edit and
+ * Revoke buttons each active key has.
  */
-function KeysTable({
-  keys,
-  ownPrefix,
-  sort,
-  onSort,
-}: { keys: ApiKey[] } & Omit<KeysProps, 'accepted'>) {
+function KeysTable({ keys, ownPrefix, tableRef, editing, onEdit, sort, onSort }: TableProps) {
   const queryClient = useQueryClient()
   const { recheck } = useAuth()
   const gate = useScopeGate('admin', null)
   const known = useKnownProjects()
   // Built again only when the projects change, so that the table sorts its rows again only then.
   const shown = useMemo(() => columns(known), [known])
-  const tableRef = useRef<HTMLTableElement>(null)
+  const rowProps = useCallback(
+    (key: ApiKey) => ({
+      className: clsx(!key.is_active && styles.revoked, key.prefix === editing && styles.editing),
+    }),
+    [editing],
+  )
   const rowConfirm = useRowConfirm<ApiKey>(tableRef)
   const revoking = rowConfirm.item
+  const saving = useIsMutating({ mutationKey: CHANGE_KEY }) > 0
 
   const revoke = useMutation({
     mutationFn: (key: ApiKey) =>
@@ -464,18 +394,8 @@ function KeysTable({
         }),
       ),
     onSuccess: async (_, key) => {
-      // A list on its way could land after the answer, and show the key as active again.
-      await queryClient.cancelQueries({ queryKey: queryKeys.apiKeys })
       // Revoked keys stay listed, as inactive (E11): the row goes among them.
-      queryClient.setQueryData<ApiKeyList>(
-        queryKeys.apiKeys,
-        (list) =>
-          list && {
-            items: list.items.map((item) =>
-              item.prefix === key.prefix ? { ...item, is_active: false } : item,
-            ),
-          },
-      )
+      await updateCachedKey(queryClient, key.prefix, (item) => ({ ...item, is_active: false }))
       rowConfirm.done()
       if (key.prefix === ownPrefix) {
         // The token in Settings no longer authenticates: checked again, Settings and every control
@@ -488,9 +408,6 @@ function KeysTable({
       }
     },
   })
-
-  // One revocation at a time.
-  const revokeGate = revoke.isPending ? { ...gate, disabled: true } : gate
 
   return (
     <>
@@ -507,18 +424,24 @@ function KeysTable({
             <code className={tableStyles.mono}>{revoking.prefix}</code>)? Its token stops working at
             once, and the key cannot be restored.
           </p>
-          {revoking.prefix === ownPrefix && (
-            <p>
-              It is the key of the token in Settings: this tab will no longer be available, and a
-              token shown above, not copied yet, will be lost.
-            </p>
-          )}
+          {revoking.prefix === ownPrefix && <OwnKeyWarning token="above" />}
         </Confirmation>
       )}
       <DataTable
         label="API keys"
         ref={tableRef}
-        columns={[...shown, ACTIVE, revokeColumn(revokeGate, rowConfirm.open)]}
+        columns={[
+          ...shown,
+          ACTIVE,
+          actionsColumn({
+            gate,
+            saving,
+            onEdit,
+            // One revocation at a time.
+            revoking: revoke.isPending,
+            onRevoke: rowConfirm.open,
+          }),
+        ]}
         rows={keys}
         rowKey={(key) => key.prefix}
         rowProps={rowProps}
