@@ -265,7 +265,7 @@ reworded at any time, so clients must branch on `code` only and never parse
 | `not_found` | 404 | No route matches the path, or an entity named by the path, a filter or the request body does not exist (except where I3 returns an empty result instead) |
 | `method_not_allowed` | 405 | The path is an API route, but not for this method. The `Allow` header lists the methods it accepts |
 | `duplicate` | 409 | The entity already exists: a run or regression UUID, a project name, a suite name within its project, a schema entry added to a list that already has one of that name |
-| `conflict` | 409 | The request contradicts the stored state in a way `duplicate` does not describe, and will fail again if sent unchanged: submitted metadata that disagrees with what is stored (see O2), an ordinal already held by another commit (see O6), the deletion of a project that still has suites (see E13) |
+| `conflict` | 409 | The request contradicts the stored state in a way `duplicate` does not describe, and will fail again if sent unchanged: submitted metadata that disagrees with what is stored (see O2), an ordinal already held by another commit (see O6), the deletion of a project that still has suites (see E13), a change to a revoked API key (see E11) |
 | `retry` | 409 | A concurrent change prevented the request from completing, and nothing was written: the suite's schema changed while the request ran, a write that E10 or E13 lists `retry` for could not take its locks in time, or the request and a schema change deadlocked (see D2); or the machine or commit a run submission resolved was deleted before its run was stored (see O8) |
 | `unsupported_encoding` | 415 | The request body has a content coding the server does not accept (see Compression below) |
 | `internal_error` | 500 | The server failed to process the request |
@@ -345,7 +345,7 @@ covers (see Restrictions below).
 - **manage** -- create/update/delete machines; update/delete commits; delete
   runs; create/rename/move/delete/reorder test suites and change their schemas;
   create/update/delete/reorder projects
-- **admin** -- list, create, and revoke API keys
+- **admin** -- list, create, change and revoke API keys
 
 A key has one of `submit`, `triage`, `manage` and `admin`. `read` needs no key
 (see Unauthenticated access).
@@ -395,7 +395,7 @@ not cover the destination.
   under an old name is not covered.
 - Deleting a project or a suite removes it from the keys that list it. A key
   whose last entry is removed stays restricted, to nothing, and grants only
-  `read`: it never becomes instance-wide.
+  `read`: the deletion never makes it instance-wide.
 
 This relies on an invariant of every endpoint: a request writes only to what the
 table above checks for it.
@@ -463,9 +463,9 @@ exists -- which parameters an endpoint accepts is public in the API document
 (I8) -- so returning them first reveals nothing.
 
 **Authorization is not cached.** Every authenticated request looks its token up
-in the database, so revoking a key takes effect immediately. The lookup reads
-small tables that stay in memory; saving that cost is not worth delaying
-revocation.
+in the database, so changing or revoking a key takes effect immediately. The
+lookup reads small tables that stay in memory; saving that cost is not worth
+delaying a revocation or a change.
 
 **Tokens.** The server generates each token from a cryptographically secure
 random source. A token is exactly 64 lowercase hexadecimal characters (256
@@ -484,10 +484,10 @@ CPU by sending garbage tokens.
 
 **Creating keys out of band.** Every key-management endpoint requires `admin`
 scope, so the API alone cannot create an instance's first key: a new database
-has no keys at all, and an operator who revokes the last active `admin` key
-has no way to create a replacement. An instance therefore provides an
-out-of-band way to create keys, for example a command-line tool run on the
-instance. The exact mechanism is implementation-specific.
+has no keys at all, and an operator who revokes the last active `admin` key,
+or changes its scope, has no way to create a replacement. An instance therefore
+provides an out-of-band way to create keys, for example a command-line tool run
+on the instance. The exact mechanism is implementation-specific.
 
 
 ## I6: AI Agent Orientation

@@ -44,10 +44,7 @@ export interface paths {
         put?: never;
         /**
          * Create an API key
-         * @description Create an API key. The response is the only time its token is shown.
-         *
-         *     Keys can't be changed and don't expire. To change a key's scope or what it is restricted to,
-         *     create a new key and revoke the old one.
+         * @description Create an API key. The response is the only time its token is shown. Keys don't expire.
          *
          *     The projects and test suites in `restricted_to` must exist when the key is created. They are
          *     followed by identity: a whole project covers the suites it has at the time of each request,
@@ -79,7 +76,8 @@ export interface paths {
          * @description Revoke an API key. It stops working immediately, and stays in the list with `is_active`
          *     set to false.
          *
-         *     Revoking an already revoked key succeeds. Revoking can't be undone: create a new key instead.
+         *     Revoking an already revoked key succeeds. Revoking can't be undone, and a revoked key can't be
+         *     changed: create a new key instead.
          *     Any key can be revoked, including the one used for this request.
          *
          *     **Authorization:** requires an API key with the `admin` scope.
@@ -87,7 +85,20 @@ export interface paths {
         delete: operations["revoke_api_key"];
         options?: never;
         head?: never;
-        patch?: never;
+        /**
+         * Change an API key
+         * @description Change an API key's name, its scope, or what it is restricted to. The key keeps its token,
+         *     and the change takes effect immediately. A body that changes nothing, an empty one included,
+         *     changes nothing.
+         *
+         *     `restricted_to` replaces the whole list, under the same rules as when creating a key. The key
+         *     that results must be valid as a whole: a restricted key can only become an `admin` key if
+         *     `restricted_to` is set to null in the same request. Any key can be changed, including the one
+         *     used for this request, except a revoked one.
+         *
+         *     **Authorization:** requires an API key with the `admin` scope.
+         */
+        patch: operations["patch_api_key"];
         trace?: never;
     };
     "/api/auth": {
@@ -934,7 +945,7 @@ export interface components {
         ApiKey: {
             /**
              * Prefix
-             * @description The first 8 characters of the key's token. Use it to revoke the key.
+             * @description The first 8 characters of the key's token. Use it to change or revoke the key.
              * @example 3f0ac112
              */
             prefix: string;
@@ -989,7 +1000,7 @@ export interface components {
             scope: components["schemas"]["KeyScope"];
             /**
              * Restricted To
-             * @description The whole projects and the single test suites to restrict the key to, each listed once. The key then has its scope only in the suites it covers, and can only read everywhere else. Creating a test suite in a project, or changing or deleting the project, needs the whole project. Only `submit`, `triage` and `manage` keys can be restricted, and every project and suite must exist. Leave out, or set to null, for an unrestricted key.
+             * @description The whole projects and the single test suites to restrict the key to, each listed once. The key then has its scope only in the suites it covers, and can only read everywhere else. Creating a test suite in a project, moving one into it, reordering its test suites, or changing or deleting the project, needs the whole project. Only `submit`, `triage` and `manage` keys can be restricted, and every project and suite must exist. Leave out, or set to null, for an unrestricted key.
              */
             restricted_to?: components["schemas"]["RestrictionEntryInput"][] | null;
         };
@@ -1000,7 +1011,7 @@ export interface components {
         ApiKeyCreated: {
             /**
              * Prefix
-             * @description The first 8 characters of the key's token. Use it to revoke the key.
+             * @description The first 8 characters of the key's token. Use it to change or revoke the key.
              * @example 3f0ac112
              */
             prefix: string;
@@ -1058,6 +1069,24 @@ export interface components {
              * @description The results.
              */
             items: components["schemas"]["ApiKey"][];
+        };
+        /**
+         * ApiKeyUpdate
+         * @description Changes to an API key. Only include what you want to change.
+         */
+        ApiKeyUpdate: {
+            /**
+             * Name
+             * @description A label for the key. Several keys can have the same name. Can't be null.
+             */
+            name?: string;
+            /** @description The key's new scope. Can't be null. A restricted key can only become an `admin` key if `restricted_to` is set to null too. */
+            scope?: components["schemas"]["KeyScope"];
+            /**
+             * Restricted To
+             * @description The whole projects and the single test suites to restrict the key to, each listed once. Replaces what the key was restricted to. Every project and suite must exist, and `admin` keys can't be restricted. Null makes the key unrestricted.
+             */
+            restricted_to?: components["schemas"]["RestrictionEntryInput"][] | null;
         };
         /**
          * ApiLinks
@@ -1751,14 +1780,15 @@ export interface components {
          *     - `submit`: submit runs and create commits.
          *     - `triage`: create, update and delete regressions and their indicators.
          *     - `manage`: create, update and delete machines; update and delete commits; delete runs; create,
-         *       rename, move, change and delete test suites; create, rename, change and delete projects.
-         *     - `admin`: list, create and revoke API keys.
+         *       rename, move, change, reorder and delete test suites; create, rename, change, reorder and
+         *       delete projects.
+         *     - `admin`: list, create, change and revoke API keys.
          *
          *     A `submit`, `triage` or `manage` key can be restricted to some projects as a whole and some
          *     single test suites. It then has its scope only in the suites it covers, and can only read
-         *     everywhere else. Creating a test suite in a project, moving one into it, or changing or
-         *     deleting the project, needs a key covering that project as a whole. Creating a project always
-         *     needs an unrestricted key.
+         *     everywhere else. Creating a test suite in a project, moving one into it, reordering its test
+         *     suites, or changing or deleting the project, needs a key covering that project as a whole.
+         *     Creating a project, or reordering the projects, always needs an unrestricted key.
          * @enum {string}
          */
         KeyScope: "submit" | "triage" | "manage" | "admin";
@@ -3794,6 +3824,78 @@ export interface operations {
             };
             /** @description No key has this prefix. */
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    patch_api_key: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The key's prefix: the first 8 characters of its token. */
+                prefix: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ApiKeyUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiKey"];
+                };
+            };
+            /** @description The request is invalid. This includes query parameters the operation doesn't accept, and single-valued parameters given more than once. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description This operation needs an API key and none was sent, or the key is malformed, unknown or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The API key doesn't have the scope this operation requires, or has it only in other projects or test suites. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description No key has this prefix, or a project or a test suite in `restricted_to` doesn't exist. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description `conflict`: the key is revoked, and can't be changed. */
+            409: {
                 headers: {
                     [name: string]: unknown;
                 };

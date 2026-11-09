@@ -77,8 +77,12 @@ class TestOpenApiDocument:
         and the code is the only thing a client can branch on. Every suite-scoped operation can
         answer `retry` (D2); the writes listed here add cases of their own.
         """
-        # Creating a project takes no lock to wait for, so it is never a `retry` (D2, E13).
-        exactly = {("/api/projects", "post"): {"duplicate"}}
+        # Creating a project, and changing an API key, take no lock with a bounded wait, so they are
+        # never a `retry` (D2, E11, E13).
+        exactly = {
+            ("/api/projects", "post"): {"duplicate"},
+            ("/api/admin/api-keys/{prefix}", "patch"): {"conflict"},
+        }
         beyond_retry = {
             ("/api/projects/{project}", "patch"): {"duplicate"},
             ("/api/projects/{project}", "delete"): {"conflict"},
@@ -153,7 +157,7 @@ class TestOpenApiDocument:
             for changes in patch.values()
         ]
 
-        assert len(bodies) == 12
+        assert len(bodies) == 13
         for name in bodies:
             for key, property in schemas[name]["properties"].items():
                 assert "default" not in property, f"{name}.{key} publishes a default"
@@ -1682,6 +1686,8 @@ EXAMPLE_SEQUENCE = [
     # Last among the suite's operations, since one of its examples removes a field.
     (f"{SUITES_PATH}/{{suite}}/schema", "patch"),
     ("/api/admin/api-keys", "post"),
+    # Sent to the key the first example above creates.
+    ("/api/admin/api-keys/{prefix}", "patch"),
 ]
 
 
@@ -1757,6 +1763,8 @@ class TestRequestExamples:
                 )
                 if path == REGRESSIONS_PATH and "uuid" not in names:
                     names["uuid"] = response.json()["uuid"]
+                if path == "/api/admin/api-keys" and "prefix" not in names:
+                    names["prefix"] = response.json()["prefix"]
                 # Undo a rename or a move, so that the next examples find what they address.
                 if path == f"{PROJECTS_PATH}/{{project}}" and "name" in example["value"]:
                     back = {"name": names["project"]}

@@ -211,7 +211,7 @@ It reports whether it applied anything, and is safe to run repeatedly.
 
 Write endpoints need a bearer token, and the key-management endpoints themselves require `admin` scope.
 A freshly deployed instance has no keys at all, so the first one has to be created from the host. This
-is also how to recover from revoking the last `admin` key.
+is also how to recover from revoking the last `admin` key, or changing its scope.
 
 ```sh
 aws ssm start-session --target <instance-id> --region <region>

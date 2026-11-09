@@ -1,4 +1,4 @@
-"""API keys: the tokens that authenticate a caller, and how one is created (I5, D5).
+"""API keys: the tokens that authenticate a caller, and how one is created and changed (I5, D5).
 
 This is the access layer of the `api_key` table, and of the `api_key_restriction` rows that list
 what a restricted key is restricted to, shared by the CLI (which mints the first key
@@ -15,10 +15,11 @@ import secrets
 from collections.abc import Sequence
 from dataclasses import dataclass, fields
 from datetime import datetime
+from enum import Enum
 from time import monotonic
-from typing import Any, NamedTuple
+from typing import Any, Literal, NamedTuple
 
-from sqlalchemy import Connection, Engine, Row, func, insert, select, tuple_, update
+from sqlalchemy import Connection, Engine, Row, delete, func, insert, select, tuple_, update
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy.sql.elements import ColumnElement
 
@@ -186,6 +187,20 @@ class UnknownEntriesError(ValueError):
     """A key was to be restricted to projects or suites that do not exist (a 404, per E11)."""
 
 
+class RevokedKeyError(Exception):
+    """A revoked key was to be changed, which revocation being final forbids (a 409, per E11)."""
+
+
+class _Unchanged(Enum):
+    """What `update_key` takes for an attribute the change leaves alone."""
+
+    UNCHANGED = "unchanged"
+
+
+UNCHANGED = _Unchanged.UNCHANGED
+Unchanged = Literal[_Unchanged.UNCHANGED]
+
+
 def generate_token() -> str:
     return secrets.token_hex(TOKEN_BYTES)
 
@@ -219,10 +234,7 @@ def create_key(
     so that a prefix collision can be retried without discarding work the caller did earlier in the
     same transaction.
     """
-    if not name:
-        raise ValueError("An API key's name must not be empty.")
-    if len(name) > KEY_NAME_MAX_LENGTH:
-        raise ValueError(f"An API key's name must be at most {KEY_NAME_MAX_LENGTH} characters.")
+    _check_name(name)
     targets = None if restricted_to is None else _checked_entries(connection, scope, restricted_to)
 
     for _ in range(_MAX_ATTEMPTS):
@@ -260,6 +272,110 @@ def create_key(
     )
 
 
+def update_key(
+    connection: Connection,
+    prefix: str,
+    *,
+    name: str | Unchanged = UNCHANGED,
+    scope: KeyScope | Unchanged = UNCHANGED,
+    restricted_to: Sequence[Entry] | Unchanged | None = UNCHANGED,
+) -> ApiKeyInfo | None:
+    """Change a key's name, scope or restrictions, returning the key as it now is, or None if no
+    key has that prefix.
+
+    `restricted_to` replaces the key's whole list, or None makes the key valid across the instance
+    (I5). What is left `UNCHANGED` stays as stored. As `create_key` does, this raises a `ValueError`
+    for a key that would not be valid, or its subclass `UnknownEntriesError` for projects or suites
+    that do not exist, and it raises `RevokedKeyError` for a revoked key. E11 orders them: what the
+    change is invalid for on its own is refused before the key is looked up, and a revoked key
+    before the change is checked against the key, or its entries against what exists.
+
+    The caller owns the transaction. The key's row stays locked until it ends, so that the key the
+    change is checked against is the one it changes: a change that would leave an `admin` key
+    restricted is refused as such, rather than by the database's constraint, and a key revoked
+    meanwhile is refused rather than changed.
+    """
+    if name is not UNCHANGED:
+        _check_name(name)
+    if restricted_to is not UNCHANGED and restricted_to is not None:
+        if len(set(restricted_to)) != len(restricted_to):
+            raise ValueError(_LISTED_TWICE)
+        if scope is not UNCHANGED and scope not in RESTRICTABLE_SCOPES:
+            raise ValueError(_unrestrictable(scope))
+
+    # FOR NO KEY UPDATE, which is what updating the row takes anyway. Recording the key's use skips
+    # the row while it is locked (see `LastUseRecorder`), so a change waiting below for what its
+    # new list names holds up no request authenticating with the key.
+    stored = connection.execute(
+        select(api_key.c.id, api_key.c.scope, api_key.c.restricted, api_key.c.is_active)
+        .where(api_key.c.prefix == prefix)
+        .with_for_update(key_share=True)
+    ).one_or_none()
+    if stored is None:
+        return None
+    if not stored.is_active:
+        raise RevokedKeyError(f"The API key '{prefix}' is revoked, and cannot be changed.")
+
+    changes: dict[str, Any] = {}
+    if name is not UNCHANGED:
+        changes["name"] = name
+    if scope is UNCHANGED:
+        scope = KeyScope(stored.scope)
+    else:
+        changes["scope"] = scope.value
+    # `restricted`, not whether the key has restriction rows, decides: a key whose entries were all
+    # deleted is still restricted (I5), so it cannot become `admin` without being made
+    # instance-wide.
+    if restricted_to is UNCHANGED:
+        restricted = stored.restricted
+    else:
+        restricted = changes["restricted"] = restricted_to is not None
+    if restricted and scope not in RESTRICTABLE_SCOPES:
+        # Either the scope or the list is the stored one, since both sent were checked above.
+        if restricted_to is UNCHANGED:
+            remedy = "Set `restricted_to` to null too, to make the key instance-wide."
+        else:
+            remedy = "Change its scope too, to restrict the key."
+        raise ValueError(f"{_unrestrictable(scope)} {remedy}")
+
+    # Locked before the key's current rows are deleted. Deleting a project or a suite locks it, then
+    # deletes the rows listing it, this key's among them. Were those deleted first, a change whose
+    # new list names what is being deleted would hold them while it waits for that lock, and the
+    # deletion would wait for them: a deadlock.
+    targets = (
+        []
+        if restricted_to is UNCHANGED or restricted_to is None
+        else _checked_entries(connection, scope, restricted_to)
+    )
+    if changes:
+        connection.execute(update(api_key).where(api_key.c.id == stored.id).values(**changes))
+    if restricted_to is not UNCHANGED:
+        connection.execute(
+            delete(api_key_restriction).where(api_key_restriction.c.api_key_id == stored.id)
+        )
+        if targets:
+            connection.execute(
+                insert(api_key_restriction),
+                [{"api_key_id": stored.id, **target} for target in targets],
+            )
+    shown = connection.execute(select(*_SHOWN_COLUMNS).where(api_key.c.id == stored.id)).one()
+    return ApiKeyInfo(**_shown(shown))
+
+
+def _check_name(name: str) -> None:
+    if not name:
+        raise ValueError("An API key's name must not be empty.")
+    if len(name) > KEY_NAME_MAX_LENGTH:
+        raise ValueError(f"An API key's name must be at most {KEY_NAME_MAX_LENGTH} characters.")
+
+
+def _unrestrictable(scope: KeyScope) -> str:
+    return f"A key with the '{scope.value}' scope cannot be restricted."
+
+
+_LISTED_TWICE = "A restricted key must not list an entry more than once."
+
+
 def _checked_entries(
     connection: Connection, scope: KeyScope, entries: Sequence[Entry]
 ) -> list[dict[str, int | None]]:
@@ -274,9 +390,9 @@ def _checked_entries(
     both take, so that none can deadlock with it.
     """
     if scope not in RESTRICTABLE_SCOPES:
-        raise ValueError(f"A key with the '{scope.value}' scope cannot be restricted.")
+        raise ValueError(_unrestrictable(scope))
     if len(set(entries)) != len(entries):
-        raise ValueError("A restricted key must not list an entry more than once.")
+        raise ValueError(_LISTED_TWICE)
 
     projects = {
         row.name: row.id
@@ -370,6 +486,11 @@ class LastUseRecorder:
         dropped. It is not remembered, so the next request retries it. That is also the reason it
         is not folded into `resolve_token` as a single `UPDATE ... RETURNING`, tempting though one
         round trip is: a failed write would then fail authentication.
+
+        Nor does it wait for the key's row: a change to the key (E11) holds it while waiting for the
+        projects and suites it lists, and every request authenticating with the key would wait too,
+        each holding a pooled connection. A locked row is skipped instead, and the write dropped and
+        retried as a failed one is.
         """
         now = monotonic()
         # Membership rather than a default of 0: `monotonic()` has an arbitrary origin, so in a
@@ -377,15 +498,22 @@ class LastUseRecorder:
         last = self._recorded.get(key_id)
         if last is not None and now - last < LAST_USED_INTERVAL:
             return
+        unlocked = (
+            select(api_key.c.id)
+            .where(api_key.c.id == key_id)
+            .with_for_update(key_share=True, skip_locked=True)
+            .scalar_subquery()
+        )
         try:
             with engine.begin() as connection:
-                connection.execute(
-                    update(api_key).where(api_key.c.id == key_id).values(last_used_at=func.now())
-                )
+                recorded = connection.execute(
+                    update(api_key).where(api_key.c.id == unlocked).values(last_used_at=func.now())
+                ).rowcount
         except SQLAlchemyError:
             logger.warning("Could not record last use of API key %d", key_id, exc_info=True)
             return
-        self._recorded[key_id] = now
+        if recorded:
+            self._recorded[key_id] = now
 
 
 def list_keys(connection: Connection) -> list[ApiKeyInfo]:

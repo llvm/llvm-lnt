@@ -43,14 +43,15 @@ class KeyScope(StrEnum):
     - `submit`: submit runs and create commits.
     - `triage`: create, update and delete regressions and their indicators.
     - `manage`: create, update and delete machines; update and delete commits; delete runs; create,
-      rename, move, change and delete test suites; create, rename, change and delete projects.
-    - `admin`: list, create and revoke API keys.
+      rename, move, change, reorder and delete test suites; create, rename, change, reorder and
+      delete projects.
+    - `admin`: list, create, change and revoke API keys.
 
     A `submit`, `triage` or `manage` key can be restricted to some projects as a whole and some
     single test suites. It then has its scope only in the suites it covers, and can only read
-    everywhere else. Creating a test suite in a project, moving one into it, or changing or
-    deleting the project, needs a key covering that project as a whole. Creating a project always
-    needs an unrestricted key.
+    everywhere else. Creating a test suite in a project, moving one into it, reordering its test
+    suites, or changing or deleting the project, needs a key covering that project as a whole.
+    Creating a project, or reordering the projects, always needs an unrestricted key.
     """
 
     # I5: every scope but `read`, which needs no key.

@@ -30,7 +30,15 @@ from sqlalchemy.exc import DBAPIError
 from conftest import code_of, ensure_project, entry, run_payload
 from introspection import counted, counting_statements, namespace_of
 from lnt_v5.errors import ApiError, ErrorCode
-from lnt_v5.keys import Entry, UnknownEntriesError, create_key, resolve_token
+from lnt_v5.keys import (
+    Entry,
+    RevokedKeyError,
+    UnknownEntriesError,
+    create_key,
+    resolve_token,
+    revoke_key,
+    update_key,
+)
 from lnt_v5.routes.commits import COMMITS_PATH, Commits
 from lnt_v5.routes.machines import Machines
 from lnt_v5.routes.regressions import REGRESSIONS_PATH, IndicatorObject, Regressions
@@ -1337,25 +1345,29 @@ class TestInactivityDeletion:
 ENTRIES = [Entry("libcxx", "libcxx"), Entry("nts", "nts")]
 
 
+def add_suite_rows(db_engine: Engine) -> None:
+    """Suites `libcxx` and `nts`, each in a project of its name, as rows alone: none of the key
+    races below reaches a suite's tables."""
+    with db_engine.begin() as connection:
+        for name in ("libcxx", "nts"):
+            connection.execute(
+                insert(schema_table).values(
+                    project_id=ensure_project(connection, name),
+                    name=name,
+                    namespace=name,
+                    schema_json=SuiteSchema.model_validate({"name": name}).model_dump_json(),
+                    migration_version=0,
+                )
+            )
+
+
 class TestKeyCreationRacingSuiteDeletion:
     """E11: a key created while a suite it lists is deleted either gets 404, or is created and
     loses the suite with the deletion -- never a 500, and never a key listing a deleted suite."""
 
     @pytest.fixture(autouse=True)
     def suites(self, db_engine: Engine) -> None:
-        # Rows alone: neither side reaches the suite's tables.
-        with db_engine.begin() as connection:
-            for name in ("libcxx", "nts"):
-                schema = SuiteSchema.model_validate({"name": name})
-                connection.execute(
-                    insert(schema_table).values(
-                        project_id=ensure_project(connection, name),
-                        name=name,
-                        namespace=name,
-                        schema_json=schema.model_dump_json(),
-                        migration_version=0,
-                    )
-                )
+        add_suite_rows(db_engine)
 
     @staticmethod
     def delete_nts(connection: Connection) -> None:
@@ -1489,3 +1501,138 @@ class TestKeyCreationRacingProjectDeletion:
             create_key(creating, "bot", KeyScope.MANAGE, self.WHOLE)
             # Completes while the key's transaction is still open.
             assert background(change_display_name).result(timeout=BLOCK_TIMEOUT) == 200
+
+
+class TestKeyChange:
+    """E11: a change to a key takes turns with whatever else changes the key, and with the deletion
+    of what its new list names -- never a 500, a deadlock, or a key listing what was deleted."""
+
+    @pytest.fixture(autouse=True)
+    def lists(self, db_engine: Engine) -> None:
+        add_suite_rows(db_engine)
+        # Without suites, so that it can be deleted.
+        with db_engine.begin() as connection:
+            ensure_project(connection, "swift")
+
+    @staticmethod
+    def key(db_engine: Engine, *entries: Entry) -> str:
+        """A `manage` key restricted to `entries`, or unrestricted without any."""
+        with db_engine.begin() as connection:
+            return create_key(connection, "bot", KeyScope.MANAGE, entries or None).token
+
+    def test_a_change_is_checked_against_the_key_another_change_left(
+        self, db_engine: Engine, background: Callable[..., Future[Any]]
+    ) -> None:
+        # Without the key's row locked, the second change would check the scope against the key
+        # as it was, unrestricted, and only the database's constraint would refuse the result: a
+        # 500 rather than a 400.
+        token = self.key(db_engine)
+
+        second = raced(
+            db_engine,
+            background,
+            lambda connection: update_key(
+                connection, token[:8], restricted_to=[Entry("libcxx", "libcxx")]
+            ),
+            lambda connection: update_key(connection, token[:8], scope=KeyScope.ADMIN),
+        )
+
+        with pytest.raises(ValueError, match="cannot be restricted"):
+            second.result(timeout=BLOCK_TIMEOUT)
+        with db_engine.connect() as connection:
+            key = resolve_token(connection, token)
+        assert key is not None
+        assert (key.scope, key.restricted_to) == (KeyScope.MANAGE, (Entry("libcxx", "libcxx"),))
+
+    def test_a_change_during_a_revocation_is_refused(
+        self, db_engine: Engine, background: Callable[..., Future[Any]]
+    ) -> None:
+        # Without the key's row locked, the change would not see the revocation, and change the
+        # revoked key.
+        token = self.key(db_engine, Entry("libcxx", "libcxx"))
+
+        losing = raced(
+            db_engine,
+            background,
+            lambda connection: revoke_key(connection, token[:8]),
+            lambda connection: update_key(connection, token[:8], scope=KeyScope.SUBMIT),
+        )
+
+        with pytest.raises(RevokedKeyError):
+            losing.result(timeout=BLOCK_TIMEOUT)
+
+    def test_a_request_with_the_key_does_not_wait_for_a_change_to_it(
+        self,
+        db_engine: Engine,
+        background: Callable[..., Future[Any]],
+        api_client: TestClient,
+        bearer: Callable[[str], dict[str, str]],
+        read_key: Callable[[str], Any],
+    ) -> None:
+        # A change may hold the key's row for a while, waiting for what its new list names. The
+        # request skips recording its use rather than wait for the row (D5 lets it drop the write).
+        token = self.key(db_engine)
+
+        with db_engine.connect() as changing, changing.begin():
+            update_key(changing, token[:8], name="renamed")
+            request = background(lambda: api_client.get("/api", headers=bearer(token)))
+            assert request.result(timeout=BLOCK_TIMEOUT).status_code == 200
+
+        # Dropped, and recorded by the next request, as a failed write is.
+        assert read_key(token[:8]).last_used_at is None
+        api_client.get("/api", headers=bearer(token))
+        assert read_key(token[:8]).last_used_at is not None
+
+    @pytest.mark.parametrize(
+        ("listed", "lock", "deletion"),
+        [
+            # What `delete_suite` does: lock the suite, then delete it.
+            (
+                Entry("nts", "nts"),
+                lambda connection: locked_suite(connection, "nts", "nts"),
+                delete(schema_table).where(schema_table.c.name == "nts"),
+            ),
+            # What deleting a project does, its single statement split in two: the lock it takes
+            # on the project's row, and the deletion of the rows listing it that follows.
+            (
+                Entry("swift", None),
+                lambda connection: connection.execute(
+                    select(project_table.c.id)
+                    .where(project_table.c.name == "swift")
+                    .with_for_update()
+                ),
+                delete(project_table).where(project_table.c.name == "swift"),
+            ),
+        ],
+        ids=["suite", "project"],
+    )
+    def test_a_change_naming_what_is_being_deleted_does_not_deadlock_with_it(
+        self,
+        db_engine: Engine,
+        background: Callable[..., Future[Any]],
+        listed: Entry,
+        lock: Callable[[Connection], Any],
+        deletion: Any,
+    ) -> None:
+        # The key lists what is being deleted, and so does its new list. Had the change deleted the
+        # key's rows before waiting for what the new list names, the deletion would wait for one
+        # of those rows, which it deletes too, while the change waited for it.
+        token = self.key(db_engine, listed)
+        new = [listed, Entry("libcxx", "libcxx")]
+
+        def change() -> Any:
+            with db_engine.begin() as connection:
+                return update_key(connection, token[:8], restricted_to=new)
+
+        with db_engine.connect() as deleting:
+            with deleting.begin():
+                lock(deleting)
+                changing = background(change)
+                until_blocked(db_engine)
+                deleting.execute(deletion)
+
+            with pytest.raises(UnknownEntriesError):
+                changing.result(timeout=BLOCK_TIMEOUT)
+            key = resolve_token(deleting, token)
+        assert key is not None
+        assert key.restricted_to == ()

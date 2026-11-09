@@ -864,10 +864,11 @@ Instance-level API key management, outside any test suite.
 ```
 GET    /api/admin/api-keys           -- List keys
 POST   /api/admin/api-keys           -- Create key, returns the raw token once
+PATCH  /api/admin/api-keys/{prefix}  -- Change a key's name, scope or restrictions
 DELETE /api/admin/api-keys/{prefix}  -- Revoke key
 ```
 
-**Auth scope:** `admin` for all three, including the GET. These are the only
+**Auth scope:** `admin` for all of them, including the GET. These are the only
 GET endpoints in the API that require more than `read`, and so the only ones
 that anonymous access never reaches (see I5).
 
@@ -912,6 +913,27 @@ I5).
 - 404 if an entry names a project that does not exist, or a suite that its
   project does not have.
 
+**Change** (`PATCH /api/admin/api-keys/{prefix}`): the body has `name`,
+`scope` and `restricted_to`, all optional, with create's meanings and rules,
+except that `restricted_to` replaces the key's whole list: a list restricts the
+key to exactly those entries, and `null` makes it instance-wide. An omitted
+field is left unchanged, and `name` and `scope` cannot be null. The resulting key is
+validated as a whole, so a restricted key becomes an `admin` key only if the
+same request sends `restricted_to: null`. On an active key, a body that changes
+nothing, an empty one included, is a successful no-op. The key keeps its token,
+and so its prefix. The change takes effect immediately (see I5).
+
+- 200 with the key object.
+- 400 for a value create refuses (an empty or too long `name`, an unknown
+  `scope`, a malformed `restricted_to`), a null `name` or `scope`, or a
+  resulting `admin` key that is restricted, whether or not its entries exist.
+- 404 if no key has that prefix, including when a caller passes a whole token
+  instead of its prefix, or if an entry names a project that does not exist, or
+  a suite that its project does not have.
+- 409 `conflict` if the key is revoked, whatever the body asks for, unless the
+  body is invalid on its own (a 400). Revocation is final, and a revoked key
+  stays a record of what it could do.
+
 **Revoke** (`DELETE /api/admin/api-keys/{prefix}`): sets `is_active` to false
 rather than deleting the row, so that the revocation stays visible and the
 prefix is never reused by a later key.
@@ -923,18 +945,16 @@ prefix is never reused by a later key.
 
 Revocation takes effect immediately (see I5) and cannot be undone: restoring
 access means creating a new key. No `?confirm=true` is required, unlike the
-destructive suite operations, because revoking a key destroys no data.
-
-A key is otherwise immutable: there is no PATCH route, and changing a key's
-scope or restrictions means creating a replacement and revoking the original.
-Keys do not expire.
+destructive suite operations, because revoking a key destroys no data. Keys do
+not expire.
 
 Any `admin` key may revoke any key, including the one authenticating the
 request and the last remaining active `admin` key. There is deliberately no
 exception for either, because an operator's ability to revoke a leaked key must
-not depend on which key leaked. After revoking the last `admin` key, an
-operator creates a new one through the out-of-band interface described in I5,
-which is also how an instance gets its first key.
+not depend on which key leaked. Changing a key follows the same rule. After
+revoking the last `admin` key, or changing its scope, an operator creates a new
+one through the out-of-band interface described in I5, which is also how an
+instance gets its first key.
 
 
 ## E12: Authentication

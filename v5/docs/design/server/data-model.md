@@ -521,10 +521,10 @@ namespace of their own (see below).
 - `name` is a human-readable label, deliberately not unique: two keys may share
   a name.
 - `scope` is one of `submit`, `triage`, `manage`, `admin` (see I5). The
-  database layer validates it on create. It is stored as text rather than as an
-  integer code (unlike `{suite}.regression.state`, below), because it is read
-  once per authenticated request and never filtered or sorted on, so
-  readability in the database matters more than compactness.
+  database layer validates it whenever it is written. It is stored as text
+  rather than as an integer code (unlike `{suite}.regression.state`, below),
+  because it is read once per authenticated request and never filtered or
+  sorted on, so readability in the database matters more than compactness.
 - `restricted` is true for a key restricted to the projects and suites its
   `api_key_restriction` rows list (see I5). The database layer rejects it on an
   `admin` key.
@@ -552,8 +552,9 @@ namespace of their own (see below).
   database layer rejects a row with neither or both.
 - Unique constraints on `(api_key_id, project_id)` and on
   `(api_key_id, suite_id)`: a key lists a project or a suite at most once.
-- Rows are written with their key, and never changed. Deleting a project or a
-  suite deletes the rows that refer to it.
+- Rows are written with their key, and replaced when its restrictions are
+  changed (see E11). Deleting a project or a suite deletes the rows that refer
+  to it.
 
 ### Per-Suite Tables
 
