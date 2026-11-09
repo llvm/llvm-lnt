@@ -407,9 +407,9 @@ set, unless a page specifies otherwise (see AD1).
 
 The token is shared by every tab of the SPA: a change made in one tab takes
 effect in the others, which check the new token. It is also checked again
-whenever a request sent with it gets a 401, as its key may have been revoked in
-the meantime. The panel and the controls gated on the token follow the SPA's own
-renames, moves and deletions of projects and suites.
+whenever a request sent with it gets a 401 or a 403, as its key may have been
+revoked or changed in the meantime. The panel and the controls gated on the
+token follow the SPA's own renames, moves and deletions of projects and suites.
 
 Unless a page specifies otherwise, a control whose action needs a scope the
 token does not grant -- or any scope above `read`, when no valid token is set --

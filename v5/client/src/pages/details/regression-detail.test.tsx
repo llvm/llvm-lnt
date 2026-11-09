@@ -514,7 +514,7 @@ describe('the Regression Detail page', () => {
     })
 
     it('reports a change the API refuses, still showing the stored state', async () => {
-      signIn('triage')
+      const checks = signIn('triage')
       mockSent('patch', ROUTE, () => errorResponse(403, 'forbidden', 'No'))
       renderRegression()
       await ready('Regression', stateButton)
@@ -525,6 +525,9 @@ describe('the Regression Detail page', () => {
 
       expect(await screen.findByRole('alert')).toHaveTextContent('Permission denied')
       expect(stateButton()).toHaveTextContent('confirmed')
+      // The token is checked again (AR17), which accepts it as it was.
+      await waitFor(() => expect(checks).toHaveLength(2))
+      await waitFor(() => expect(stateButton()).toBeEnabled())
     })
   })
 
@@ -1130,7 +1133,7 @@ describe('the Indicators table', () => {
   })
 
   it('reports a removal the API refuses, keeping the indicator', async () => {
-    signIn('triage')
+    const checks = signIn('triage')
     mockSent('delete', `${ROUTE}/indicators`, () => errorResponse(403, 'forbidden', 'No'))
     renderRegression({ detail: WITH_INDICATORS })
     const indicators = await table('Indicators')
@@ -1141,6 +1144,9 @@ describe('the Indicators table', () => {
     const section = within(screen.getByRole('region', { name: 'Indicators' }))
     expect(await section.findByRole('alert')).toHaveTextContent('Permission denied')
     expect(rowsOf(indicators)).toHaveLength(4)
+    // The token is checked again (AR17), which accepts it as it was.
+    await waitFor(() => expect(checks).toHaveLength(2))
+    await waitFor(() => expect(removeButton('linux, BM_find, Execution Time')).toBeEnabled())
   })
 
   it('deselects the rows its filter hides', async () => {

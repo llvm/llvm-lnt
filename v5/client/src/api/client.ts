@@ -85,7 +85,10 @@ export async function unwrap<Data>(
 export interface Credentials {
   /** The token to send, or null to send none. */
   token(): string | null
-  /** A request sent with `token` got a 401: its key may have been revoked since it was checked. */
+  /**
+   * A request sent with `token` got a 401 or a 403: its key may have been revoked or changed since
+   * it was checked.
+   */
   rejected(token: string): void
 }
 
@@ -106,7 +109,7 @@ const sendToken: Middleware = {
   },
   onResponse({ request, response }) {
     const sent = request.headers.get('Authorization')?.replace(/^Bearer /, '')
-    if (response.status === 401 && sent) credentials.rejected(sent)
+    if ((response.status === 401 || response.status === 403) && sent) credentials.rejected(sent)
     return response
   },
 }

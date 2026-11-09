@@ -656,7 +656,7 @@ describe('deleting a regression', () => {
   })
 
   it('reports a refusal in the prompt, which stays open', async () => {
-    await openPrompt()
+    const { checks } = await openPrompt()
     server.use(
       mockApi('delete', '/api/projects/{project}/suites/{suite}/regressions/{uuid}', () =>
         errorResponse(403, 'forbidden', 'Insufficient scope'),
@@ -669,6 +669,9 @@ describe('deleting a regression', () => {
 
     expect(await within(prompt).findByRole('alert')).toHaveTextContent(PERMISSION_DENIED)
     expect(rowOf('slow')).toBeInTheDocument()
+    // The token is checked again (AR17), which accepts it as it was.
+    await waitFor(() => expect(checks).toHaveLength(2))
+    await waitFor(() => expect(within(prompt).getByRole('button', { name: 'Delete' })).toBeEnabled())
   })
 
   it('leaves everything as it was on Cancel or Escape, back on the Delete button', async () => {

@@ -110,7 +110,8 @@ export function InlineEdit({
   const [saving, setSaving] = useState(false)
   const [confirming, setConfirming] = useState(false)
   // Nothing can be used while a save is under way or waits for its confirmation, but nothing is
-  // disabled either, which would lose the focus: a save that fails leaves the user where they were.
+  // disabled either, which would lose the focus: a save that fails leaves the user where they were,
+  // unless the API refused the token, which is then checked again (AR17), disabling Save meanwhile.
   const busy = saving || confirming
   const [error, setError] = useState<unknown>(null)
   const reasonId = useId()

@@ -358,8 +358,12 @@ describe('Settings panel', () => {
     expect(checks).toHaveLength(2)
   })
 
-  it('does not check the token again when a request sent with it gets a 403', async () => {
-    const checks = signIn('submit')
+  it('checks the token again when a request sent with it gets a 403', async () => {
+    // The key loses its scope elsewhere, after the token has been checked.
+    let lowered = false
+    const checks = mockAuth(() =>
+      HttpResponse.json({ key: apiKey(lowered ? 'submit' : 'manage') }),
+    )
     server.use(
       mockApi('delete', '/api/projects/{project}/suites/{suite}/runs/{uuid}', () =>
         errorResponse(403, 'forbidden', "This endpoint requires the 'manage' scope"),
@@ -367,11 +371,13 @@ describe('Settings panel', () => {
     )
     renderMenu()
     openPanel()
-    await waitFor(() => expect(status()).toHaveTextContent('Using key'))
+    enterToken(TOKEN)
+    await waitFor(() => expect(status()).toHaveTextContent('with manage scope'))
 
+    lowered = true
     const error = await unwrap(deleteRun()).catch((error: unknown) => error)
     expect(errorMessage(error)).toBe(PERMISSION_DENIED)
-    expect(status()).toHaveTextContent('with submit scope')
-    expect(checks).toHaveLength(1)
+    await waitFor(() => expect(status()).toHaveTextContent('with submit scope'))
+    expect(checks).toHaveLength(2)
   })
 })
