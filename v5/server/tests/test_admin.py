@@ -353,6 +353,302 @@ class TestCreateRestricted:
         assert "bot" not in [key["name"] for key in listed]
 
 
+class TestChange:
+    """A key's name, scope and restrictions changed in place (E11)."""
+
+    @pytest.fixture(autouse=True)
+    def suites(self, make_api_suite: Callable[..., Any]) -> None:
+        make_api_suite({"name": "nts"}, "llvm")
+        make_api_suite({"name": "benchmarks"}, "libcxx")
+
+    @staticmethod
+    def create(api_client: TestClient, admin: dict[str, str], **body: Any) -> dict[str, Any]:
+        response = api_client.post(KEYS, headers=admin, json={"name": "bot", **body})
+        assert response.status_code == 201, response.text
+        created: dict[str, Any] = response.json()
+        return created
+
+    @staticmethod
+    def listed(api_client: TestClient, admin: dict[str, str], prefix: str) -> dict[str, Any]:
+        (key,) = [
+            key
+            for key in api_client.get(KEYS, headers=admin).json()["items"]
+            if key["prefix"] == prefix
+        ]
+        return key  # type: ignore[no-any-return]
+
+    @pytest.mark.parametrize(
+        ("change", "expected"),
+        [
+            ({"name": "renamed"}, {"name": "renamed"}),
+            ({"scope": "manage"}, {"scope": "manage"}),
+            ({"restricted_to": [BENCHMARKS]}, {"restricted_to": [BENCHMARKS]}),
+            ({"restricted_to": None}, {"restricted_to": None}),
+            (
+                {"name": "renamed", "scope": "triage", "restricted_to": [{"project": "libcxx"}]},
+                {
+                    "name": "renamed",
+                    "scope": "triage",
+                    "restricted_to": [{"project": "libcxx", "suite": None}],
+                },
+            ),
+            ({}, {}),
+        ],
+    )
+    def test_changes_what_the_body_sends_and_nothing_else(
+        self,
+        api_client: TestClient,
+        admin: dict[str, str],
+        change: dict[str, Any],
+        expected: dict[str, Any],
+    ) -> None:
+        created = self.create(api_client, admin, scope="submit", restricted_to=[NTS])
+        before = {key: value for key, value in created.items() if key != "token"}
+
+        response = api_client.patch(f"{KEYS}/{created['prefix']}", headers=admin, json=change)
+
+        assert response.status_code == 200, response.text
+        # The key object, which keeps its prefix and `created_at`, and has no token.
+        assert response.json() == before | expected
+        assert self.listed(api_client, admin, created["prefix"]) == before | expected
+
+    def test_replaces_the_whole_list(self, api_client: TestClient, admin: dict[str, str]) -> None:
+        created = self.create(api_client, admin, scope="submit", restricted_to=[NTS, BENCHMARKS])
+
+        response = api_client.patch(
+            f"{KEYS}/{created['prefix']}",
+            headers=admin,
+            json={"restricted_to": [{"project": "llvm"}, NTS]},
+        )
+
+        assert response.status_code == 200, response.text
+        # A suite may be listed along with its project, as on create (I5).
+        assert response.json()["restricted_to"] == [{"project": "llvm", "suite": None}, NTS]
+
+    def test_restricts_an_instance_wide_key(
+        self, api_client: TestClient, admin: dict[str, str]
+    ) -> None:
+        created = self.create(api_client, admin, scope="manage")
+
+        response = api_client.patch(
+            f"{KEYS}/{created['prefix']}", headers=admin, json={"restricted_to": [NTS]}
+        )
+
+        assert response.status_code == 200, response.text
+        assert response.json()["restricted_to"] == [NTS]
+
+    def test_the_key_keeps_its_token_and_has_its_new_scope_at_once(
+        self,
+        api_client: TestClient,
+        admin: dict[str, str],
+        bearer: Callable[[str], dict[str, str]],
+    ) -> None:
+        token = self.create(api_client, admin, scope="submit")["token"]
+        assert api_client.get(KEYS, headers=bearer(token)).status_code == 403
+
+        response = api_client.patch(f"{KEYS}/{token[:8]}", headers=admin, json={"scope": "admin"})
+
+        assert response.status_code == 200, response.text
+        assert api_client.get(KEYS, headers=bearer(token)).status_code == 200
+
+    def test_a_key_may_demote_itself(
+        self, api_client: TestClient, make_key: Callable[..., str], bearer: Callable[..., Any]
+    ) -> None:
+        # The last admin key included, as for revocation: recovering is done out of band (I5).
+        token = make_key(Scope.ADMIN)
+
+        response = api_client.patch(
+            f"{KEYS}/{token[:8]}", headers=bearer(token), json={"scope": "manage"}
+        )
+
+        assert response.status_code == 200, response.text
+        assert api_client.get(KEYS, headers=bearer(token)).status_code == 403
+
+    def test_a_restricted_key_becomes_admin_only_once_unrestricted(
+        self, api_client: TestClient, admin: dict[str, str]
+    ) -> None:
+        prefix = self.create(api_client, admin, scope="manage", restricted_to=[NTS])["prefix"]
+
+        refused = api_client.patch(f"{KEYS}/{prefix}", headers=admin, json={"scope": "admin"})
+        accepted = api_client.patch(
+            f"{KEYS}/{prefix}", headers=admin, json={"scope": "admin", "restricted_to": None}
+        )
+
+        assert refused.status_code == 400
+        assert code_of(refused) == "invalid_request"
+        assert "restricted_to" in refused.json()["error"]["message"]
+        assert accepted.status_code == 200, accepted.text
+        assert accepted.json()["scope"] == "admin"
+        assert accepted.json()["restricted_to"] is None
+
+    def test_an_admin_key_is_restricted_only_with_a_scope_that_can_be(
+        self, api_client: TestClient, admin: dict[str, str]
+    ) -> None:
+        prefix = self.create(api_client, admin, scope="admin")["prefix"]
+
+        refused = api_client.patch(f"{KEYS}/{prefix}", headers=admin, json={"restricted_to": [NTS]})
+        accepted = api_client.patch(
+            f"{KEYS}/{prefix}", headers=admin, json={"scope": "manage", "restricted_to": [NTS]}
+        )
+
+        assert refused.status_code == 400
+        assert code_of(refused) == "invalid_request"
+        assert accepted.status_code == 200, accepted.text
+        assert accepted.json()["restricted_to"] == [NTS]
+
+    def test_a_key_restricted_to_nothing_stays_restricted(
+        self, api_client: TestClient, admin: dict[str, str], db_engine: Engine
+    ) -> None:
+        # Restricted, though it lists nothing once its project is deleted (I5): it is `restricted`
+        # that a change keeps, and checks the scope against.
+        with db_engine.begin() as connection:
+            ensure_project(connection, "gone")
+        prefix = self.create(
+            api_client, admin, scope="manage", restricted_to=[{"project": "gone"}]
+        )["prefix"]
+        assert api_client.delete("/api/projects/gone", headers=admin).status_code == 204
+
+        renamed = api_client.patch(f"{KEYS}/{prefix}", headers=admin, json={"name": "renamed"})
+        refused = api_client.patch(f"{KEYS}/{prefix}", headers=admin, json={"scope": "admin"})
+        accepted = api_client.patch(
+            f"{KEYS}/{prefix}", headers=admin, json={"scope": "admin", "restricted_to": None}
+        )
+
+        assert renamed.status_code == 200, renamed.text
+        assert renamed.json()["restricted_to"] == []
+        assert refused.status_code == 400
+        assert accepted.status_code == 200, accepted.text
+        assert accepted.json()["restricted_to"] is None
+
+    @pytest.mark.parametrize(
+        ("body", "why"),
+        [
+            ({"name": None}, "a null name"),
+            ({"name": ""}, "an empty name"),
+            ({"name": "x" * (KEY_NAME_MAX_LENGTH + 1)}, "an oversized name"),
+            ({"name": "a\x00b"}, "a name PostgreSQL cannot store (D5)"),
+            ({"scope": None}, "a null scope"),
+            ({"scope": "read"}, "the scope every request has without a key (I5)"),
+            ({"scope": "root"}, "a scope I5 does not have"),
+            ({"restricted_to": []}, "an empty list"),
+            ({"restricted_to": [NTS, NTS]}, "an entry listed twice"),
+            ({"restricted_to": [{"suite": "nts"}]}, "an entry without a project"),
+            ({"restricted_to": NTS}, "an entry rather than a list"),
+            ({"scope": "admin", "restricted_to": [NTS]}, "a list for an admin key"),
+            ({"expires": "never"}, "a key the body does not take"),
+            ({"prefix": "aaaaaaaa"}, "the prefix, which never changes"),
+        ],
+    )
+    def test_rejects_a_bad_body_and_changes_nothing(
+        self, api_client: TestClient, admin: dict[str, str], body: dict[str, Any], why: str
+    ) -> None:
+        created = self.create(api_client, admin, scope="submit", restricted_to=[NTS])
+
+        response = api_client.patch(f"{KEYS}/{created['prefix']}", headers=admin, json=body)
+
+        assert response.status_code == 400, why
+        assert code_of(response) == "invalid_request"
+        listed = self.listed(api_client, admin, created["prefix"])
+        assert listed == {key: value for key, value in created.items() if key != "token"}
+
+    def test_a_body_invalid_on_its_own_is_a_400_even_for_an_unknown_prefix(
+        self, api_client: TestClient, admin: dict[str, str]
+    ) -> None:
+        response = api_client.patch(f"{KEYS}/nosuchpr", headers=admin, json={"name": ""})
+
+        assert response.status_code == 400
+        assert code_of(response) == "invalid_request"
+
+    def test_a_list_for_an_admin_key_is_a_400_even_naming_what_does_not_exist(
+        self, api_client: TestClient, admin: dict[str, str]
+    ) -> None:
+        # The resulting key is checked before its entries are looked up (E11).
+        prefix = self.create(api_client, admin, scope="admin")["prefix"]
+        body = {"restricted_to": [{"project": "swift"}]}
+
+        response = api_client.patch(f"{KEYS}/{prefix}", headers=admin, json=body)
+
+        assert response.status_code == 400
+        assert code_of(response) == "invalid_request"
+        assert "Change its scope too" in response.json()["error"]["message"]
+
+    def test_reports_404_for_an_unknown_prefix(
+        self, api_client: TestClient, admin: dict[str, str], make_key: Callable[..., str]
+    ) -> None:
+        # Including a whole token passed instead of its prefix, as on revoke.
+        token = make_key(Scope.SUBMIT, name="bot")
+
+        for prefix in ("nosuchpr", token):
+            response = api_client.patch(f"{KEYS}/{prefix}", headers=admin, json={"name": "x"})
+            assert response.status_code == 404
+            assert code_of(response) == "not_found"
+
+    def test_refuses_what_does_not_exist_and_changes_nothing(
+        self, api_client: TestClient, admin: dict[str, str]
+    ) -> None:
+        created = self.create(api_client, admin, scope="submit", restricted_to=[NTS])
+        body = {"name": "renamed", "restricted_to": [BENCHMARKS, {"project": "swift"}]}
+
+        response = api_client.patch(f"{KEYS}/{created['prefix']}", headers=admin, json=body)
+
+        assert response.status_code == 404
+        assert code_of(response) == "not_found"
+        assert "No project is named 'swift'" in response.json()["error"]["message"]
+        listed = self.listed(api_client, admin, created["prefix"])
+        assert listed["name"] == "bot"
+        assert listed["restricted_to"] == [NTS]
+
+    @pytest.mark.parametrize(
+        "body",
+        [
+            {},
+            {"name": "renamed"},
+            {"restricted_to": None},
+            # Neither checked once the key is found revoked: what exists, and whether the change
+            # suits the key.
+            {"restricted_to": [{"project": "swift"}]},
+            {"scope": "admin"},
+        ],
+    )
+    def test_refuses_to_change_a_revoked_key(
+        self, api_client: TestClient, admin: dict[str, str], body: dict[str, Any]
+    ) -> None:
+        # Revocation is final, and the revoked key stays a record of what it could do.
+        created = self.create(api_client, admin, scope="submit", restricted_to=[NTS])
+        api_client.delete(f"{KEYS}/{created['prefix']}", headers=admin)
+
+        response = api_client.patch(f"{KEYS}/{created['prefix']}", headers=admin, json=body)
+
+        assert response.status_code == 409
+        assert code_of(response) == "conflict"
+        listed = self.listed(api_client, admin, created["prefix"])
+        assert (listed["name"], listed["scope"], listed["restricted_to"]) == (
+            "bot",
+            "submit",
+            [NTS],
+        )
+
+    @pytest.mark.parametrize(
+        "body",
+        [
+            {"name": ""},
+            {"scope": "admin", "restricted_to": [NTS]},
+            {"restricted_to": []},
+            {"restricted_to": [NTS, NTS]},
+        ],
+    )
+    def test_a_body_invalid_on_its_own_is_a_400_even_for_a_revoked_key(
+        self, api_client: TestClient, admin: dict[str, str], body: dict[str, Any]
+    ) -> None:
+        prefix = self.create(api_client, admin, scope="submit", restricted_to=[NTS])["prefix"]
+        api_client.delete(f"{KEYS}/{prefix}", headers=admin)
+
+        response = api_client.patch(f"{KEYS}/{prefix}", headers=admin, json=body)
+
+        assert response.status_code == 400
+        assert code_of(response) == "invalid_request"
+
+
 class TestRevoke:
     def test_deactivates_the_key_without_deleting_it(
         self,

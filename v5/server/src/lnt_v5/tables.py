@@ -203,10 +203,10 @@ api_key = Table(
     Column("created_at", DateTime(timezone=True), nullable=False, server_default=func.now()),
     Column("last_used_at", DateTime(timezone=True), nullable=True),
     Column("is_active", Boolean, nullable=False, server_default=true()),
-    # D5 has the database layer validate the scope on create. Restating it as a constraint costs
-    # a migration whenever the scopes a key can have change, and in exchange a bug that writes an
-    # unknown scope fails at the boundary instead of minting a key that authenticates as something
-    # nobody intended. Built from the enum so the two cannot drift.
+    # D5 has the database layer validate the scope whenever it is written. Restating it as a
+    # constraint costs a migration whenever the scopes a key can have change, and in exchange a bug
+    # that writes an unknown scope fails at the boundary instead of minting a key that
+    # authenticates as something nobody intended. Built from the enum so the two cannot drift.
     CheckConstraint(
         "scope IN ({})".format(", ".join(f"'{scope.value}'" for scope in KeyScope)),
         name="scope",
@@ -240,5 +240,5 @@ api_key_restriction = Table(
 
 A row refers to its project or suite by identity rather than by name, so that it follows renames and
 moves, and so that a project or a suite created later under the name of a deleted one is not
-covered. Rows are written with their key and never changed.
+covered. Rows are written with their key, and replaced when its restrictions are changed.
 """

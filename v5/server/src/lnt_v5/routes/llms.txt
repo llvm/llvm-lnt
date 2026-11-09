@@ -134,6 +134,7 @@ POST   /api/projects/{project}/suites/{suite}/regressions/indicators/query   rea
 
 GET    /api/admin/api-keys                                                   admin   List API keys
 POST   /api/admin/api-keys                                                   admin   Create an API key
+PATCH  /api/admin/api-keys/{prefix}                                          admin   Change an API key's name, scope or restrictions
 DELETE /api/admin/api-keys/{prefix}                                          admin   Revoke an API key
 ```
 

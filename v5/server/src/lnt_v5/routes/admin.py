@@ -6,6 +6,8 @@ unauthenticated access never reaches.
 
 from __future__ import annotations
 
+from collections.abc import Iterator
+from contextlib import contextmanager
 from datetime import datetime
 from typing import Annotated
 
@@ -16,6 +18,7 @@ from lnt_v5 import examples, keys
 from lnt_v5.auth import require_scope
 from lnt_v5.db import EngineDep
 from lnt_v5.errors import ApiError, ErrorCode, ErrorEnvelope
+from lnt_v5.patching import omit_defaults
 from lnt_v5.responses import Items
 from lnt_v5.scopes import KeyScope, Scope
 from lnt_v5.strings import Storable
@@ -66,7 +69,9 @@ class ApiKey(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     prefix: str = Field(
-        description="The first 8 characters of the key's token. Use it to revoke the key.",
+        description=(
+            "The first 8 characters of the key's token. Use it to change or revoke the key."
+        ),
         examples=[examples.API_KEY_TOKEN[:8]],
     )
     name: str = Field(
@@ -128,10 +133,40 @@ class ApiKeyCreate(BaseModel):
         description=(
             "The whole projects and the single test suites to restrict the key to, each listed "
             "once. The key then has its scope only in the suites it covers, and can only read "
-            "everywhere else. Creating a test suite in a project, or changing or deleting the "
-            "project, needs the whole project. Only `submit`, `triage` and `manage` keys can be "
-            "restricted, and every project and suite must exist. Leave out, or set to null, for "
-            "an unrestricted key."
+            "everywhere else. Creating a test suite in a project, moving one into it, reordering "
+            "its test suites, or changing or deleting the project, needs the whole project. Only "
+            "`submit`, `triage` and `manage` keys can be restricted, and every project and suite "
+            "must exist. Leave out, or set to null, for an unrestricted key."
+        ),
+    )
+
+
+class ApiKeyUpdate(BaseModel):
+    """Changes to an API key. Only include what you want to change."""
+
+    # Only the fields sent are read, so the defaults are never read, and kept out of the document.
+    model_config = ConfigDict(extra="forbid", json_schema_extra=omit_defaults)
+
+    name: Annotated[str, Storable] = Field(
+        default="",
+        min_length=1,
+        max_length=KEY_NAME_MAX_LENGTH,
+        description="A label for the key. Several keys can have the same name. Can't be null.",
+    )
+    scope: KeyScope = Field(
+        default=KeyScope.SUBMIT,
+        description=(
+            "The key's new scope. Can't be null. A restricted key can only become an `admin` key "
+            "if `restricted_to` is set to null too."
+        ),
+    )
+    restricted_to: list[RestrictionEntry] | None = Field(
+        default=None,
+        min_length=1,
+        description=(
+            "The whole projects and the single test suites to restrict the key to, each listed "
+            "once. Replaces what the key was restricted to. Every project and suite must exist, "
+            "and `admin` keys can't be restricted. Null makes the key unrestricted."
         ),
     )
 
@@ -159,6 +194,28 @@ _CREATE_EXAMPLES = {
     },
 }
 
+# Sent to the keys the examples above create.
+_PATCH_EXAMPLES = {
+    "scope": {
+        "summary": "Let the key triage regressions too",
+        "value": {"scope": "triage"},
+    },
+    "restrict": {
+        "summary": "Restrict the key to one test suite",
+        "value": {
+            "restricted_to": [{"project": examples.PROJECT["name"], "suite": examples.SUITE}]
+        },
+    },
+    "unrestrict": {
+        "summary": "Lift the key's restriction",
+        "value": {"restricted_to": None},
+    },
+    "rename": {
+        "summary": "Rename the key",
+        "value": {"name": "nightly-bot"},
+    },
+}
+
 # A whole token is not a prefix, so passing one instead finds no key: a 404.
 KeyPrefix = Annotated[
     str, Path(description="The key's prefix: the first 8 characters of its token.")
@@ -171,6 +228,21 @@ def list_api_keys(engine: EngineDep) -> Items[ApiKey]:
     with engine.connect() as connection:
         found = keys.list_keys(connection)
     return Items(items=[ApiKey.model_validate(key) for key in found])
+
+
+@contextmanager
+def _refusals() -> Iterator[None]:
+    """Report what `keys` refuses about a key: what does not exist as a 404 (I3), anything else as a
+    400, and a revoked key as a 409 (E11)."""
+    try:
+        yield
+    except keys.RevokedKeyError as error:
+        raise ApiError(ErrorCode.CONFLICT, str(error)) from error
+    # The subclass first.
+    except keys.UnknownEntriesError as error:
+        raise ApiError(ErrorCode.NOT_FOUND, str(error)) from error
+    except ValueError as error:
+        raise ApiError(ErrorCode.INVALID_REQUEST, str(error)) from error
 
 
 # No `Location` header: there is deliberately no per-key detail route.
@@ -188,10 +260,7 @@ def list_api_keys(engine: EngineDep) -> Items[ApiKey]:
 def create_api_key(
     body: Annotated[ApiKeyCreate, Body(openapi_examples=_CREATE_EXAMPLES)], engine: EngineDep
 ) -> ApiKeyCreated:
-    """Create an API key. The response is the only time its token is shown.
-
-    Keys can't be changed and don't expire. To change a key's scope or what it is restricted to,
-    create a new key and revoke the old one.
+    """Create an API key. The response is the only time its token is shown. Keys don't expire.
 
     The projects and test suites in `restricted_to` must exist when the key is created. They are
     followed by identity: a whole project covers the suites it has at the time of each request,
@@ -202,15 +271,50 @@ def create_api_key(
     restricted_to = (
         None if body.restricted_to is None else [entry.entry() for entry in body.restricted_to]
     )
-    try:
-        with engine.begin() as connection:
-            created = keys.create_key(connection, body.name, body.scope, restricted_to)
-    # The subclass first: what does not exist is a 404 (I3), any other refusal a 400.
-    except keys.UnknownEntriesError as error:
-        raise ApiError(ErrorCode.NOT_FOUND, str(error)) from error
-    except ValueError as error:
-        raise ApiError(ErrorCode.INVALID_REQUEST, str(error)) from error
+    with _refusals(), engine.begin() as connection:
+        created = keys.create_key(connection, body.name, body.scope, restricted_to)
     return ApiKeyCreated.model_validate(created)
+
+
+@router.patch(
+    "/api-keys/{prefix}",
+    summary="Change an API key",
+    responses={
+        404: {
+            "model": ErrorEnvelope,
+            "description": (
+                "No key has this prefix, or a project or a test suite in `restricted_to` doesn't "
+                "exist."
+            ),
+        },
+        409: {
+            "model": ErrorEnvelope,
+            "description": "`conflict`: the key is revoked, and can't be changed.",
+        },
+    },
+)
+def patch_api_key(
+    prefix: KeyPrefix,
+    body: Annotated[ApiKeyUpdate, Body(openapi_examples=_PATCH_EXAMPLES)],
+    engine: EngineDep,
+) -> ApiKey:
+    """Change an API key's name, its scope, or what it is restricted to. The key keeps its token,
+    and the change takes effect immediately. A body that changes nothing, an empty one included,
+    changes nothing.
+
+    `restricted_to` replaces the whole list, under the same rules as when creating a key. The key
+    that results must be valid as a whole: a restricted key can only become an `admin` key if
+    `restricted_to` is set to null in the same request. Any key can be changed, including the one
+    used for this request, except a revoked one.
+    """
+    changes = body.model_dump(exclude_unset=True)
+    if body.restricted_to is not None:
+        changes["restricted_to"] = [entry.entry() for entry in body.restricted_to]
+    with _refusals(), engine.begin() as connection:
+        updated = keys.update_key(connection, prefix, **changes)
+    if updated is None:
+        raise ApiError(ErrorCode.NOT_FOUND, f"No API key has the prefix '{prefix}'.")
+    return ApiKey.model_validate(updated)
 
 
 @router.delete(
@@ -223,7 +327,8 @@ def revoke_api_key(prefix: KeyPrefix, engine: EngineDep) -> None:
     """Revoke an API key. It stops working immediately, and stays in the list with `is_active`
     set to false.
 
-    Revoking an already revoked key succeeds. Revoking can't be undone: create a new key instead.
+    Revoking an already revoked key succeeds. Revoking can't be undone, and a revoked key can't be
+    changed: create a new key instead.
     Any key can be revoked, including the one used for this request.
     """
     with engine.begin() as connection:

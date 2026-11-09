@@ -14,7 +14,14 @@ from sqlalchemy import Connection, Engine, create_engine, delete, func, insert, 
 from conftest import TOKEN_PATTERN, UNREACHABLE_URL
 from introspection import counting_statements
 from lnt_v5 import keys
-from lnt_v5.keys import ApiKeyInfo, CreatedKey, Entry, UnknownEntriesError, create_key
+from lnt_v5.keys import (
+    ApiKeyInfo,
+    CreatedKey,
+    Entry,
+    UnknownEntriesError,
+    create_key,
+    update_key,
+)
 from lnt_v5.scopes import KeyScope, Scope
 from lnt_v5.tables import (
     KEY_NAME_MAX_LENGTH,
@@ -396,6 +403,49 @@ def key_with(scope: KeyScope, restricted_to: tuple[Entry, ...] | None) -> ApiKey
 NTS = Entry("llvm", "nts")
 BENCHMARKS = Entry("libcxx", "benchmarks")
 LIBCXX = Entry("libcxx", None)
+
+
+class TestUpdateKey:
+    """`update_key`, which E11's change route is a thin layer over (`test_admin.py` has more)."""
+
+    @pytest.fixture(autouse=True)
+    def suites(self, db: Connection) -> None:
+        for name in ("llvm", "libcxx"):
+            project_id = db.execute(
+                insert(project).values(name=name).returning(project.c.id)
+            ).scalar_one()
+            db.execute(
+                insert(schema).values(
+                    project_id=project_id,
+                    name="nts",
+                    namespace=name,
+                    schema_json="{}",
+                    migration_version=0,
+                )
+            )
+
+    def test_replaces_the_rows_of_the_key_and_of_no_other(self, db: Connection) -> None:
+        changed = create_key(db, "bot", KeyScope.SUBMIT, [Entry("llvm", "nts")])
+        other = create_key(db, "other", KeyScope.SUBMIT, [Entry("llvm", "nts")])
+
+        updated = update_key(db, changed.prefix, restricted_to=[Entry("libcxx", None)])
+
+        assert updated is not None
+        assert updated.restricted_to == (Entry("libcxx", None),)
+        assert db.execute(select(func.count()).select_from(api_key_restriction)).scalar_one() == 2
+        resolved = keys.resolve_token(db, other.token)
+        assert resolved is not None
+        assert resolved.restricted_to == (Entry("llvm", "nts"),)
+
+    def test_making_a_key_instance_wide_deletes_its_rows(self, db: Connection) -> None:
+        created = create_key(db, "bot", KeyScope.SUBMIT, [Entry("llvm", "nts")])
+
+        updated = update_key(db, created.prefix, restricted_to=None)
+
+        assert updated is not None
+        assert updated.restricted_to is None
+        assert db.execute(select(api_key.c.restricted)).scalar_one() is False
+        assert db.execute(select(func.count()).select_from(api_key_restriction)).scalar_one() == 0
 
 
 class TestRestriction:

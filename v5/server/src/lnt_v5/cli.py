@@ -150,8 +150,8 @@ def _create_key(
     """Create an API key (`server create-key`).
 
     I5 requires an out-of-band way to create a key, because every key-management endpoint needs
-    an `admin` key that a fresh instance does not have, and because revoking the last one is
-    otherwise unrecoverable.
+    an `admin` key that a fresh instance does not have, and because revoking the last one, or
+    changing its scope, is otherwise unrecoverable.
 
     Deliberately does not migrate: creating a key should not quietly reshape the database. An
     uninitialized one is reported as such instead.
