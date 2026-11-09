@@ -481,6 +481,7 @@ test.describe('the Projects tab', () => {
           has: page.getByRole('button', { name: `Delete project ${project}` }),
         })
       await expect(row(name).locator('td')).toHaveText([
+        '⠿',
         `${name}Edit`,
         `${name} labelEdit`,
         '0+',
@@ -491,7 +492,7 @@ test.describe('the Projects tab', () => {
       await page.getByRole('button', { name: `Edit Display name of ${name}` }).click()
       await page.getByRole('textbox', { name: `Display name of ${name}` }).fill('E2E project')
       await page.keyboard.press('Enter')
-      await expect(row(name).locator('td').nth(1)).toHaveText('E2E projectEdit')
+      await expect(row(name).locator('td').nth(2)).toHaveText('E2E projectEdit')
 
       await page.getByRole('button', { name: `Edit Name of ${name}` }).click()
       await page.getByRole('textbox', { name: `Name of ${name}` }).fill(renamed)
@@ -529,6 +530,59 @@ test.describe('the Projects tab', () => {
     }
   })
 
+  test('drags a project before another, saving the new order on the drop', async ({
+    page,
+    request,
+    signIn,
+    tokenFor,
+  }, testInfo) => {
+    const base = ownName(testInfo, 62)
+    // Created in this order, which puts `second` after `first` (D7).
+    const [first, second] = [`${base}-a`, `${base}-b`]
+    const headers = { Authorization: `Bearer ${await tokenFor('manage')}` }
+    for (const name of [first, second]) {
+      const created = await request.post('/api/projects', { headers, data: { name } })
+      expect(created.status(), await created.text()).toBe(201)
+    }
+    // The names of the projects, in the API's order, and whether `second` is just before `first`.
+    const listed = async () =>
+      (await json<components['schemas']['ProjectList']>(request, '/api/projects')).items.map(
+        (project) => project.name,
+      )
+    const justBefore = (names: string[]) => names.indexOf(second) === names.indexOf(first) - 1
+    try {
+      await signIn(page, 'manage')
+      await page.goto('/admin?tab=projects')
+      const projects = table(page, 'Projects')
+      const grip = (name: string) => page.getByRole('button', { name: `Drag project ${name}` })
+      await expect(grip(second)).toBeEnabled()
+
+      // Dropped on `first`, from after it, `second` goes just before it, whatever is between them,
+      // and the other projects keep their places. Each drop sends every project the page lists, so
+      // one that another test creates or deletes meanwhile has the API refuse it with a 400, after
+      // which the page lists them again (AR24): the drop is then tried again.
+      while (!justBefore(await listed())) {
+        // Until the save before is done, no grip can drag (AR24).
+        await expect(grip(second)).not.toHaveAttribute('aria-disabled', 'true')
+        const saved = page.waitForResponse(
+          (response) =>
+            new URL(response.url()).pathname === '/api/projects' &&
+            response.request().method() === 'PATCH',
+        )
+        await grip(second).dragTo(grip(first))
+        expect([200, 400]).toContain((await saved).status())
+      }
+
+      await expect(grip(second)).toBeFocused()
+      const shown = async () =>
+        (await column(projects, 1)).map((name) => name.replace(/Edit$/, ''))
+      await expect.poll(async () => justBefore(await shown())).toBe(true)
+    } finally {
+      await request.delete(`/api/projects/${first}`, { headers })
+      await request.delete(`/api/projects/${second}`, { headers })
+    }
+  })
+
   test('lets a token covering a project in full change it and delete it, but create none', async ({
     page,
     request,
@@ -548,6 +602,12 @@ test.describe('the Projects tab', () => {
       await expect(create).toBeDisabled()
       await expect(create).toHaveAttribute(
         'title',
+        /^Needs an instance-wide API token with the 'manage' scope\./,
+      )
+      // Dragging a project, even its own, needs an instance-wide token (AD3).
+      const grip = page.getByRole('button', { name: `Drag project ${name}` })
+      await expect(grip).toHaveAttribute('aria-disabled', 'true')
+      await expect(grip).toHaveAccessibleDescription(
         /^Needs an instance-wide API token with the 'manage' scope\./,
       )
       const libcxx =

@@ -6,6 +6,7 @@ import {
   useRef,
   useState,
   type FormEvent,
+  type HTMLAttributes,
   type RefObject,
 } from 'react'
 import { flushSync } from 'react-dom'
@@ -19,6 +20,7 @@ import {
   refetchProjectsIfOutdated,
   removeProject,
   renameProject,
+  reorderProjects,
   updateProject,
   useProjects,
   type Project,
@@ -29,8 +31,11 @@ import { ActionButton } from '../../components/action-button'
 import { Confirmation } from '../../components/confirmation'
 import { DangerButton } from '../../components/danger-button'
 import { DataTable, type Column } from '../../components/data-table'
+import { Reorderable, ReorderGrip } from '../../components/drag-reorder'
+import { useReorderTarget } from '../../components/drag-reorder-target'
 import { ErrorMessage, Loaded } from '../../components/feedback'
 import { InlineEdit } from '../../components/inline-edit'
+import { useSavedOrder } from '../../components/use-saved-order'
 import { useFocusOnceChecked } from '../../components/use-focus-once-checked'
 import { useRowConfirm } from '../../components/use-row-confirm'
 import { plural } from '../../format'
@@ -43,11 +48,11 @@ import { CreateSuite } from './create-suite'
 import styles from './admin.module.css'
 
 /**
- * The Projects tab (AD3): a form creating a project, and a table of the projects, in AR22's order,
- * whose names and display names are edited in place, in which suites are created, and which are
- * deleted once they have no suites. Anyone can view it. Creating a project needs an instance-wide
- * `manage` token, and changing or deleting one, or creating a suite in it, a token covering the
- * project in full.
+ * The Projects tab (AD3): a form creating a project, and a table of the projects, in AR22's order.
+ * The projects are dragged into another order. Their names and display names are edited in place.
+ * Suites are created in them, and they are deleted once they have no suites. Anyone can view the
+ * tab. Creating a project, and dragging one, need an instance-wide `manage` token. Changing or
+ * deleting one, or creating a suite in it, needs a token covering the project in full.
  */
 export function ProjectsTab() {
   const projects = useProjects()
@@ -227,11 +232,13 @@ interface TableProps {
 
 /**
  * The projects, each with its name and display name edited in place, its number of suites, linking
- * to them, its "+" creating a suite in it, and its Delete button (AD3).
+ * to them, its "+" creating a suite in it, and its Delete button, and a grip dragging it to another
+ * place in the order of the projects, which is saved on each drop (AD3).
  */
 function ProjectsTable({ projects, onNewSuite, tableRef }: TableProps) {
   const queryClient = useQueryClient()
   const { recheck } = useAuth()
+  const moveGate = useScopeGate('manage', null)
   const rowConfirm = useRowConfirm<Project>(tableRef)
   // The project whose deletion is being confirmed, as listed now: once gone, deleted elsewhere,
   // there is nothing left to confirm.
@@ -250,8 +257,18 @@ function ProjectsTable({ projects, onNewSuite, tableRef }: TableProps) {
   const onFocused = useCallback(() => setRenamed(null), [])
 
   const names = useMemo(() => projects.map((project) => project.name), [projects])
+  // In the order the table shows them in, which is the new one while it is saved.
+  const order = useSavedOrder(['reorder', 'projects'], projects, rowKey, (saved) =>
+    reorderProjects(queryClient, saved),
+  )
   const columns = useMemo(
     (): Column<Project>[] => [
+      {
+        id: 'grip',
+        header: <VisuallyHidden>Order</VisuallyHidden>,
+        className: styles.gripCell,
+        cell: (project) => <ReorderGrip itemKey={project.name} reason={moveGate.title} />,
+      },
       {
         id: 'name',
         header: 'Name',
@@ -293,7 +310,7 @@ function ProjectsTable({ projects, onNewSuite, tableRef }: TableProps) {
         cell: (project) => <DeleteButton project={project} onDelete={open} />,
       },
     ],
-    [names, renamed, onFocused, tableRef, open, onNewSuite],
+    [names, renamed, onFocused, tableRef, open, onNewSuite, moveGate.title],
   )
 
   // A project deleted elsewhere meanwhile is gone all the same: what the user asked for.
@@ -327,17 +344,32 @@ function ProjectsTable({ projects, onNewSuite, tableRef }: TableProps) {
           onCancel={rowConfirm.cancel}
         />
       )}
-      <DataTable
-        label="Projects"
-        ref={tableRef}
-        columns={columns}
-        rows={projects}
-        rowKey={rowKey}
-        confirming={(project) => project.name === deleting?.name}
-        empty="No projects yet."
-      />
+      {order.error !== null && <ErrorMessage error={order.error} />}
+      <Reorderable {...order.list} labelOf={projectItem}>
+        <DataTable
+          label="Projects"
+          ref={tableRef}
+          columns={columns}
+          rows={order.items}
+          rowKey={rowKey}
+          useRowProps={useProjectRowProps}
+          confirming={(project) => project.name === deleting?.name}
+          empty="No projects yet."
+        />
+      </Reorderable>
     </>
   )
+}
+
+/** A project as its grip and the places it is dropped on name it (AD3). */
+const projectItem = (name: string) => `project ${name}`
+
+/** A project's row is where another project is dropped. */
+function useProjectRowProps(
+  project: Project,
+  element: RefObject<HTMLTableRowElement | null>,
+): HTMLAttributes<HTMLTableRowElement> {
+  return useReorderTarget({ itemKey: project.name, element })
 }
 
 /** `project` as a prompt names it: by its label, and its name beside it when they differ. */

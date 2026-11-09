@@ -45,14 +45,14 @@ test("a project's page goes to its first suite, and a project's chip leads to it
   const projects = page.getByRole('navigation', { name: 'Projects' })
   const suites = page.getByRole('navigation', { name: 'Test suites' })
 
-  await expect(page).toHaveURL('/projects/libcxx/suites/header-sizes')
+  await expect(page).toHaveURL('/projects/libcxx/suites/benchmarks')
   await expect(projects.getByRole('link', { name: 'libc++', exact: true })).toHaveAttribute(
     'aria-current',
     'true',
   )
-  // Each suite by its own label, in AR22's order.
-  await expect(suites.getByRole('link')).toHaveText(['header-sizes', 'Microbenchmarks'])
-  await expect(suites.getByRole('link', { name: 'header-sizes' })).toHaveAttribute(
+  // Each suite by its own label, in AR22's order: the order they were seeded in.
+  await expect(suites.getByRole('link')).toHaveText(['Microbenchmarks', 'header-sizes'])
+  await expect(suites.getByRole('link', { name: 'Microbenchmarks' })).toHaveAttribute(
     'aria-current',
     'page',
   )
@@ -61,7 +61,7 @@ test("a project's page goes to its first suite, and a project's chip leads to it
   // Another project's chip leads to its first suite, at the same tab, in its default state.
   await page.getByRole('tab', { name: 'Machines' }).click()
   await page.getByRole('searchbox', { name: 'Search machines' }).fill('macos')
-  await expect(page).toHaveURL('/projects/libcxx/suites/header-sizes?tab=machines&search=macos')
+  await expect(page).toHaveURL('/projects/libcxx/suites/benchmarks?tab=machines&search=macos')
   await projects.getByRole('link', { name: 'LLVM', exact: true }).click()
   await expect(page).toHaveURL('/projects/llvm/suites/nts?tab=machines')
   await expect(suites.getByRole('link')).toHaveText(['nts'])
@@ -106,7 +106,7 @@ test('an unknown suite or project is reported', async ({ page }) => {
 
   await expect(page.getByRole('alert')).toHaveText("Test suite 'libcxx/nope' not found.")
   const suites = page.getByRole('navigation', { name: 'Test suites' })
-  await expect(suites.getByRole('link')).toHaveText(['header-sizes', 'Microbenchmarks'])
+  await expect(suites.getByRole('link')).toHaveText(['Microbenchmarks', 'header-sizes'])
   await expect(suites.locator('[aria-current]')).toHaveCount(0)
 
   await page.goto('/projects/nope')
@@ -115,6 +115,99 @@ test('an unknown suite or project is reported', async ({ page }) => {
   await expect(projects.getByRole('link', { name: 'libc++', exact: true })).toBeVisible()
   await expect(projects.locator('[aria-current]')).toHaveCount(0)
   await expect(suites).toHaveCount(0)
+})
+
+test("reorders a project's suites by dragging their chips", async ({
+  page,
+  request,
+  signIn,
+  tokenFor,
+}, testInfo) => {
+  const token = await tokenFor('manage')
+  const headers = { Authorization: `Bearer ${token}` }
+  await withOwnSuite(request, token, testInfo, async (suite) => {
+    // Created in this order, which is the order they are listed in (D7).
+    const other = { project: suite.project, suite: `${suite.project}-t` }
+    for (const name of [suite.suite, other.suite]) {
+      const created = await request.post(`/api/projects/${suite.project}/suites`, {
+        headers,
+        data: { name },
+      })
+      expect(created.status(), await created.text()).toBe(201)
+    }
+    try {
+      await signIn(page, 'manage', [{ project: suite.project, suite: null }])
+      await page.goto(suitePath(suite))
+      const toggle = page.getByRole('button', { name: 'Reorder suites' })
+      await expect(toggle).toBeEnabled()
+
+      await toggle.click()
+      // The chips are no longer links, but each has its grip.
+      await expect(page.getByRole('navigation', { name: 'Test suites' })).toHaveCount(0)
+      const chips = page.getByRole('list', { name: 'Test suites' }).getByRole('listitem')
+      const grip = (name: string) => page.getByRole('button', { name: `Drag suite ${name}` })
+      const listed = async () =>
+        (
+          await json<components['schemas']['SuiteSchemaList']>(
+            request,
+            `/api/projects/${suite.project}/suites`,
+          )
+        ).items.map((schema) => schema.name)
+
+      // With the mouse: dropped on the first chip, from after it, it goes before it.
+      await grip(other.suite).dragTo(grip(suite.suite))
+      await expect(chips).toHaveText([other.suite, suite.suite].map((name) => `⠿${name}`))
+      await expect.poll(listed).toEqual([other.suite, suite.suite])
+      await expect(grip(other.suite)).toBeFocused()
+
+      // From the keyboard: Enter picks it up at its own place, Tab goes round to the first place.
+      const focused = () => page.evaluate(() => document.activeElement?.getAttribute('aria-label'))
+      await expect(grip(suite.suite)).not.toHaveAttribute('aria-disabled', 'true')
+      await grip(suite.suite).focus()
+      await page.keyboard.press('Enter')
+      await expect.poll(focused).toBe(`Leave suite ${suite.suite} where it is`)
+      await page.keyboard.press('Tab')
+      await expect.poll(focused).toBe(`Before suite ${other.suite}`)
+      await page.keyboard.press('Enter')
+      await expect(chips).toHaveText([suite.suite, other.suite].map((name) => `⠿${name}`))
+      await expect(grip(suite.suite)).toBeFocused()
+      await expect.poll(listed).toEqual([suite.suite, other.suite])
+
+      // A save that fails puts the suite back, and says why.
+      await expect(grip(other.suite)).not.toHaveAttribute('aria-disabled', 'true')
+      await page.route(`**/api/projects/${suite.project}/suites`, (route) =>
+        route.request().method() === 'PATCH'
+          ? route.fulfill({
+              status: 409,
+              json: { error: { code: 'retry', message: 'The project was busy.' } },
+            })
+          : route.fallback(),
+      )
+      await grip(other.suite).dragTo(grip(suite.suite))
+      await expect(page.getByRole('alert')).toHaveText('The project was busy.')
+      await expect(chips).toHaveText([suite.suite, other.suite].map((name) => `⠿${name}`))
+      // Moved back, the grip keeps the focus.
+      await expect(grip(other.suite)).toBeFocused()
+      await page.unroute(`**/api/projects/${suite.project}/suites`)
+
+      await page.getByRole('button', { name: 'Done' }).click()
+      const suites = page.getByRole('navigation', { name: 'Test suites' })
+      await expect(suites.getByRole('link')).toHaveText([suite.suite, other.suite])
+      await expect(page.getByRole('alert')).toHaveCount(0)
+      await expect(page.getByRole('button', { name: 'Reorder suites' })).toBeFocused()
+
+      // Not in a project the token does not cover in full.
+      await page.goto('/projects/libcxx/suites/benchmarks')
+      const libcxx = page.getByRole('button', { name: 'Reorder suites' })
+      await expect(libcxx).toBeDisabled()
+      await expect(libcxx).toHaveAttribute(
+        'title',
+        /^Reorder suites: Needs an API token with the 'manage' scope covering project 'libc\+\+'/,
+      )
+    } finally {
+      await request.delete(`/api${suitePath(other)}?confirm=true`, { headers })
+    }
+  })
 })
 
 test.describe('the Runs tab', () => {
@@ -316,6 +409,8 @@ test('Back leaves the page rather than stepping through its settings', async ({ 
   // The project, the suite and the tab are all settings of the page (TS1).
   const projects = page.getByRole('navigation', { name: 'Projects' })
   await projects.getByRole('link', { name: 'libc++', exact: true }).click()
+  await expect(page).toHaveURL('/projects/libcxx/suites/benchmarks')
+  await page.getByRole('link', { name: 'header-sizes', exact: true }).click()
   await expect(page).toHaveURL('/projects/libcxx/suites/header-sizes')
   await page.getByRole('link', { name: 'Microbenchmarks', exact: true }).click()
   await expect(page).toHaveURL('/projects/libcxx/suites/benchmarks')

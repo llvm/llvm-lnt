@@ -4,8 +4,19 @@ import { beforeEach, describe, expect, it } from 'vitest'
 import type { QueryClient } from '@tanstack/react-query'
 import type { Schemas } from '../../api/client'
 import { queryKeys } from '../../api/keys'
-import { suiteRef, type ProjectName, type Suite } from '../../api/suites'
-import { apiKey, entry, mockAuth, signIn, TOKEN, unknownToken, whole } from '../../test/auth'
+import { refetchProjects, suiteRef, type ProjectName, type Suite } from '../../api/suites'
+import { TOKEN_STORAGE_KEY } from '../../auth/storage-key'
+import {
+  apiKey,
+  changeInAnotherTab,
+  entry,
+  mockAuth,
+  signIn,
+  TOKEN,
+  unknownToken,
+  whole,
+} from '../../test/auth'
+import { dragByKeyboard, press } from '../../test/drag-reorder'
 import { BARE_SUITE, PROJECT, SUITE, cursorPage } from '../../test/fixtures'
 import { errorResponse, mockApi } from '../../test/mock-api'
 import {
@@ -33,10 +44,11 @@ beforeEach(() => {
 /** A project with a display name, and no suites. */
 const SWIFT: ProjectName = { name: 'swift', display_name: 'Swift' }
 
-/** A project whose label sorts it last, though its name sorts it first (AR22). */
-const ZED: ProjectName = { name: 'aaa', display_name: 'Zed' }
+/** A project whose label and name would both sort it first. */
+const ABLE: ProjectName = { name: 'aaa', display_name: 'Able' }
 
-const PROJECTS = [PROJECT, SWIFT, ZED]
+/** In an order of their own, neither that of their names nor that of their labels (AR22). */
+const PROJECTS = [PROJECT, SWIFT, ABLE]
 
 type Failure = ReturnType<typeof errorResponse>
 
@@ -88,6 +100,16 @@ function mockWrites(store: SuiteStore, { fail, wait }: Options = {}) {
       )
       return HttpResponse.json(projectOf(changed.name))
     }),
+    mockApi('patch', '/api/projects', async ({ request }) => {
+      const body = await request.json()
+      sent.push({ method: 'PATCH', body, auth: request.headers.get('Authorization') })
+      await wait?.()
+      if (fail) return fail()
+      store.projects = body.order.map(
+        (name) => store.projects.find((project) => project.name === name)!,
+      )
+      return HttpResponse.json(projectList(store.suites, store.projects))
+    }),
     mockApi('delete', '/api/projects/{project}', async ({ request, params }) => {
       const auth = request.headers.get('Authorization')
       sent.push({ method: 'DELETE', project: params.project, auth })
@@ -102,6 +124,14 @@ function mockWrites(store: SuiteStore, { fail, wait }: Options = {}) {
 
 function projectsTable() {
   return table('Projects')
+}
+
+/**
+ * The text of each row of `list`, but for its grip and its actions, which say why they are
+ * disabled.
+ */
+function rows(list: HTMLElement) {
+  return rowsOf(list).map((row) => row.slice(row.indexOf(' | ') + 3, row.lastIndexOf(' | ')))
 }
 
 /** The row of the project `name`. */
@@ -184,11 +214,11 @@ describe('the tab', () => {
   it("lists every project in AR22's order, with its suites, to anyone", async () => {
     const { list } = await renderTab({ scope: null })
 
-    expect(headersOf(list)).toEqual(['Name', 'Display name', 'Suites', 'Actions'])
-    expect(rowsOf(list)).toEqual([
-      'llvmEdit | --Edit | 2+ | Delete',
-      'swiftEdit | SwiftEdit | 0+ | Delete',
-      'aaaEdit | ZedEdit | 0+ | Delete',
+    expect(headersOf(list)).toEqual(['Order', 'Name', 'Display name', 'Suites', 'Actions'])
+    expect(rows(list)).toEqual([
+      'llvmEdit | --Edit | 2+',
+      'swiftEdit | SwiftEdit | 0+',
+      'aaaEdit | AbleEdit | 0+',
     ])
     const suites = within(list).getByRole('link', { name: '2 suites of llvm' })
     expect(suites).toHaveAttribute('href', '/projects/llvm')
@@ -216,7 +246,7 @@ describe('the tab', () => {
     )
     fail = false
     fireEvent.click(screen.getByRole('button', { name: 'Retry' }))
-    expect(rowsOf(await projectsTable())).toEqual(['swiftEdit | SwiftEdit | 0+ | Delete'])
+    expect(rows(await projectsTable())).toEqual(['swiftEdit | SwiftEdit | 0+'])
   })
 })
 
@@ -254,6 +284,190 @@ describe('gating (AR17)', () => {
     expect(createButton()).toHaveAccessibleDescription(
       /^Needs an instance-wide API token with the 'manage' scope\./,
     )
+  })
+})
+
+describe('dragging a project', () => {
+  /** The grip dragging the project `name`. */
+  function grip(name: string) {
+    return screen.getByRole('button', { name: `Drag project ${name}` })
+  }
+
+  /** The names of the projects, in the order the table lists them. */
+  const names = (list: HTMLElement) => rows(list).map((row) => row.split('Edit')[0])
+
+  it('sends every project in its new order on a drop, and lists them so', async () => {
+    const { store, list } = await renderTab()
+    const sent = mockWrites(store)
+
+    await dragByKeyboard('Drag project aaa', 'Before project swift')
+
+    await waitFor(() => expect(sent).toHaveLength(1))
+    expect(sent).toEqual([
+      { method: 'PATCH', body: { order: ['llvm', 'aaa', 'swift'] }, auth: `Bearer ${TOKEN}` },
+    ])
+    await waitFor(() => expect(grip('aaa')).not.toHaveAttribute('aria-disabled'))
+    expect(names(list)).toEqual(['llvm', 'aaa', 'swift'])
+    expect(grip('aaa')).toHaveFocus()
+    // Without fetching the list again.
+    expect(store.requests).toBe(1)
+  })
+
+  it('sends nothing for a drop in its own place, or a drag cancelled', async () => {
+    const { store, list } = await renderTab()
+    const sent = mockWrites(store)
+
+    await dragByKeyboard('Drag project swift', 'Leave project swift where it is')
+    await waitFor(() => expect(grip('swift')).toHaveFocus())
+    await dragByKeyboard('Drag project swift', null)
+
+    expect(names(list)).toEqual(['llvm', 'swift', 'aaa'])
+    expect(sent).toEqual([])
+  })
+
+  it('needs an instance-wide token, saying why on hover and to assistive technology', async () => {
+    await renderTab({ restrictedTo: [whole('swift')], ready: 'swift' })
+
+    const reason =
+      "Needs an instance-wide API token with the 'manage' scope. The token in Settings has the " +
+      "'manage' scope, covering only 'Swift (all)'."
+    expect(grip('swift')).toHaveAttribute('aria-disabled', 'true')
+    expect(grip('swift')).toHaveAttribute('title', reason)
+    expect(grip('swift')).toHaveAccessibleDescription(reason)
+    // Unlike a busy grip, a disabled one cannot take the focus.
+    expect(grip('swift')).not.toHaveAttribute('tabindex')
+  })
+
+  it('needs a token at all', async () => {
+    await renderTab({ scope: null })
+
+    expect(grip('llvm')).toHaveAttribute('aria-disabled', 'true')
+    expect(grip('llvm')).toHaveAccessibleDescription(
+      "Needs an instance-wide API token with the 'manage' scope. Set one in Settings.",
+    )
+  })
+
+  it('shows the new order while saving, the project faded, and drags nothing meanwhile', async () => {
+    const { store, list } = await renderTab()
+    const held = gate()
+    const sent = mockWrites(store, { wait: () => held.promise })
+
+    await dragByKeyboard('Drag project aaa', 'Before project llvm')
+
+    await waitFor(() => expect(sent).toHaveLength(1))
+    expect(names(list)).toEqual(['aaa', 'llvm', 'swift'])
+    expect(row('aaa')).toHaveClass('dragging')
+    expect(row('llvm')).not.toHaveClass('dragging')
+    // Busy, but still focusable, and holding the focus.
+    expect(grip('aaa')).toHaveAttribute('aria-disabled', 'true')
+    expect(grip('aaa')).toHaveAttribute('tabindex', '0')
+    expect(grip('aaa')).toHaveFocus()
+    act(() => grip('swift').focus())
+    act(() => press('Enter'))
+    expect(screen.queryByRole('button', { name: /^Before project/ })).toBeNull()
+
+    await act(async () => held.open())
+    await waitFor(() => expect(row('aaa')).not.toHaveClass('dragging'))
+    expect(names(list)).toEqual(['aaa', 'llvm', 'swift'])
+    expect(sent).toHaveLength(1)
+  })
+
+  it('puts the project back and says why if the save fails, without listing them again', async () => {
+    const { store, list } = await renderTab()
+    const held = gate()
+    mockWrites(store, {
+      wait: () => held.promise,
+      fail: () => errorResponse(409, 'retry', 'The projects were busy.'),
+    })
+
+    await dragByKeyboard('Drag project aaa', 'Before project llvm')
+    await waitFor(() => expect(names(list)).toEqual(['aaa', 'llvm', 'swift']))
+    await act(async () => held.open())
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('The projects were busy.')
+    expect(names(list)).toEqual(['llvm', 'swift', 'aaa'])
+    expect(row('aaa')).not.toHaveClass('dragging')
+    expect(grip('aaa')).toHaveFocus()
+    expect(store.requests).toBe(1)
+  })
+
+  it('leaves the focus where the user put it while saving', async () => {
+    const { store, list } = await renderTab()
+    const held = gate()
+    mockWrites(store, {
+      wait: () => held.promise,
+      fail: () => errorResponse(409, 'retry', 'The projects were busy.'),
+    })
+
+    await dragByKeyboard('Drag project aaa', 'Before project llvm')
+    act(() => nameInput().focus())
+    await act(async () => held.open())
+
+    await waitFor(() => expect(names(list)).toEqual(['llvm', 'swift', 'aaa']))
+    expect(nameInput()).toHaveFocus()
+  })
+
+  it('leaves the focus nowhere once the user put it there, whatever the list does next', async () => {
+    const { store, list, queryClient } = await renderTab()
+    mockWrites(store)
+    await dragByKeyboard('Drag project aaa', 'Before project llvm')
+    await waitFor(() => expect(names(list)).toEqual(['aaa', 'llvm', 'swift']))
+    await waitFor(() => expect(grip('aaa')).toHaveFocus())
+
+    // As a click on blank space does.
+    act(() => grip('aaa').blur())
+    store.projects = [...store.projects].reverse()
+    await act(async () => refetchProjects(queryClient))
+
+    await waitFor(() => expect(names(list)).toEqual(['swift', 'llvm', 'aaa']))
+    expect(document.activeElement).toBe(document.body)
+  })
+
+  it('saves what was dropped with the token it had, though it changed meanwhile', async () => {
+    const { store, list } = await renderTab()
+    const held = gate()
+    const sent = mockWrites(store, { wait: () => held.promise })
+    await dragByKeyboard('Drag project aaa', 'Before project llvm')
+    await waitFor(() => expect(sent).toHaveLength(1))
+
+    act(() => changeInAnotherTab(TOKEN_STORAGE_KEY, null))
+    await waitFor(() =>
+      expect(grip('llvm')).toHaveAccessibleDescription(/^Needs an instance-wide API token/),
+    )
+    expect(names(list)).toEqual(['aaa', 'llvm', 'swift'])
+    await act(async () => held.open())
+
+    await waitFor(() => expect(row('aaa')).not.toHaveClass('dragging'))
+    expect(names(list)).toEqual(['aaa', 'llvm', 'swift'])
+    expect(sent[0].auth).toBe(`Bearer ${TOKEN}`)
+  })
+
+  it('forgets why a drop failed once the next one is saved', async () => {
+    const { store, list } = await renderTab()
+    mockWrites(store, { fail: () => errorResponse(409, 'retry', 'The projects were busy.') })
+    await dragByKeyboard('Drag project aaa', 'Before project llvm')
+    expect(await screen.findByRole('alert')).toHaveTextContent('The projects were busy.')
+
+    mockWrites(store)
+    await dragByKeyboard('Drag project aaa', 'Before project llvm')
+
+    await waitFor(() => expect(names(list)).toEqual(['aaa', 'llvm', 'swift']))
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+  })
+
+  it('says why a drop failed, and lists the projects again if it was out of date', async () => {
+    const { store, list } = await renderTab()
+    // Created elsewhere, which the order sent leaves out.
+    store.projects = [...store.projects, { name: 'new', display_name: null }]
+    const message =
+      "The order must name each of the projects exactly once, but it leaves out 'new'."
+    mockWrites(store, { fail: () => errorResponse(400, 'invalid_request', message) })
+
+    await dragByKeyboard('Drag project aaa', 'Before project swift')
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(message)
+    await waitFor(() => expect(names(list)).toEqual(['llvm', 'swift', 'aaa', 'new']))
+    expect(store.requests).toBe(2)
   })
 })
 
@@ -306,7 +520,8 @@ describe('creating a project', () => {
     fireEvent.click(createButton())
 
     await waitFor(() => expect(rowsOf(list)).toHaveLength(4))
-    expect(rowsOf(list)[0]).toBe('lldbEdit | LLDBEdit | 0+ | Delete')
+    // Last, as the API puts it (D7).
+    expect(rows(list)[3]).toBe('lldbEdit | LLDBEdit | 0+')
     expect(sent).toEqual([
       { method: 'POST', body: { name: 'lldb', display_name: 'LLDB' }, auth: `Bearer ${TOKEN}` },
     ])
@@ -431,7 +646,8 @@ describe('renaming a project', () => {
     expect(prompt()).toHaveTextContent('API keys are unaffected.')
     fireEvent.click(within(prompt()!).getByRole('button', { name: 'OK' }))
 
-    await waitFor(() => expect(rowsOf(list)[1]).toBe('appleEdit | SwiftEdit | 0+ | Delete'))
+    // In its place (D7).
+    await waitFor(() => expect(rows(list)[1]).toBe('appleEdit | SwiftEdit | 0+'))
     expect(sent).toEqual([
       { method: 'PATCH', project: 'swift', body: { name: 'apple' }, auth: `Bearer ${TOKEN}` },
     ])
@@ -617,7 +833,7 @@ describe('renaming a project, racing', () => {
     fireEvent.click(within(prompt()!).getByRole('button', { name: 'OK' }))
     await waitFor(() => expect(screen.getByRole('button', { name: 'Saving...' })).toBeVisible())
     // A list fetched meanwhile no longer held it.
-    queryClient.setQueryData(queryKeys.projects, projectList([SUITE, BARE_SUITE], [PROJECT, ZED]))
+    queryClient.setQueryData(queryKeys.projects, projectList([SUITE, BARE_SUITE], [PROJECT, ABLE]))
     const requests = store.requests
 
     await act(async () => held.open())
@@ -628,14 +844,14 @@ describe('renaming a project, racing', () => {
 })
 
 describe('changing a display name', () => {
-  it('saves it without asking, and orders the row by its new label', async () => {
+  it('saves it without asking, and keeps the row in its place', async () => {
     const { store, list } = await renderTab()
     const sent = mockWrites(store)
 
     save('Display name of aaa', ' Alpha ')
 
     expect(prompt()).not.toBeInTheDocument()
-    await waitFor(() => expect(rowsOf(list)[0]).toBe('aaaEdit | AlphaEdit | 0+ | Delete'))
+    await waitFor(() => expect(rows(list)[2]).toBe('aaaEdit | AlphaEdit | 0+'))
     expect(sent).toEqual([
       { method: 'PATCH', project: 'aaa', body: { display_name: 'Alpha' }, auth: `Bearer ${TOKEN}` },
     ])
@@ -648,7 +864,7 @@ describe('changing a display name', () => {
 
     save('Display name of swift', '  ')
 
-    await waitFor(() => expect(rowsOf(list)[1]).toBe('swiftEdit | --Edit | 0+ | Delete'))
+    await waitFor(() => expect(rows(list)[1]).toBe('swiftEdit | --Edit | 0+'))
     expect(sent[0].body).toEqual({ display_name: null })
   })
 

@@ -225,14 +225,14 @@ test('groups the suites by project, under headings leading to the Projects page'
   const libcxx = projectSection(page, 'libc++')
   // Each suite under its project's heading by its own label, in AR22's order.
   await expect(libcxx.getByRole('heading', { level: 3 })).toHaveText([
-    'header-sizes',
     'Microbenchmarks',
+    'header-sizes',
   ])
   await expect(projectSection(page, 'swift')).toContainText('No test suites.')
 
   // The project's page, which goes to its first suite (TS1).
   await libcxx.getByRole('heading', { level: 2 }).getByRole('link').click()
-  await expect(page).toHaveURL('/projects/libcxx/suites/header-sizes')
+  await expect(page).toHaveURL('/projects/libcxx/suites/benchmarks')
 })
 
 test('shows one project alone, fetching nothing for the others', async ({ page }) => {

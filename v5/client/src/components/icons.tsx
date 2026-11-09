@@ -58,3 +58,12 @@ export function InfoIcon() {
     </Icon>
   )
 }
+
+/** Two arrows, one above the other, pointing opposite ways: putting things in another order. */
+export function ReorderIcon() {
+  return (
+    <Icon>
+      <path d="M2.5 5h11M10.5 2l3 3-3 3M13.5 11h-11M5.5 8l-3 3 3 3" />
+    </Icon>
+  )
+}

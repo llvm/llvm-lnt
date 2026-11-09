@@ -125,7 +125,7 @@ export interface SuiteStore {
 }
 
 /** The project of `suite`: its own, or `PROJECT`. */
-const projectOf = (suite: Suite | SuiteSchema) => ('project' in suite ? suite.project : PROJECT)
+export const projectOf = (suite: Suite | SuiteSchema) => ('project' in suite ? suite.project : PROJECT)
 
 /**
  * The list of `projects`, by default those of `suites`, or `PROJECT` alone when there are none,

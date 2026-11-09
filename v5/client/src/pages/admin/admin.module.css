@@ -148,6 +148,11 @@
   gap: var(--lnt-space-2);
 }
 
+/* The column of the grips dragging the projects, no wider than they are (AD3). */
+.gripCell {
+  width: 1%;
+}
+
 /* As compact as a row's own actions (see data-table.module.css). */
 .suites > button {
   padding-top: 0;

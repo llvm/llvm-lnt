@@ -47,7 +47,7 @@ describe('the Projects page', () => {
   it('goes to the first project, without suites, once the projects have loaded', async () => {
     const list = gate()
     mockSuites([SUITE, { ...BARE_SUITE, project: SWIFT, name: 'stdlib' }], {
-      projects: [PROJECT, SWIFT, EMPTY],
+      projects: [EMPTY, PROJECT, SWIFT],
       wait: () => list.promise,
     })
     renderPage('/nope')
@@ -57,7 +57,7 @@ describe('the Projects page', () => {
     expect(currentUrl()).toBe('/projects')
     act(() => list.open())
 
-    // The first in AR22's order, a project without suites included.
+    // The first the API lists (AR22), a project without suites included.
     await waitFor(() => expect(currentUrl()).toBe('/projects/zzz'))
     expect(chipLink('Projects', 'Empty')).toHaveAttribute('aria-current', 'page')
     fireEvent.click(screen.getByRole('button', { name: 'Browser back' }))
@@ -95,7 +95,8 @@ describe('the Projects page', () => {
     // Without the query, which it has no use for.
     await waitFor(() => expect(currentUrl()).toBe('/projects/swift/suites/stdlib'))
     expect(await screen.findByRole('heading', { level: 1 })).toHaveTextContent('Projects')
-    expect(chipTexts('Projects')).toEqual(['Empty', 'llvm', 'Swift'])
+    // In the order the API lists them, rather than by label (AR22).
+    expect(chipTexts('Projects')).toEqual(['llvm', 'Swift', 'Empty'])
     expect(chipLink('Projects', 'Swift')).toHaveAttribute('aria-current', 'true')
     expect(chipLink('Test suites', 'stdlib')).toHaveAttribute('aria-current', 'page')
     fireEvent.click(screen.getByRole('button', { name: 'Browser back' }))
@@ -108,7 +109,7 @@ describe('the Projects page', () => {
     })
     renderPage('/projects/zzz')
 
-    await waitFor(() => expect(chipTexts('Projects')).toEqual(['Empty', 'llvm', 'Swift']))
+    await waitFor(() => expect(chipTexts('Projects')).toEqual(['llvm', 'Swift', 'Empty']))
     expect(chipLink('Projects', 'Empty')).toHaveAttribute('href', '/projects/zzz')
     expect(chipLink('Projects', 'llvm')).toHaveAttribute('href', '/projects/llvm/suites/libcxx')
     expect(chipLink('Projects', 'Swift')).toHaveAttribute('href', '/projects/swift/suites/stdlib')
@@ -158,7 +159,7 @@ describe('the Projects page', () => {
     expect(await table('Runs')).toBeInTheDocument()
   })
 
-  it('names the suites by their labels, in their order (AR22)', async () => {
+  it('names the suites by their labels, in the order the API lists them (AR22)', async () => {
     mockSuites([
       { ...SUITE, name: 'zeta', display_name: 'Alpha suite' },
       { ...SUITE, name: 'alpha', display_name: null },
@@ -168,7 +169,7 @@ describe('the Projects page', () => {
     renderPage('/projects/llvm/suites/alpha')
 
     await screen.findByRole('navigation', { name: 'Test suites' })
-    expect(chipTexts('Test suites')).toEqual(['alpha', 'Alpha suite', 'beta suite'])
+    expect(chipTexts('Test suites')).toEqual(['Alpha suite', 'alpha', 'beta suite'])
     expect(chipLink('Test suites', 'Alpha suite')).toHaveAttribute(
       'href',
       '/projects/llvm/suites/zeta',
