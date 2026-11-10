@@ -11,7 +11,8 @@ export function focusLost(): boolean {
  * (AR17), has settled: the check disables the gated controls meanwhile, `target` among them, so that
  * it could not take the focus before. Then call `onDone`. Only if the focus is nowhere, so that
  * wherever the user has put it since stays where it is. If the check leaves `target` disabled, as
- * when the token's key has been revoked meanwhile, `fallback` takes the focus instead.
+ * when the token's key has been revoked meanwhile, or `target` has gone, `fallback` takes the focus
+ * instead.
  */
 export function useFocusOnceChecked(
   pending: boolean,
@@ -25,7 +26,7 @@ export function useFocusOnceChecked(
     onDone()
     if (!focusLost()) return
     const button = target.current
-    if (button !== null && !button.disabled) button.focus()
+    if (button?.isConnected && !button.disabled) button.focus()
     else fallback.current?.focus()
   }, [pending, checking, onDone, target, fallback])
 }

@@ -184,7 +184,7 @@ function CreateProject() {
 
   return (
     <>
-      <form className={styles.createForm} aria-labelledby={titleId} onSubmit={submit}>
+      <form className={styles.form} aria-labelledby={titleId} onSubmit={submit}>
         <strong id={titleId} className={styles.formTitle}>
           New project
         </strong>

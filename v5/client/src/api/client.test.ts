@@ -248,6 +248,22 @@ describe('credentials', () => {
     expect(counts.rejected).toEqual([TOKEN])
   })
 
+  it('are reported as rejected when a request sent with them gets a 403', async () => {
+    const counts = holding(TOKEN)
+    mockAuth(() => errorResponse(403, 'forbidden', 'No'))
+
+    await expect(unwrap(authedApi.GET('/api/auth'))).rejects.toHaveProperty('status', 403)
+    expect(counts.rejected).toEqual([TOKEN])
+  })
+
+  it('are not reported as rejected for a 403 on a request sent without them', async () => {
+    const counts = holding(null)
+    mockAuth(() => errorResponse(403, 'forbidden', 'No'))
+
+    await expect(unwrap(authedApi.GET('/api/auth'))).rejects.toHaveProperty('status', 403)
+    expect(counts.rejected).toEqual([])
+  })
+
   it('are not reported as rejected for a 401 on a request sent without them', async () => {
     const counts = holding(null)
     mockAuth(unknownToken)

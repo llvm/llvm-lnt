@@ -371,11 +371,12 @@ that removes entries (TS7) is confirmed the same way, by typing the suite name,
 since it destroys their stored values. Revoking an API key (AD1) and deleting a
 project (AD3), which destroy nothing, ask for a plain confirmation instead, as
 does renaming a machine (DT1), since run submissions that still use the old
-name create a new machine. So do renaming a project (AD3) and renaming or
-moving a suite (TS7), since every URL, bookmark and bot that uses the old name
-gets a 404 until it is updated (see D7). Removing indicators from a regression
-(DT4) is not confirmed at all: it destroys no measured data, and the indicators
-can be added again.
+name create a new machine. So does changing an API key's scope or what it
+covers (AD1), since every bot using its token is affected at once. So do
+renaming a project (AD3) and renaming or moving a suite (TS7), since every URL,
+bookmark and bot that uses the old name gets a 404 until it is updated (see
+D7). Removing indicators from a regression (DT4) is not confirmed at all: it
+destroys no measured data, and the indicators can be added again.
 
 Once the entity a page is about has been deleted, the page leaves for the one
 its spec names, which takes its place in the history rather than adding an entry
@@ -407,9 +408,10 @@ set, unless a page specifies otherwise (see AD1).
 
 The token is shared by every tab of the SPA: a change made in one tab takes
 effect in the others, which check the new token. It is also checked again
-whenever a request sent with it gets a 401, as its key may have been revoked in
-the meantime. The panel and the controls gated on the token follow the SPA's own
-renames, moves and deletions of projects and suites.
+whenever a request sent with it gets a 401 or a 403, as its key may have been
+revoked or changed in the meantime. The panel and the controls gated on the
+token follow the SPA's own renames, moves and deletions of projects and suites,
+and its own changes to the token's key (see AD1).
 
 Unless a page specifies otherwise, a control whose action needs a scope the
 token does not grant -- or any scope above `read`, when no valid token is set --

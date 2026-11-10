@@ -96,13 +96,13 @@ async function openEditor({
   projects,
   label = PROJECT.name,
 }: { suites?: (Suite | SuiteSchema)[]; projects?: ProjectName[]; label?: string } = {}) {
-  signIn('manage')
+  const checks = signIn('manage')
   const store = mockSuites(suites, { projects })
   const { queryClient } = renderPage('/admin?tab=projects')
   await waitFor(() => expect(newSuiteButton(label)).toBeEnabled())
   fireEvent.click(newSuiteButton(label))
   await waitFor(() => expect(editor()).toBeInTheDocument())
-  return Object.assign(store, { queryClient })
+  return Object.assign(store, { queryClient, checks })
 }
 
 /** The names the suites listed in the cache have, as `project/suite`. */
@@ -663,6 +663,9 @@ describe('creating the suite', () => {
     fireEvent.click(createButton())
 
     expect(await within(editor()!).findByRole('alert')).toHaveTextContent(PERMISSION_DENIED)
+    // The token is checked again (AR17), which accepts it as it was.
+    await waitFor(() => expect(store.checks).toHaveLength(2))
+    await waitFor(() => expect(createButton()).toBeEnabled())
   })
 
   it('has the name check say that a suite created elsewhere took the name', async () => {

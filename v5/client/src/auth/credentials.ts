@@ -4,7 +4,9 @@
  * The SPA behaves as if no token were set until a check accepts it (AR17), so `authedApi` sends a
  * token only once its check has succeeded, and the check itself is the only request that carries
  * one that has not been accepted yet. A 401 on a request sent with an accepted token means that the
- * key has been revoked since, so the token is checked again, which reports it as no longer valid.
+ * key has been revoked since, and a 403 that it may have lost scope or coverage since (changed
+ * elsewhere, or a project or a suite it listed deleted or renamed), so the token is checked again,
+ * which reports what it grants now.
  */
 
 import type { QueryClient } from '@tanstack/react-query'
@@ -69,8 +71,8 @@ export function createTokenStore(queryClient: QueryClient): TokenStore {
   setCredentials({
     token: () => acceptedToken(tokens, queryClient),
     // Only the accepted token is checked again: a refusal of one replaced since says nothing about
-    // the current one. Several refusals at once start one check, which the others find under way,
-    // the token being no longer accepted meanwhile.
+    // the current one. Refusals arriving while a check runs join it, the token being no longer
+    // accepted meanwhile.
     rejected: (sent) => {
       if (acceptedToken(tokens, queryClient) === sent) tokens.recheck()
     },

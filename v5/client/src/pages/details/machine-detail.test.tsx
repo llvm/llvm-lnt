@@ -317,7 +317,7 @@ describe('the Machine Detail page', () => {
     })
 
     it('reports a refused change, and keeps the flag as it was', async () => {
-      signIn('manage')
+      const checks = signIn('manage')
       mockPatch(() => errorResponse(403, 'forbidden', 'Insufficient scope'))
       renderMachine()
       await ready('Machine', trackedBox)
@@ -326,6 +326,9 @@ describe('the Machine Detail page', () => {
 
       expect(await screen.findByRole('alert')).toHaveTextContent(PERMISSION_DENIED)
       expect(trackedBox()).toBeChecked()
+      // The token is checked again (AR17), which accepts it as it was.
+      await waitFor(() => expect(checks).toHaveLength(2))
+      await waitFor(() => expect(trackedBox()).toBeEnabled())
     })
 
     it('is fetched again by the machine list once changed', async () => {

@@ -9,7 +9,7 @@
 import type { APIRequestContext, Page } from '@playwright/test'
 import type { components } from '../client/src/api/schema.d.ts'
 import { suitePath } from '../client/src/paths.ts'
-import { BENCHMARKS, expect, json, NTS, test } from './fixtures.ts'
+import { adminToken, BENCHMARKS, expect, json, NTS, test } from './fixtures.ts'
 import { ownName, withOwnSuite } from './own-suite.ts'
 import { pickOption, pickSuite, selectButton } from './select.ts'
 import { column, rows, table } from './tables.ts'
@@ -77,7 +77,7 @@ test.describe('the API Keys tab', () => {
       /^\d{4}-\d\d-\d\d, /,
       'Never',
       'Yes',
-      'Revoke',
+      'EditRevoke',
     ])
     // Using the token records its last use, so this must come after checking the row says 'Never'.
     expect((await keyOf(request, token))?.name).toBe(name)
@@ -200,6 +200,88 @@ test.describe('the API Keys tab', () => {
       expect(firstNever).toBeGreaterThan(0)
       expect(lastUsed.slice(firstNever).every((value) => value === 'Never')).toBe(true)
     }
+  })
+
+  test("changes a key's scope and what it covers, once confirmed", async ({
+    page,
+    request,
+    signIn,
+  }, testInfo) => {
+    const name = `e2e-changed-${testInfo.testId}`
+    const response = await request.post('/api/admin/api-keys', {
+      headers: { Authorization: `Bearer ${adminToken()}` },
+      data: { name, scope: 'triage' },
+    })
+    expect(response.status(), await response.text()).toBe(201)
+    const { token } = (await response.json()) as components['schemas']['ApiKeyCreated']
+    const prefix = token.slice(0, 8)
+    await signIn(page, 'admin')
+    await page.goto('/admin')
+    const row = rows(table(page, 'API keys')).filter({ hasText: prefix })
+
+    const edit = row.getByRole('button', { name: `Edit key ${prefix}` })
+    await edit.click()
+    const form = page.getByRole('form', { name: `Edit key ${prefix} · ${name}` })
+    await expect(form.getByLabel('Name')).toBeFocused()
+    // The row of a key both edited and whose revocation is confirmed shows the latter's red.
+    await row.getByRole('button', { name: `Revoke key ${prefix}` }).click()
+    const danger = await page.evaluate(() => {
+      const probe = document.body.appendChild(document.createElement('div'))
+      probe.style.background = 'var(--lnt-danger-bg)'
+      const color = getComputedStyle(probe).backgroundColor
+      probe.remove()
+      return color
+    })
+    await expect(row).toHaveCSS('background-color', danger)
+    const revocation = page.getByRole('form', { name: 'Confirmation' })
+    await revocation.getByRole('button', { name: 'Cancel' }).click()
+    await pickOption(form, 'Scope', 'manage')
+    await form.getByRole('radio', { name: 'Only these:' }).check()
+    await selectButton(form, 'Projects and suites to restrict to').click()
+    await page.getByRole('option', { name: 'libc++', exact: true }).click()
+    await page.getByRole('option', { name: 'LLVM › nts', exact: true }).click()
+    await page.keyboard.press('Escape')
+    await form.getByRole('button', { name: 'Save' }).click()
+
+    const prompt = page.getByRole('form', { name: 'Confirmation' })
+    await expect(prompt).toContainText('Scope: triage → manage')
+    await expect(prompt).toContainText('Covers: All → libc++ (all), LLVM › nts')
+    await prompt.getByRole('button', { name: 'Save' }).click()
+
+    await expect(form).toBeHidden()
+    await expect(row.locator('td').nth(2)).toHaveText('manage')
+    await expect(row.locator('td').nth(3)).toHaveText('libc++ (all), LLVM › nts')
+    await expect(edit).toBeFocused()
+    // The token is the same, and grants what the key now does.
+    expect(await keyOf(request, token)).toMatchObject({
+      name,
+      scope: 'manage',
+      restricted_to: [{ project: 'libcxx', suite: null }, NTS],
+    })
+  })
+
+  test('denies permission at once after taking admin away from its own token', async ({
+    page,
+    request,
+    signIn,
+  }) => {
+    const token = await signIn(page, 'admin')
+    const prefix = token.slice(0, 8)
+    await page.goto('/admin')
+
+    await table(page, 'API keys').getByRole('button', { name: `Edit key ${prefix}` }).click()
+    const form = page.getByRole('form', { name: new RegExp(`^Edit key ${prefix}`) })
+    await pickOption(form, 'Scope', 'manage')
+    await form.getByRole('button', { name: 'Save' }).click()
+    const prompt = page.getByRole('form', { name: 'Confirmation' })
+    await expect(prompt).toContainText('this tab will no longer be available')
+    await prompt.getByRole('button', { name: 'Save' }).click()
+
+    await expect(page.getByRole('main').getByRole('alert')).toHaveText(
+      "Permission denied. Needs an API token with the 'admin' scope. The token in Settings has " +
+        "the 'manage' scope.",
+    )
+    expect(await keyOf(request, token)).toMatchObject({ scope: 'manage' })
   })
 
   test('denies permission at once after revoking the key of its own token', async ({

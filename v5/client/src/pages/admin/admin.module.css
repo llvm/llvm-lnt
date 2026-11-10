@@ -1,5 +1,5 @@
-/* A form creating an API key (AD1), a project (AD3) or a suite (TS7). */
-.createForm {
+/* A form creating or changing an API key (AD1), or creating a project (AD3) or a suite (TS7). */
+.form {
   padding: var(--lnt-space-3);
   margin-bottom: var(--lnt-space-3);
   border: 1px solid var(--lnt-border);
@@ -154,8 +154,34 @@
 }
 
 /* As compact as a row's own actions (see data-table.module.css). */
-.suites > button {
+.suites > button,
+.actions > button {
   padding-top: 0;
   padding-bottom: 0;
   white-space: nowrap;
+}
+
+/*
+ * The row of the key being changed (AD1): marked, but not as a row whose revocation is confirmed,
+ * whose background wins over this one, which has no specificity, as does the hover's. The bar
+ * stays, so that a row both edited and confirmed is still marked as edited.
+ */
+:where(tr.editing) {
+  background: color-mix(in srgb, var(--lnt-accent) 10%, var(--lnt-bg));
+}
+
+.editing > td:first-child {
+  box-shadow: inset 3px 0 0 var(--lnt-accent);
+}
+
+/* A key's Edit and Revoke (AD1). */
+.actions {
+  display: inline-flex;
+  gap: var(--lnt-space-2);
+}
+
+/* What a change to a key changes, in the prompt confirming it (AD1). */
+.changes {
+  margin: 0 0 var(--lnt-space-2);
+  padding-left: var(--lnt-space-4);
 }
