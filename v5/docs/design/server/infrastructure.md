@@ -187,8 +187,8 @@ request invalid. A commit filter selects the rows belonging to that commit, and
 a commit that no run has reached yet legitimately has none: a client may well
 ask for the runs of a revision before any has been submitted. A range bound names a position in
 the commit order of its branch, which an unknown commit, or one without an
-ordinal, does not have; the bound also keeps only the commits of that branch. A
-branch is not an entity but a value commits share, which no commit may have yet.
+ordinal, does not have. A branch is not an entity but a value commits share,
+which no commit may have yet.
 Every other name is normally taken from what the suite already holds, so
 an unknown one is almost always a typo, and is reported rather than answered
 with an empty result.

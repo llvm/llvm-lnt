@@ -104,7 +104,7 @@ GET    /api/projects/{project}/suites/{suite}/machines/{machine_name}        rea
 PATCH  /api/projects/{project}/suites/{suite}/machines/{machine_name}        manage  Update or rename a machine
 DELETE /api/projects/{project}/suites/{suite}/machines/{machine_name}        manage  Delete a machine and its runs
 
-GET    /api/projects/{project}/suites/{suite}/commits                        read    List commits (search=, machine=, branch=, has_ordinal=, before_commit=, sort=, ...)
+GET    /api/projects/{project}/suites/{suite}/commits                        read    List commits (search=, machine=, commit=, branch=, has_ordinal=, before_commit=, sort=, ...)
 POST   /api/projects/{project}/suites/{suite}/commits                        submit  Create a commit
 POST   /api/projects/{project}/suites/{suite}/commits/resolve                read    Look up many commits by value at once
 GET    /api/projects/{project}/suites/{suite}/commits/{value}                read    One commit, with its previous/next by ordinal on its branch

@@ -322,8 +322,6 @@ commit list sorted by ordinal does either, depending on `has_ordinal` (see E3).
   different commits of a branch the same ordinal is rejected with 409, whether
   it sets the ordinal, the branch or both, including one that arrives inline in
   a run submission.
-- A commit's branch is set in the same three ways as its ordinal, and an inline
-  branch likewise only fills in a commit that has none (see O2).
 - `previous` and `next` navigation on a commit is computed by querying for the
   nearest lower and higher ordinal on the commit's branch (not with a linked
   list). The `after_commit` and `before_commit` bounds of the commit list and

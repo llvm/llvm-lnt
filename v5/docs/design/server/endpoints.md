@@ -223,8 +223,7 @@ The regressions attributed to the commit are kept, with no commit (see D5).
   the `first_seen` and `-first_seen` orders. The branch is not part of this
   order: without `branch=`, the commits of different branches are interleaved
   by ordinal, each branch's in its own order, and those sharing an ordinal in
-  first-seen order. A commit picker choosing among every branch (Compare's, say)
-  thus still lists the newest commits first.
+  first-seen order, in the same direction.
 
 No sort leaves out the commits without an ordinal: only `has_ordinal=true` and
 the commit bounds do.

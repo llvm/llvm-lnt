@@ -735,6 +735,11 @@ class TestOrdinal:
 
         assert response.status_code == 409
         assert code_of(response) == "conflict"
+        # A submission that names no branch does not know the commit's, whether it creates the
+        # commit or fills in its ordinal, so the message presupposes neither.
+        assert response.json()["error"]["message"] == (
+            "Another commit of the same branch in test suite 'nts/nts' already has ordinal 42"
+        )
 
     def test_an_omitted_ordinal_never_contradicts(
         self, api_client: TestClient, submitted: Callable[..., Any]
@@ -864,8 +869,7 @@ class TestBranch:
             (
                 {"value": "def456", "branch": "main"},
                 {"value": "def456", "ordinal": 42},
-                "Another commit on the branch of commit 'def456' in test suite 'nts/nts' already "
-                "has ordinal 42",
+                "Another commit of the same branch in test suite 'nts/nts' already has ordinal 42",
             ),
             # Put on a branch where its stored ordinal is taken.
             (

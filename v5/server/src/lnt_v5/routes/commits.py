@@ -17,7 +17,6 @@ for the nearest ordinal on the commit's branch in each direction, never by follo
 
 from __future__ import annotations
 
-from enum import Enum, auto
 from typing import Annotated, Any, Literal
 
 from fastapi import APIRouter, Body, Path, Query, Response
@@ -394,19 +393,22 @@ class Commits:
         return f"A commit '{value}' already exists in test suite '{self.suite.full_name}'"
 
     def ordinal_taken(
-        self, value: str, branch: str | _Unknown | None, ordinal: int | _Unknown | None
+        self, value: str, branch: str | None, ordinal: int | None, *, branch_known: bool = True
     ) -> str:
         """The `conflict` for a write that gives commit `value` an ordinal another commit of its
-        branch holds (O6), naming the branch and the ordinal it ends up with. A run submission that
-        sends only one of the two does not know the other, which then goes by the commit's name.
+        branch holds (O6), naming the branch and the ordinal it ends up with.
+
+        A run submission that sends only one of the two does not know the other. A null ordinal
+        cannot be the one that collides, so it stands for the commit's own, which is then stored.
+        An unknown branch is the same branch, whether or not the commit exists yet.
         """
-        if branch is UNKNOWN:
-            where = f"on the branch of commit '{value}'"
+        if not branch_known:
+            where = "of the same branch"
         elif branch is None:
             where = "without a branch"
         else:
             where = f"on branch '{branch}'"
-        held = f"the ordinal of commit '{value}'" if ordinal is UNKNOWN else f"ordinal {ordinal}"
+        held = f"the ordinal of commit '{value}'" if ordinal is None else f"ordinal {ordinal}"
         return f"Another commit {where} in test suite '{self.suite.full_name}' already has {held}"
 
     def placement(
@@ -415,9 +417,11 @@ class Commits:
         """The branch and ordinal `changes` leave commit `value` with, for `ordinal_taken`.
 
         Read beforehand, since the violation aborts the transaction. Only when the changes move the
-        commit without saying where to, since they cannot violate the index otherwise.
+        commit without saying where to, since they cannot violate the index otherwise: neither when
+        they leave both alone, nor when they clear the ordinal.
         """
-        if "branch" not in changes and "ordinal" not in changes:
+        cleared = "ordinal" in changes and changes["ordinal"] is None
+        if cleared or changes.keys().isdisjoint({"branch", "ordinal"}):
             return None, None
         if "branch" in changes and "ordinal" in changes:
             return changes["branch"], changes["ordinal"]
@@ -460,8 +464,9 @@ class Commits:
             ErrorCode.CONFLICT,
             self.ordinal_taken(
                 submitted.value,
-                UNKNOWN if submitted.branch is None else submitted.branch,
-                UNKNOWN if submitted.ordinal is None else submitted.ordinal,
+                submitted.branch,
+                submitted.ordinal,
+                branch_known=submitted.branch is not None,
             ),
         ):
             return create_or_reconcile(
@@ -505,15 +510,6 @@ class Commits:
             return ApiError(ErrorCode.CONFLICT, message)
 
         return error
-
-
-class _Unknown(Enum):
-    """A value `Commits.ordinal_taken` is not told."""
-
-    UNKNOWN = auto()
-
-
-UNKNOWN = _Unknown.UNKNOWN
 
 
 def on_branch(commit: Table, branch: str | None) -> ColumnElement[bool]:
@@ -584,11 +580,15 @@ def commit_bounds(
     rather than an error, as is a bound combined with `has_ordinal=false` (E3).
     """
     commit = suite.tables.commit
-    start = None if after is None else commit_position(connection, suite, after)
-    end = None if before is None else commit_position(connection, suite, before)
-    conditions = [on_branch(commit, branch) for branch, _ in filter(None, (start, end))]
-    conditions += exclusive_range(commit.c.ordinal, start and start[1], end and end[1])
-    return conditions
+    conditions: list[ColumnElement[bool]] = []
+    start = end = None
+    if after is not None:
+        branch, start = commit_position(connection, suite, after)
+        conditions.append(on_branch(commit, branch))
+    if before is not None:
+        branch, end = commit_position(connection, suite, before)
+        conditions.append(on_branch(commit, branch))
+    return conditions + exclusive_range(commit.c.ordinal, start, end)
 
 
 def commit_position(connection: Connection, suite: Suite, value: str) -> tuple[str | None, int]:

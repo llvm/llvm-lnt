@@ -592,9 +592,8 @@ and the tables below are named that way.
 - `(branch, ordinal)` has a regular unique index, `NULLS NOT DISTINCT` and
   partial (`WHERE ordinal IS NOT NULL`): ordinals are unique within a branch,
   the commits without a branch counting as one, and any number of commits of a
-  branch may have no ordinal (see O6). It is also what the lookups along a
-  branch's ordinals use (`previous`/`next`, the commit bounds and the trends'
-  window, see E3 and E9). `ordinal` has an index of its own, for listing the
+  branch may have no ordinal (see O6). It is also what the lookups by ordinal
+  within a branch use. `ordinal` has an index of its own, for listing the
   commits of every branch by ordinal (see E3).
 - `tag` is an optional human-readable label (e.g. `release-18.1`), which can be
   set on every commit write path (see O2). Several commits may share a tag. The

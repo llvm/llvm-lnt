@@ -589,18 +589,6 @@ class TestCommitReconciliation:
 
         assert stored(db_engine, suite, "commit", "commit", "abc").ordinal == 3
 
-    def test_a_stored_null_branch_is_set_and_a_different_one_is_a_conflict(
-        self, db_engine: Engine, commits: Commits, suite: Suite
-    ) -> None:
-        with db_engine.begin() as connection:
-            commits.get_or_create(connection, submitted_commit())
-            commits.get_or_create(connection, submitted_commit(branch="main"))
-        with db_engine.begin() as connection, pytest.raises(ApiError) as failure:
-            commits.get_or_create(connection, submitted_commit(branch="release"))
-
-        assert failure.value.code is ErrorCode.CONFLICT
-        assert stored(db_engine, suite, "commit", "commit", "abc").branch == "main"
-
     def test_a_contradicted_field_is_a_plain_conflict(
         self, db_engine: Engine, commits: Commits
     ) -> None:
