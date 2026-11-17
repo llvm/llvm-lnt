@@ -191,7 +191,7 @@ test('its ordinal and tag are edited by a holder of manage scope', async ({
     const ordinal = page.getByRole('textbox', { name: 'Ordinal' })
     await ordinal.fill('3')
     await ordinal.press('Enter')
-    await expect(page.getByRole('alert')).toContainText('already held by another commit')
+    await expect(page.getByRole('alert')).toContainText('already has ordinal 3')
     await expect(ordinal).toHaveValue('3')
 
     // Past the last commit, this one has none after it.

@@ -146,11 +146,14 @@ Common filters include:
 - `submitted_after=`, `submitted_before=`, `measured_after=`,
   `measured_before=`: exclusive bounds on a run's `submitted_at` and
   `measured_at` (see D5)
-- `after_commit=`, `before_commit=`: exclusive bounds on the commit order
+- `after_commit=`, `before_commit=`: exclusive bounds on the commit order of
+  the named commit's branch
 - `state=` (for regressions; takes several values)
 - `commit=`
+- `branch=` (for commits, series and trends)
 - `has_commit=` (for regressions), `has_profiles=` (for commits and runs),
-  `has_ordinal=` (for commits and series)
+  `has_ordinal=` (for commits and series), `has_branch=` (for commits, series
+  and trends)
 - `tracked=` (boolean, for machines; omitting it returns both)
 
 **Sorting.** `sort=<name>` selects one ordering. Prefix the name with `-` for
@@ -176,14 +179,17 @@ that does not exist, the result depends on what is named:
 | A metric | 400 |
 | A commit used as a filter (`commit=`) | Empty result |
 | A commit used as a range bound | 404, or 400 if the commit exists but has no ordinal |
+| A branch (`branch=`) | Empty result |
 | Any other entity (a machine, a test, the commit a regression points at) | 404 |
 
 A metric is part of the suite's schema, so naming an unknown one makes the
 request invalid. A commit filter selects the rows belonging to that commit, and
 a commit that no run has reached yet legitimately has none: a client may well
 ask for the runs of a revision before any has been submitted. A range bound names a position in
-the commit order, which an unknown commit, or one without an ordinal, does not
-have. Every other name is normally taken from what the suite already holds, so
+the commit order of its branch, which an unknown commit, or one without an
+ordinal, does not have; the bound also keeps only the commits of that branch. A
+branch is not an entity but a value commits share, which no commit may have yet.
+Every other name is normally taken from what the suite already holds, so
 an unknown one is almost always a typo, and is reported rather than answered
 with an empty result.
 
@@ -231,9 +237,9 @@ spec only needs to list its keys.
   This keeps items flat and pages small. When the identifier is a UUID, the key
   says so: `run_uuid`. There are three exceptions, specified where they apply: a
   commit's `previous`/`next` neighbours are nested objects; time-series points
-  and trend items also carry the commit's `ordinal` and `tag`, because a client
-  cannot place a point without them; and an API key's restrictions name a suite
-  by its project's name and its own together, in one object (see E11).
+  and trend items also carry the commit's `ordinal`, `tag` and `branch`, because
+  a client cannot place a point without them; and an API key's restrictions name
+  a suite by its project's name and its own together, in one object (see E11).
 - Schema-declared data is always in its own nested dict -- `fields` on machines
   and commits, `metrics` on samples and on the lines of a series -- never
   flattened onto the entity.
@@ -265,7 +271,7 @@ reworded at any time, so clients must branch on `code` only and never parse
 | `not_found` | 404 | No route matches the path, or an entity named by the path, a filter or the request body does not exist (except where I3 returns an empty result instead) |
 | `method_not_allowed` | 405 | The path is an API route, but not for this method. The `Allow` header lists the methods it accepts |
 | `duplicate` | 409 | The entity already exists: a run or regression UUID, a project name, a suite name within its project, a schema entry added to a list that already has one of that name |
-| `conflict` | 409 | The request contradicts the stored state in a way `duplicate` does not describe, and will fail again if sent unchanged: submitted metadata that disagrees with what is stored (see O2), an ordinal already held by another commit (see O6), the deletion of a project that still has suites (see E13), a change to a revoked API key (see E11) |
+| `conflict` | 409 | The request contradicts the stored state in a way `duplicate` does not describe, and will fail again if sent unchanged: submitted metadata that disagrees with what is stored (see O2), an ordinal already held by another commit of the same branch (see O6), the deletion of a project that still has suites (see E13), a change to a revoked API key (see E11) |
 | `retry` | 409 | A concurrent change prevented the request from completing, and nothing was written: the suite's schema changed while the request ran, a write that E10 or E13 lists `retry` for could not take its locks in time, or the request and a schema change deadlocked (see D2); or the machine or commit a run submission resolved was deleted before its run was stored (see O8) |
 | `unsupported_encoding` | 415 | The request body has a content coding the server does not accept (see Compression below) |
 | `internal_error` | 500 | The server failed to process the request |

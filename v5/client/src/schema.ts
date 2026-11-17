@@ -110,6 +110,7 @@ export function displayValueOf(
     value,
     ordinal: null,
     tag,
+    branch: null,
     delete_after_inactive_days: null,
     fields: {},
   }

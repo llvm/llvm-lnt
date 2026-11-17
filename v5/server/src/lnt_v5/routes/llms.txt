@@ -40,18 +40,23 @@
   dashboard picking which machines to show.
 - **Commit** -- what was benchmarked, addressed by an identity string `value`
   (a Git SHA, a version, or an ad-hoc label like `experiment-vectorizer-v2`).
-  Carries the declared `commit_fields` under `fields`, plus two optional
-  built-ins: `ordinal`, an integer placing the commit in the suite's total order,
-  and `tag`, a label such as `release-18.1`. An ordinal is never inferred, not
-  even from a numeric commit string. A series serves a commit without one after
-  the commits that have one, and leaves it out of a range of commits. Listing
-  commits orders them by when the server first saw each one by default
-  (`sort=first_seen`); `sort=-first_seen` puts the most recently seen first.
-  `sort=ordinal` (`-ordinal`) orders them by ordinal, followed by the commits
-  without one, by when they were first seen in the same direction.
-  `has_ordinal=true|false` keeps only the commits with or without an ordinal,
-  and `after_commit=` and `before_commit=` bound the list by ordinal, leaving out
-  the commits without one.
+  Carries the declared `commit_fields` under `fields`, plus three optional
+  built-ins: `branch`, the line of history it is on, such as `main` or
+  `release/19.x`; `ordinal`, an integer placing the commit in the total order of
+  its branch (two branches may use the same ordinals, and the commits without a
+  branch are a branch of their own); and `tag`, a label such as `release-18.1`.
+  An ordinal is never inferred, not even from a numeric commit string. A series
+  serves a commit without one after the commits that have one, and leaves it out
+  of a range of commits. Listing commits orders them by when the server first
+  saw each one by default (`sort=first_seen`); `sort=-first_seen` puts the most
+  recently seen first. `sort=ordinal` (`-ordinal`) orders them by ordinal,
+  interleaving the branches, followed by the commits without one, by when they
+  were first seen in the same direction. `has_ordinal=true|false` keeps only the
+  commits with or without an ordinal, `branch=` those on a branch, and
+  `has_branch=true|false` those with or without one. `after_commit=` and
+  `before_commit=` bound the list by ordinal on the named commit's branch,
+  leaving out the commits without one and those of other branches. A commit's
+  `previous`/`next` are on its branch too.
 - **Run** -- one submission of results for one machine at one commit,
   identified by a UUID. Several runs may share a machine and a commit.
 - **Test** -- a benchmark name, created implicitly by submission. Test names
@@ -99,11 +104,11 @@ GET    /api/projects/{project}/suites/{suite}/machines/{machine_name}        rea
 PATCH  /api/projects/{project}/suites/{suite}/machines/{machine_name}        manage  Update or rename a machine
 DELETE /api/projects/{project}/suites/{suite}/machines/{machine_name}        manage  Delete a machine and its runs
 
-GET    /api/projects/{project}/suites/{suite}/commits                        read    List commits (search=, machine=, commit=, has_ordinal=, before_commit=, sort=, ...)
+GET    /api/projects/{project}/suites/{suite}/commits                        read    List commits (search=, machine=, branch=, has_ordinal=, before_commit=, sort=, ...)
 POST   /api/projects/{project}/suites/{suite}/commits                        submit  Create a commit
 POST   /api/projects/{project}/suites/{suite}/commits/resolve                read    Look up many commits by value at once
-GET    /api/projects/{project}/suites/{suite}/commits/{value}                read    One commit, with its previous/next by ordinal
-PATCH  /api/projects/{project}/suites/{suite}/commits/{value}                manage  Set or clear its ordinal, tag or fields
+GET    /api/projects/{project}/suites/{suite}/commits/{value}                read    One commit, with its previous/next by ordinal on its branch
+PATCH  /api/projects/{project}/suites/{suite}/commits/{value}                manage  Set or clear its ordinal, tag, branch or fields
 DELETE /api/projects/{project}/suites/{suite}/commits/{value}                manage  Delete a commit and its runs
 
 GET    /api/projects/{project}/suites/{suite}/runs                           read    List runs (machine=, commit=, search=, sort=, ...)
@@ -169,16 +174,17 @@ Deleting a suite, or removing entries from its schema, destroys data and needs
     chose, an earlier attempt most likely succeeded: do not resend under a fresh
     UUID, which would store it twice.
   - `conflict`: the request contradicts stored state -- metadata a submission
-    disagrees with, or an ordinal another commit holds. Do not retry as sent;
-    change the request or the state first.
+    disagrees with, or an ordinal another commit of its branch holds. Do not
+    retry as sent; change the request or the state first.
   - `retry`: a concurrent change to the suite's schema, or to the project, got
     in the way. Nothing was written; send the same request again.
 - **Names that match nothing**: a run submission creates the machine, commit
   and tests it names. Everywhere else, an unknown machine or test is 404, an
   unknown metric or regression state is 400, and an unknown commit used as a
   filter (`commit=`, or the `commit` of the indicator lookup) is an empty
-  result. A commit used as a range bound (`after_commit`, `before_commit`) is
-  404 if unknown and 400 if it has no ordinal. A commit a regression refers to
+  result, as is a `branch=` no commit is on. A commit used as a range bound
+  (`after_commit`, `before_commit`) is 404 if unknown and 400 if it has no
+  ordinal. A commit a regression refers to
   is 404. A schema `PATCH` that updates or removes an entry the schema does not
   have is 404, metrics included.
 - **Values**: timestamps are ISO 8601 in UTC with a `Z` suffix. Values in
@@ -233,7 +239,7 @@ declares.
 {
   "format_version": "5",
   "machine": {"name": "linux-x86_64", "fields": {"os": "linux"}},
-  "commit": {"value": "abc123", "ordinal": 593922, "fields": {"author": "Jane Doe"}},
+  "commit": {"value": "abc123", "ordinal": 593922, "branch": "main", "fields": {"author": "Jane Doe"}},
   "run_parameters": {"build_config": "Release"},
   "tests": [
     {"name": "bench/foo", "samples": [{"execution_time": 1.23, "compile_time": 0.45}]},
@@ -253,8 +259,8 @@ repetition has a value for: above, `bench/bar` ran three times, and
 omitted. `measured_at`, when the run was measured, is optional too: it defaults
 to the time the server receives the run, which is recorded as `submitted_at`.
 The submission is atomic, and answers 201 with the run. A run cannot be changed afterwards.
-It never overwrites what is stored: a field, tag or ordinal that differs from
-the stored one is 409, and `PATCH` is the only way to change it. The machine's
+It never overwrites what is stored: a field, tag, branch or ordinal that differs
+from the stored one is 409, and `PATCH` is the only way to change it. The machine's
 `display_name` and `tracked` flag are the exception: they are set only when the
 submission creates the machine, and ignored rather than compared afterwards.
 
@@ -292,15 +298,18 @@ value for, measured together.
  "metrics": {"execution_time": 1.23, "compile_time": 0.45},
  "commit": "abc123", "ordinal": 593922, "tag": null,
  "run_uuid": "573af861-8303-4a5b-a643-b8321e0142c4",
- "submitted_at": "2026-08-25T14:22:41Z", "measured_at": "2026-08-25T14:02:17Z"}
+ "submitted_at": "2026-08-25T14:22:41Z", "measured_at": "2026-08-25T14:02:17Z",
+ "branch": "main"}
 ```
 
-Lines come by test name, then by ordinal, with the commits without one last.
-Narrow it down with `test=` (`&test=bench/foo` to chart one test; repeat it for
-a few tests, which lengthen the URL), `commit`, `after_commit`, `before_commit`,
-the run's `submitted_after`, `submitted_before`, `measured_after` and
-`measured_before`, and `has_ordinal` (`true` for only the commits with an
-ordinal, `false` for only those without).
+Lines come by test name, then by ordinal, with the commits without one last;
+the branches are interleaved, so to chart one, filter on it. Narrow it down
+with `test=` (`&test=bench/foo` to chart one test; repeat it for a few tests,
+which lengthen the URL), `commit`, `after_commit`, `before_commit`, the run's
+`submitted_after`, `submitted_before`, `measured_after` and `measured_before`,
+`has_ordinal` (`true` for only the commits with an ordinal, `false` for only
+those without), `branch`, and `has_branch` (`false` for only the commits
+without a branch).
 Ask for it compressed (`curl --compressed`). If the download is interrupted --
 the machine deleted, a schema change, a server restart -- the connection is
 closed before the end of the response, which `curl --fail` reports with a
@@ -309,7 +318,9 @@ non-zero status: download again.
 **Get an overview across machines** with
 `GET /trends?metric=execution_time&machine=a&machine=b&last_n=100`. It returns
 one `value` per (machine, commit), for the `last_n` most recent commits by
-ordinal that have data. Each test's samples in a run are reduced by
+ordinal that have data. Ask for one branch with `branch=` (or
+`has_branch=false`): otherwise the branches share the window and interleave by
+ordinal. Each test's samples in a run are reduced by
 `sample_agg` (`median` by default), the run's geomean is taken across tests, and
 the runs at a commit are combined by another geomean. The metric must be
 numeric.
@@ -322,8 +333,8 @@ and base64-encoded, it is a test entry's `profile` again.
 
 **Compare a run with the previous commit on its machine**:
 `GET /commits?machine=linux-x86_64&before_commit=abc123&sort=-ordinal&limit=1`
-returns the nearest earlier commit at which that machine has runs, which the
-commit's own `previous` may not be, and
+returns the nearest earlier commit on the same branch at which that machine has
+runs, which the commit's own `previous` may not be, and
 `GET /runs?machine=linux-x86_64&commit={value}` lists those runs.
 
 **Check what is already tracked** before recording a regression. A change is

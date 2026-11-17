@@ -323,7 +323,7 @@ class Metric(Entry):
 class CommitField(_SearchableEntry):
     """A piece of information a commit can have in its `fields`, such as its author.
 
-    The name can't be `id`, `commit`, `ordinal`, `tag`, `first_seen_at` or
+    The name can't be `id`, `commit`, `ordinal`, `tag`, `branch`, `first_seen_at` or
     `delete_after_inactive_days`.
     """
 
@@ -332,7 +332,15 @@ class CommitField(_SearchableEntry):
     LIST: ClassVar[str] = "commit_fields"
     RESERVED_COLUMNS: ClassVar[Mapping[str, frozenset[str]]] = {
         "commit": frozenset(
-            {"id", "commit", "ordinal", "tag", "first_seen_at", "delete_after_inactive_days"}
+            {
+                "id",
+                "commit",
+                "ordinal",
+                "tag",
+                "branch",
+                "first_seen_at",
+                "delete_after_inactive_days",
+            }
         )
     }
 

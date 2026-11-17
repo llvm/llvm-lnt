@@ -137,12 +137,12 @@ class RunSubmission(BaseModel):
     """A run: the results for one machine at one commit, with one entry per test.
 
     If the machine or the commit doesn't exist yet, it is created. If it does exist, the submission
-    must agree with what is stored: fields, ordinal and tag that have no value yet are filled in,
-    but a value that differs from the stored one is rejected with a 409 `conflict`. Use `PATCH` to
-    change stored values. Keys you leave out, or set to null, aren't checked. The exceptions are
-    the machine's `display_name` and `tracked`, and the `delete_after_inactive_days` of the machine
-    and the commit, which are only used when the machine or the commit is created, and ignored
-    otherwise.
+    must agree with what is stored: fields, ordinal, tag and branch that have no value yet are
+    filled in, but a value that differs from the stored one is rejected with a 409 `conflict`. Use
+    `PATCH` to change stored values. Keys you leave out, or set to null, aren't checked. The
+    exceptions are the machine's `display_name` and `tracked`, and the `delete_after_inactive_days`
+    of the machine and the commit, which are only used when the machine or the commit is created,
+    and ignored otherwise.
     """
 
     model_config = ConfigDict(extra="forbid")
@@ -190,6 +190,7 @@ class SubmittedCommit:
     value: str
     ordinal: int | None
     tag: str | None
+    branch: str | None
     delete_after_inactive_days: int | None
     fields: Mapping[str, Any]
 
@@ -250,6 +251,7 @@ def validate_submission(schema: SuiteSchema, body: RunSubmission) -> ValidatedSu
         value=body.commit.value,
         ordinal=body.commit.ordinal,
         tag=body.commit.tag,
+        branch=body.commit.branch,
         delete_after_inactive_days=body.commit.delete_after_inactive_days,
         fields=_submitted_fields(schema, CommitField, body.commit.fields),
     )

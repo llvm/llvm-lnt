@@ -122,6 +122,7 @@ export function commit(value: string, overrides: Partial<Commit> = {}): Commit {
     value,
     ordinal: null,
     tag: null,
+    branch: null,
     delete_after_inactive_days: null,
     fields: { svn_revision: null, commit_info: null },
     ...overrides,
@@ -207,6 +208,7 @@ export function trendPoint(
     ordinal,
     measured_at: '2026-08-25T14:22:41Z',
     tag: null,
+    branch: null,
     value,
     ...overrides,
   }

@@ -66,7 +66,7 @@ describe('nameProblems', () => {
     for (const name of ['machine_id', 'repetition', 'test_id']) {
       expect(problemOf('metrics', name)).toBeDefined()
     }
-    for (const name of ['id', 'commit', 'ordinal', 'tag']) {
+    for (const name of ['id', 'commit', 'ordinal', 'tag', 'branch']) {
       expect(problemOf('commit_fields', name)).toBeDefined()
     }
     for (const name of ['id', 'name', 'tracked', 'display_name']) {

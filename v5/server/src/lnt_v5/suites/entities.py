@@ -329,16 +329,30 @@ Tag = Annotated[
     ),
 ]
 
+Branch = Annotated[
+    str,
+    StringConstraints(min_length=1, max_length=NAME_LENGTH),
+    Storable,
+    Field(
+        description=(
+            "The line of history the commit is on, such as `main` or a release branch. Ordinals "
+            "only order the commits of the same branch, and commits without a branch are a branch "
+            "of their own. Null if the commit has none."
+        ),
+        examples=[examples.BRANCH],
+    ),
+]
+
 Ordinal = Annotated[
     IntegerValue,
     Field(
         ge=INT32_MIN,
         le=INT32_MAX,
         description=(
-            "The commit's position in the suite's history, used to order time series. Each commit "
-            "must have a different ordinal, and it is never derived from the commit's value. Null "
-            "if the commit has none; such commits come last when listing commits by ordinal and in "
-            "a machine's series, and are left out of ranges of commits."
+            "The commit's position in the history of its branch, used to order time series. Each "
+            "commit of a branch must have a different ordinal, and it is never derived from the "
+            "commit's value. Null if the commit has none; such commits come last when listing "
+            "commits by ordinal and in a machine's series, and are left out of ranges of commits."
         ),
         examples=[examples.ORDINAL],
     ),
@@ -375,12 +389,13 @@ class MachineObject(EntityObject):
 
 
 class CommitObject(EntityObject):
-    """A commit: its value, its ordinal and tag if it has them, when it is deleted, and its
+    """A commit: its value, its ordinal, tag and branch if it has them, when it is deleted, and its
     fields."""
 
     value: CommitValue
     ordinal: Ordinal | None = None
     tag: Tag | None = None
+    branch: Branch | None = None
     delete_after_inactive_days: DeleteAfterInactiveDays | None = None
 
 
@@ -544,9 +559,8 @@ def _locked_values(
     `FOR NO KEY UPDATE` rather than `FOR UPDATE`: a run insert takes `FOR KEY SHARE` on its machine
     and commit through the foreign keys, which only `FOR UPDATE` conflicts with, so fills would
     block other submissions' runs and could deadlock them (O8). Fills still serialize against each
-    other. Filling a commit's `ordinal` escalates to `FOR UPDATE` anyway, since the column is
-    uniquely indexed; that can make it wait on runs in flight for the commit, but not deadlock with
-    them, because a submission holding a commit's lock is not yet past resolving its commit.
+    other. That holds for a commit's `ordinal` and `branch` too: their unique index is partial,
+    which PostgreSQL does not count as a key that an UPDATE must take `FOR UPDATE` to change.
 
     By column object rather than by name, for the same reason `concurrency.get_or_create` reads
     that way: a declared field may legally be called anything, and `Row._mapping` keyed by column

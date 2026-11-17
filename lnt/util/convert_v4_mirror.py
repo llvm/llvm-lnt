@@ -56,8 +56,8 @@ _V5_TYPES = {'real', 'integer', 'text', 'datetime'}
 _METRIC_BUILTINS = {'run_id', 'test_id', 'repetition', 'machine_id'}
 _MACHINE_FIELD_BUILTINS = {'id', 'name', 'display_name', 'tracked',
                            'first_seen_at', 'delete_after_inactive_days'}
-_COMMIT_FIELD_BUILTINS = {'id', 'commit', 'ordinal', 'tag', 'first_seen_at',
-                          'delete_after_inactive_days'}
+_COMMIT_FIELD_BUILTINS = {'id', 'commit', 'ordinal', 'tag', 'branch',
+                          'first_seen_at', 'delete_after_inactive_days'}
 
 # The length v5 allows for machine names, commit values and test names.
 _IDENTIFIER_MAX = 256

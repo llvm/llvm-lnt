@@ -570,13 +570,15 @@ run_cli(override_mirror, '--suite', 'nts', '--target-suite', 'target',
 def reserved_commit_fields(schema):
     schema['commit_fields'] = [
         {'name': 'first_seen_at', 'type': 'datetime'},
-        {'name': 'delete_after_inactive_days', 'type': 'integer'}]
+        {'name': 'delete_after_inactive_days', 'type': 'integer'},
+        {'name': 'branch', 'type': 'text'}]
 
 
 run_cli(override_mirror, '--suite', 'nts', '--target-suite', 'target',
         '--schema', override('reserved-commit-fields', reserved_commit_fields))
 # CHECK:      error: commit_fields entry 'first_seen_at': the name is reserved by v5
 # CHECK-NEXT: error: commit_fields entry 'delete_after_inactive_days': the name is reserved by v5
+# CHECK-NEXT: error: commit_fields entry 'branch': the name is reserved by v5
 # CHECK-NEXT: written: {{[0-9]+}}, exit: 1
 
 

@@ -351,6 +351,7 @@ function commit(value: string, shortSha: string | null = null): Commit {
     value,
     ordinal: null,
     tag: null,
+    branch: null,
     delete_after_inactive_days: null,
     fields: { short_sha: shortSha },
   }

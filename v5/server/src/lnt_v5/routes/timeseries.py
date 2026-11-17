@@ -7,7 +7,7 @@ runs with (`run_conditions`).
 
 from __future__ import annotations
 
-from collections.abc import Collection
+from collections.abc import Collection, Sequence
 from datetime import datetime
 from typing import Annotated, Any
 
@@ -30,7 +30,7 @@ from lnt_v5.db import EngineDep
 from lnt_v5.errors import ApiError, ErrorCode
 from lnt_v5.querying import MAX_LIMIT, exclusive_range
 from lnt_v5.responses import Items
-from lnt_v5.routes.commits import commit_ordinal
+from lnt_v5.routes.commits import branch_conditions, commit_bounds
 from lnt_v5.routes.machines import machine_ids
 from lnt_v5.routes.suites import SUITES_PATH
 from lnt_v5.scopes import Scope
@@ -62,11 +62,12 @@ ONE_KIND_OF_COMMIT_FILTER = (
 # the descriptions I8's document gives them, so they are written for API users.
 
 _TAG = "The commit's tag. Null if it has none."
+_BRANCH = "The commit's branch. Null if it has none."
 
 
 # A line of `GET /series`: one sample, whose `metrics` holds only the requested metrics it has a
-# value for, as the sample list's holds only those with a value (I4). Carries the commit's `ordinal`
-# and `tag`, the denormalization I4 grants time-series points.
+# value for, as the sample list's holds only those with a value (I4). Carries the commit's
+# `ordinal`, `tag` and `branch`, the denormalization I4 grants time-series points.
 class DataPoint(BaseModel):
     """One sample: its values of the requested metrics, with the test, machine, commit and run it
     comes from. If a test was repeated in a run, it has one sample per repetition, so the values
@@ -103,6 +104,7 @@ class DataPoint(BaseModel):
         description="When the run was measured.", examples=[examples.MEASURED_AT]
     )
     tag: str | None = Field(description=_TAG, examples=[examples.TAG])
+    branch: str | None = Field(description=_BRANCH, examples=[examples.BRANCH])
 
 
 class TrendPoint(BaseModel):
@@ -122,6 +124,7 @@ class TrendPoint(BaseModel):
         examples=[examples.MEASURED_AT],
     )
     tag: str | None = Field(description=_TAG, examples=[examples.TAG])
+    branch: str | None = Field(description=_BRANCH, examples=[examples.BRANCH])
     value: float = Field(
         description=(
             "The trend value: the geometric mean of the machine's runs at this commit (see the "
@@ -142,6 +145,8 @@ class Trends:
         self._commit: Table = suite.tables.commit
         self._machine: Table = suite.tables.machine
         self.ordinal: Column[Any] = self._commit.c.ordinal
+        # By code point, whatever the database's locale.
+        self._value = self._commit.c.commit.collate("C")
         run_geomean = summaries.c[geomean_column(aggregation)]
         self._source = summaries.join(metrics, metrics.c.id == summaries.c.metric_id).join(
             self._run, self._run.c.id == summaries.c.run_id
@@ -154,10 +159,17 @@ class Trends:
         self.geomean = func.exp(func.avg(func.ln(run_geomean)))
         self.latest = func.max(self._run.c.measured_at)
 
-    def window(self, machines: Collection[int], last_n: int) -> Select[Any]:
-        """The ids of the `last_n` most recent commits, by ordinal, at which any of `machines` has a
-        run geomean for the metric under the aggregation. Counted over the machines together, so
-        that their trendlines share one window."""
+    def window(
+        self,
+        machines: Collection[int],
+        last_n: int,
+        conditions: Sequence[ColumnElement[bool]],
+    ) -> Select[Any]:
+        """The ids of the `last_n` most recent commits, by ordinal, among those that meet
+        `conditions`, at which any of `machines` has a run geomean for the metric under the
+        aggregation. Counted over the machines together, so that their trendlines share one window.
+        Commits of different branches share it too, unless `conditions` keep a single one; ties
+        between them are broken by commit value."""
         has_value = (
             select(self._run.c.id)
             .select_from(self._source)
@@ -171,14 +183,20 @@ class Trends:
         # Not correlated with the commit of the statement it filters.
         return (
             select(self._commit.c.id)
-            .where(self.ordinal.is_not(None), has_value)
-            .order_by(self.ordinal.desc())
+            .where(self.ordinal.is_not(None), has_value, *conditions)
+            .order_by(self.ordinal.desc(), self._value.desc())
             .limit(last_n)
             .correlate(None)
         )
 
-    def select(self, machines: Collection[int], last_n: int) -> Select[Any]:
-        """One row per (machine, commit) with a value, ordered by machine then ordinal.
+    def select(
+        self,
+        machines: Collection[int],
+        last_n: int,
+        conditions: Sequence[ColumnElement[bool]],
+    ) -> Select[Any]:
+        """One row per (machine, commit) with a value, ordered by machine, then ordinal, then
+        commit value, since commits of different branches can share an ordinal.
 
         Grouping by the primary keys alone is enough: PostgreSQL treats the other selected columns
         as functionally dependent on them.
@@ -189,6 +207,7 @@ class Trends:
                 self._commit.c.commit,
                 self.ordinal,
                 self._commit.c.tag,
+                self._commit.c.branch,
                 self.latest,
                 self.geomean,
             )
@@ -200,10 +219,10 @@ class Trends:
             .where(
                 *self._measured,
                 self._run.c.machine_id.in_(machines),
-                self._commit.c.id.in_(self.window(machines, last_n)),
+                self._commit.c.id.in_(self.window(machines, last_n, conditions)),
             )
             .group_by(self._machine.c.id, self._commit.c.id)
-            .order_by(self._machine.c.name, self.ordinal)
+            .order_by(self._machine.c.name, self.ordinal, self._value)
         )
 
     def read(self, row: Row[Any]) -> TrendPoint:
@@ -214,6 +233,7 @@ class Trends:
             ordinal=values[self.ordinal],
             measured_at=values[self.latest],
             tag=values[self._commit.c.tag],
+            branch=values[self._commit.c.branch],
             value=values[self.geomean],
         )
 
@@ -225,6 +245,8 @@ def run_conditions(
     commit: str | None,
     after_commit: str | None,
     before_commit: str | None,
+    branch: str | None,
+    has_branch: bool | None,
     submitted_after: datetime | None,
     submitted_before: datetime | None,
     measured_after: datetime | None,
@@ -233,17 +255,15 @@ def run_conditions(
     """The filters of `GET /series` that select runs, as conditions on `run` and its commit.
 
     `commit=` matches by value, so that an unknown commit is an empty result rather than 404 (I3).
-    The commit bounds are by ordinal, and resolving one is what answers I3's 404 or 400.
+    The commit bounds are by ordinal within the bound's branch, and resolving one is what answers
+    I3's 404 or 400.
     """
     run, commits = suite.tables.run, suite.tables.commit
     conditions: list[ColumnElement[bool]] = []
     if commit is not None:
         conditions.append(commits.c.commit == commit)
-    conditions += exclusive_range(
-        commits.c.ordinal,
-        None if after_commit is None else commit_ordinal(connection, suite, after_commit),
-        None if before_commit is None else commit_ordinal(connection, suite, before_commit),
-    )
+    conditions += branch_conditions(commits, branch, has_branch)
+    conditions += commit_bounds(connection, suite, after_commit, before_commit)
     conditions += exclusive_range(run.c.submitted_at, submitted_after, submitted_before)
     conditions += exclusive_range(run.c.measured_at, measured_after, measured_before)
     return conditions
@@ -305,13 +325,34 @@ def query_trends(
             description=(
                 "Only include the N most recent commits (by ordinal) that have data on any of the "
                 "machines. All machines share this window, so a machine that stopped reporting "
-                "has no values for the latest commits."
+                "has no values for the latest commits. Without `branch` or `has_branch=false`, "
+                "the commits of different branches share it too, by ordinal."
             ),
         ),
     ] = DEFAULT_LAST_N,
+    branch: Annotated[
+        str | None,
+        Query(
+            description=(
+                "Only include commits on this branch. If no commit is on it, the result is empty. "
+                "Use `has_branch=false` for the commits without a branch."
+            )
+        ),
+    ] = None,
+    has_branch: Annotated[
+        bool | None,
+        Query(
+            description=(
+                "Only include commits that have (`true`) or don't have (`false`) a branch. Leave "
+                "out to include both."
+            )
+        ),
+    ] = None,
 ) -> Items[TrendPoint]:
     """A summary of one metric over time, for a few machines: one value per machine and commit,
-    sorted by machine name and then by ordinal. Only commits with an ordinal are included.
+    sorted by machine name, then by ordinal, then by commit. Only commits with an ordinal are
+    included. Ordinals only order the commits of a branch, so a trend is usually asked for one
+    branch (`branch`, or `has_branch=false`).
 
     Each value is computed in three steps:
 
@@ -329,5 +370,6 @@ def query_trends(
     ):
         trends = Trends(suite, _numeric(suite, metric), sample_agg)
         machines = machine_ids(connection, suite, machine).values()
-        rows = connection.execute(trends.select(machines, last_n)).all()
+        conditions = branch_conditions(suite.tables.commit, branch, has_branch)
+        rows = connection.execute(trends.select(machines, last_n, conditions)).all()
         return Items(items=[trends.read(row) for row in rows])

@@ -87,6 +87,7 @@ export const pointOf = (
     submitted_at: '2026-08-25T14:22:41Z',
     measured_at: measuredAt,
     tag: null,
+    branch: null,
   }) satisfies Schemas['DataPoint']
 
 /** What the page asked of the API. */

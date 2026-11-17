@@ -12,7 +12,7 @@ Each suite's tables live in a PostgreSQL namespace of their own, the one recorde
 `schema` row (D5), so a table is addressed as `{suite}.commit`: the `commit` table in that
 namespace. That is what lets every suite carry *identical* constraint names: the naming convention
 composes a name from a table and its columns, neither of which mentions the suite, so
-`uq_commit_ordinal` is the name in every suite and the code that attributes a unique-constraint
+`uq_commit_commit` is the name in every suite and the code that attributes a unique-constraint
 violation (O8) can write it out rather than compose it per request.
 """
 
@@ -83,7 +83,9 @@ UUID_LENGTH = 36
 # turning a 409 into a 500. The same arrangement as `store.SCHEMA_NAME_CONSTRAINT`.
 MACHINE_NAME_CONSTRAINT = "uq_machine_name"
 COMMIT_VALUE_CONSTRAINT = "uq_commit_commit"
-COMMIT_ORDINAL_CONSTRAINT = "uq_commit_ordinal"
+# Not a constraint but a partial unique index (see `build`), which PostgreSQL names in a violation
+# just the same. Named explicitly, since the convention would name an index `ix_...`.
+COMMIT_BRANCH_ORDINAL_CONSTRAINT = "uq_commit_branch_ordinal"
 RUN_UUID_CONSTRAINT = "uq_run_uuid"
 # A run's references to its machine and its commit. A violation means the machine or the commit was
 # deleted after the submission resolved it -- by its DELETE route, or by O10's sweep -- which O8
@@ -236,13 +238,28 @@ def build(schema: SuiteSchema, namespace: str) -> SuiteTables:
         metadata,
         Column("id", Integer, Identity(), primary_key=True),
         Column("commit", String(NAME_LENGTH), nullable=False, unique=True),
-        # O6: a regular, non-deferred unique constraint. Ordinals are assigned once and rarely
-        # reassigned, so a write that would give two commits the same one is simply rejected (409).
-        Column("ordinal", Integer, nullable=True, unique=True),
+        # Indexed on its own for listing the commits of every branch by ordinal (E3). Uniqueness is
+        # per branch, below.
+        Column("ordinal", Integer, nullable=True, index=True),
         Column("tag", String(NAME_LENGTH), nullable=True),
+        Column("branch", String(NAME_LENGTH), nullable=True),
         *_inactivity_columns(),
         *_dynamic(schema.commit_fields),
         _inactive_days_range(),
+    )
+    # O6: ordinals are unique within a branch, commits without one counting as a branch of their
+    # own (NULLS NOT DISTINCT). Partial, because a commit without an ordinal is not constrained, and
+    # NULLS NOT DISTINCT would otherwise let a branch have only one. Regular rather than deferred:
+    # ordinals are assigned once and rarely reassigned, so a write that would give two commits of a
+    # branch the same one is simply rejected (409). Also what every walk along a branch's ordinals
+    # uses.
+    Index(
+        COMMIT_BRANCH_ORDINAL_CONSTRAINT,
+        commit.c.branch,
+        commit.c.ordinal,
+        unique=True,
+        postgresql_nulls_not_distinct=True,
+        postgresql_where=commit.c.ordinal.is_not(None),
     )
     # Partial, because the column is null on almost every row: only a handful of commits (releases,
     # say) carry a tag, and an index over the nulls would be most of the table for no lookups.

@@ -1,7 +1,7 @@
 """The commit endpoints (E3).
 
 Driven over the real application and a real database. What is interesting here is mostly what
-PostgreSQL ends up doing: the unique ordinal that produces I4's `conflict` (O6), the
+PostgreSQL ends up doing: the ordinal unique within a branch that produces I4's `conflict` (O6), the
 neighbour lookups that replace a linked list, and a cascade that reaches runs and their samples
 and profiles. What deleting a commit does to the regressions attributed to it is checked with the
 other regression cascades, in `test_regressions.py`.
@@ -260,6 +260,7 @@ class TestListSearch:
     def commits(self, create: Callable[..., Any]) -> None:
         create("abc123", fields={"git_sha": "deadbeef", "author": "Jane", "commit_message": "Xeon"})
         create("def456", fields={"git_sha": "cafebabe", "author": "Ashok"}, tag="release-18.1")
+        create("ghi789", branch="main")
 
     def test_matches_the_commit_value(self, api_client: TestClient) -> None:
         assert values_in(page(api_client, "search=abc")) == ["abc123"]
@@ -270,6 +271,10 @@ class TestListSearch:
 
     def test_matches_a_searchable_field(self, api_client: TestClient) -> None:
         assert values_in(page(api_client, "search=deadbeef")) == ["abc123"]
+
+    def test_ignores_the_branch(self, api_client: TestClient) -> None:
+        # O4: a branch is shared by many commits, and `branch=` is how to select them.
+        assert values_in(page(api_client, "search=main")) == []
 
     def test_is_case_insensitive(self, api_client: TestClient) -> None:
         assert values_in(page(api_client, "search=JaNe")) == ["abc123"]
@@ -465,6 +470,84 @@ class TestListOrdinalBounds:
     @pytest.mark.parametrize("bound", ["after_commit", "before_commit"])
     def test_refuses_a_commit_that_has_no_ordinal(self, api_client: TestClient, bound: str) -> None:
         response = page(api_client, f"{bound}=unordered")
+
+        assert response.status_code == 400
+        assert code_of(response) == "invalid_request"
+
+
+class TestListBranches:
+    """`branch=` and `has_branch=`, and what branches do to the ordinal order and its bounds."""
+
+    @pytest.fixture(autouse=True)
+    def commits(self, create: Callable[..., Any], add_run: Callable[..., str]) -> None:
+        # Two branches and the commits without one, sharing ordinals, created out of order.
+        create("m20", ordinal=20, branch="main")
+        create("r10", ordinal=10, branch="release")
+        create("n10", ordinal=10)
+        create("m10", ordinal=10, branch="main")
+        create("r30", ordinal=30, branch="release")
+        create("n20", ordinal=20)
+        create("m-unordered", branch="main")
+        create("n-unordered")
+        add_run("m10", "linux")
+        add_run("m20", "darwin")
+
+    @pytest.mark.parametrize(
+        ("query", "expected"),
+        [
+            ("branch=main", ["m20", "m10", "m-unordered"]),
+            ("branch=main&sort=ordinal", ["m10", "m20", "m-unordered"]),
+            ("branch=release&sort=-ordinal", ["r30", "r10"]),
+            ("has_branch=false", ["n10", "n20", "n-unordered"]),
+            ("has_branch=true&has_ordinal=false", ["m-unordered"]),
+            ("branch=main&has_branch=true&has_ordinal=true", ["m20", "m10"]),
+            # Matched exactly, so a branch no commit is on is an empty result rather than an error.
+            ("branch=mai", []),
+            ("branch=", []),
+            (f"branch={'x' * (NAME_LENGTH + 1)}", []),
+            ("branch=main&has_branch=false", []),
+        ],
+    )
+    def test_keeps_the_commits_of_a_branch_or_those_without_one(
+        self, api_client: TestClient, query: str, expected: list[str]
+    ) -> None:
+        assert values_in(page(api_client, query)) == expected
+
+    def test_interleaves_the_branches_by_ordinal_without_a_branch_filter(
+        self, api_client: TestClient
+    ) -> None:
+        # E3: each branch's commits stay in order, and ties between branches go by first sighting.
+        assert walk(api_client, "has_ordinal=true&sort=ordinal&limit=2") == [
+            "r10",
+            "n10",
+            "m10",
+            "m20",
+            "n20",
+            "r30",
+        ]
+
+    @pytest.mark.parametrize(
+        ("query", "expected"),
+        [
+            ("after_commit=m10&sort=ordinal", ["m20"]),
+            ("before_commit=r30&sort=ordinal", ["r10"]),
+            ("after_commit=n10", ["n20"]),
+            # Two bounds on different branches leave nothing between them, as does a bound on
+            # another branch than the filter's.
+            ("after_commit=m10&before_commit=r30", []),
+            ("after_commit=m10&branch=release", []),
+            ("after_commit=m10&has_branch=false", []),
+            # The lookup behind "Compare with previous commit" stays on the commit's branch.
+            ("machine=linux&before_commit=m20&sort=-ordinal&limit=1", ["m10"]),
+        ],
+    )
+    def test_a_bound_keeps_only_the_commits_of_its_own_branch(
+        self, api_client: TestClient, query: str, expected: list[str]
+    ) -> None:
+        assert values_in(page(api_client, query)) == expected
+
+    def test_refuses_a_has_branch_that_is_not_a_boolean(self, api_client: TestClient) -> None:
+        response = page(api_client, "has_branch=maybe")
 
         assert response.status_code == 400
         assert code_of(response) == "invalid_request"
@@ -787,7 +870,7 @@ class TestListPagination:
         cursor = page(api_client, "limit=2").json()["cursor"]["next"]
         changed = api_client.patch(
             f"{suite_path('nts')}/schema",
-            json={"commit_fields": {"add": [{"name": "branch", "type": "text"}]}},
+            json={"commit_fields": {"add": [{"name": "reviewer", "type": "text"}]}},
             headers=manage,
         )
         assert changed.status_code == 200
@@ -841,6 +924,7 @@ class TestCreate:
             "value": "abc",
             "ordinal": None,
             "tag": None,
+            "branch": None,
             "delete_after_inactive_days": None,
             "fields": EVERY_FIELD,
             "previous": None,
@@ -954,8 +1038,61 @@ class TestCreate:
         assert response.status_code == 400, reason
         assert code_of(response) == "invalid_request"
 
+    def test_accepts_a_branch(self, create: Callable[..., Any]) -> None:
+        assert create("abc", branch="release/19.x").json()["branch"] == "release/19.x"
+
+    def test_a_null_branch_leaves_the_commit_without_one(self, create: Callable[..., Any]) -> None:
+        assert create("abc", branch=None).json()["branch"] is None
+
+    @pytest.mark.parametrize(
+        ("branch", "reason"),
+        [
+            (18, "a number rather than a string"),
+            ("", "empty"),
+            ("x" * (NAME_LENGTH + 1), "longer than D5's column"),
+            ("a\x00b", "a NUL, which no PostgreSQL string column can hold"),
+        ],
+    )
+    def test_refuses_a_branch_that_is_not_one(
+        self, create: Callable[..., Any], branch: Any, reason: str
+    ) -> None:
+        response = create("abc", branch=branch)
+
+        assert response.status_code == 400, reason
+        assert code_of(response) == "invalid_request"
+
+    def test_accepts_an_ordinal_another_branch_holds(self, create: Callable[..., Any]) -> None:
+        # O6: ordinals are unique within a branch, and the commits without one are a branch.
+        create("main", ordinal=7, branch="main")
+        create("none", ordinal=7)
+
+        response = create("release", ordinal=7, branch="release")
+
+        assert response.status_code == 201
+        assert response.json()["ordinal"] == 7
+
+    def test_refuses_an_ordinal_another_commit_of_the_branch_holds(
+        self, create: Callable[..., Any]
+    ) -> None:
+        create("abc", ordinal=7, branch="main")
+
+        response = create("def", ordinal=7, branch="main")
+
+        assert response.status_code == 409
+        assert code_of(response) == "conflict"
+        assert "branch 'main'" in response.json()["error"]["message"]
+        assert "ordinal 7" in response.json()["error"]["message"]
+
+    def test_a_branch_may_have_several_commits_without_an_ordinal(
+        self, create: Callable[..., Any]
+    ) -> None:
+        # The uniqueness is only over the commits that have an ordinal.
+        create("abc", branch="main")
+
+        assert create("def", branch="main").status_code == 201
+
     def test_refuses_an_undeclared_field(self, create: Callable[..., Any]) -> None:
-        response = create("abc", fields={"branch": "main"})
+        response = create("abc", fields={"reviewer": "Jane"})
 
         assert response.status_code == 400
         assert code_of(response) == "invalid_request"
@@ -1040,7 +1177,14 @@ class TestNeighbours:
         # after one step.
         neighbour = self.detail(api_client, "middle")["previous"]
 
-        assert set(neighbour) == {"value", "ordinal", "tag", "delete_after_inactive_days", "fields"}
+        assert set(neighbour) == {
+            "value",
+            "ordinal",
+            "tag",
+            "branch",
+            "delete_after_inactive_days",
+            "fields",
+        }
         assert neighbour["ordinal"] == 10
 
     def test_both_ends_of_the_range_have_one_neighbour(self, api_client: TestClient) -> None:
@@ -1076,6 +1220,49 @@ class TestNeighbours:
 
         assert self.detail(api_client, "first")["previous"]["value"] == "last"
         assert self.detail(api_client, "first")["next"]["value"] == "middle"
+
+
+class TestBranchNeighbours:
+    """`previous` and `next` stay on the commit's branch (O6)."""
+
+    @pytest.fixture(autouse=True)
+    def commits(self, create: Callable[..., Any]) -> None:
+        create("m10", ordinal=10, branch="main")
+        create("r15", ordinal=15, branch="release")
+        create("n18", ordinal=18)
+        create("m20", ordinal=20, branch="main")
+        create("r20", ordinal=20, branch="release")
+        create("n20", ordinal=20)
+        create("m30", ordinal=30, branch="main")
+
+    def neighbours(self, api_client: TestClient, value: str) -> tuple[Any, Any]:
+        body = api_client.get(f"{COMMITS}/{value}").json()
+        return (
+            body["previous"] and body["previous"]["value"],
+            body["next"] and body["next"]["value"],
+        )
+
+    @pytest.mark.parametrize(
+        ("value", "expected"),
+        [
+            ("m20", ("m10", "m30")),
+            ("r20", ("r15", None)),
+            ("n20", ("n18", None)),
+            ("n18", (None, "n20")),
+        ],
+    )
+    def test_are_the_nearest_ordinals_on_the_same_branch(
+        self, api_client: TestClient, value: str, expected: tuple[Any, Any]
+    ) -> None:
+        assert self.neighbours(api_client, value) == expected
+
+    def test_follow_a_change_of_branch(
+        self, api_client: TestClient, patch: Callable[..., Any]
+    ) -> None:
+        patch("m20", {"branch": "release", "ordinal": 17})
+
+        assert self.neighbours(api_client, "m30") == ("m10", None)
+        assert self.neighbours(api_client, "m20") == ("r15", "r20")
 
 
 class TestDetail:
@@ -1174,6 +1361,7 @@ class TestUpdate:
             "abc",
             ordinal=1,
             tag="release-18.1",
+            branch="main",
             delete_after_inactive_days=30,
             fields={"git_sha": "abc123", "author": "Jane"},
         )
@@ -1184,6 +1372,7 @@ class TestUpdate:
             "value": "abc",
             "ordinal": 1,
             "tag": "release-18.1",
+            "branch": "main",
             "delete_after_inactive_days": 30,
             "fields": {**EVERY_FIELD, "git_sha": "abc123", "author": "Ashok"},
             "previous": None,
@@ -1240,6 +1429,55 @@ class TestUpdate:
         assert response.status_code == 409
         assert code_of(response) == "conflict"
 
+    def test_sets_changes_and_clears_a_branch(
+        self, create: Callable[..., Any], patch: Callable[..., Any]
+    ) -> None:
+        create("abc", ordinal=7)
+
+        assert patch("abc", {"branch": "main"}).json()["branch"] == "main"
+        assert patch("abc", {"branch": "release"}).json()["branch"] == "release"
+        assert patch("abc", {"branch": None}).json()["branch"] is None
+
+    @pytest.mark.parametrize(
+        ("start", "body", "message"),
+        [
+            # Moving to a branch where another commit has its ordinal.
+            (
+                {"ordinal": 7, "branch": "other"},
+                {"branch": "main"},
+                "Another commit on branch 'main' in test suite 'nts/nts' already has ordinal 7",
+            ),
+            # Taking an ordinal another commit of its branch has.
+            (
+                {"ordinal": 3},
+                {"ordinal": 7},
+                "Another commit without a branch in test suite 'nts/nts' already has ordinal 7",
+            ),
+            (
+                {"ordinal": 3, "branch": "other"},
+                {"ordinal": 7, "branch": "main"},
+                "Another commit on branch 'main' in test suite 'nts/nts' already has ordinal 7",
+            ),
+        ],
+    )
+    def test_refuses_a_change_giving_two_commits_of_a_branch_one_ordinal(
+        self,
+        create: Callable[..., Any],
+        patch: Callable[..., Any],
+        start: dict[str, Any],
+        body: dict[str, Any],
+        message: str,
+    ) -> None:
+        create("main", ordinal=7, branch="main")
+        create("none", ordinal=7)
+        create("abc", **start)
+
+        response = patch("abc", body)
+
+        assert response.status_code == 409
+        assert code_of(response) == "conflict"
+        assert response.json()["error"]["message"] == message
+
     def test_keeping_a_commits_own_ordinal_is_not_a_conflict(
         self, create: Callable[..., Any], patch: Callable[..., Any]
     ) -> None:
@@ -1252,7 +1490,7 @@ class TestUpdate:
     ) -> None:
         create("abc")
 
-        assert patch("abc", {"fields": {"branch": "main"}}).status_code == 400
+        assert patch("abc", {"fields": {"reviewer": "Jane"}}).status_code == 400
 
     @pytest.mark.parametrize("body", [{"ordinal": 1}, {}])
     def test_is_404_for_a_commit_that_is_not_there(
@@ -1351,6 +1589,7 @@ class TestResolve:
                     "value": "abc",
                     "ordinal": 42,
                     "tag": None,
+                    "branch": None,
                     "delete_after_inactive_days": None,
                     "fields": {**EVERY_FIELD, "git_sha": "abc123"},
                 }
@@ -1368,6 +1607,7 @@ class TestResolve:
             "value",
             "ordinal",
             "tag",
+            "branch",
             "delete_after_inactive_days",
             "fields",
         }

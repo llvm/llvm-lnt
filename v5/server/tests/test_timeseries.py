@@ -60,14 +60,18 @@ def submit(
 
 @pytest.fixture
 def place(api_client: TestClient, manage: dict[str, str]) -> Callable[..., None]:
-    """Give a commit an ordinal, and optionally a tag. PATCH is the only path to either (O6)."""
+    """Give a commit an ordinal, and optionally a tag and a branch."""
 
-    def patch(commit: str, ordinal: int | None = None, tag: str | None = None) -> None:
+    def patch(
+        commit: str, ordinal: int | None = None, tag: str | None = None, branch: str | None = None
+    ) -> None:
         body: dict[str, Any] = {}
         if ordinal is not None:
             body["ordinal"] = ordinal
         if tag is not None:
             body["tag"] = tag
+        if branch is not None:
+            body["branch"] = branch
         response = api_client.patch(f"{COMMITS}/{commit}", json=body, headers=manage)
         assert response.status_code == 200, response.text
 
@@ -96,14 +100,14 @@ class TestTrends:
         assert response.status_code == 200
         assert response.json() == {"items": []}
 
-    def test_carries_exactly_the_six_keys_endpoints_md_gives_it(
+    def test_carries_exactly_the_keys_endpoints_md_gives_it(
         self,
         api_client: TestClient,
         submit: Callable[..., dict[str, Any]],
         place: Callable[..., None],
     ) -> None:
         run = submit("linux", "abc", entry("t", {"execution_time": 4.0}))
-        place("abc", ordinal=7, tag="release-18.1")
+        place("abc", ordinal=7, tag="release-18.1", branch="main")
 
         assert trends(api_client, metric="execution_time", machine=["linux"]) == [
             {
@@ -112,6 +116,7 @@ class TestTrends:
                 "ordinal": 7,
                 "measured_at": run["measured_at"],
                 "tag": "release-18.1",
+                "branch": "main",
                 "value": 4.0,
             }
         ]
@@ -456,6 +461,54 @@ class TestTrendsFilters:
 
         assert response.status_code == 400
         assert code_of(response) == "invalid_request"
+
+
+class TestTrendsBranches:
+    @pytest.fixture(autouse=True)
+    def branches(self, submit: Callable[..., dict[str, Any]], place: Callable[..., None]) -> None:
+        """Two branches and the commits without one, sharing ordinals, on one machine."""
+        for commit, ordinal, branch in [
+            ("m2", 20, "main"),
+            ("r1", 10, "release"),
+            ("n1", 20, None),
+            ("m1", 10, "main"),
+            ("r3", 30, "release"),
+        ]:
+            submit("linux", commit, entry("t", {"execution_time": float(ordinal)}))
+            place(commit, ordinal=ordinal, branch=branch)
+
+    def commits(self, api_client: TestClient, **params: Any) -> list[tuple[str, Any]]:
+        served = trends(api_client, metric="execution_time", machine=["linux"], **params)
+        return [(item["commit"], item["branch"]) for item in served]
+
+    def test_orders_the_commits_sharing_an_ordinal_by_value(self, api_client: TestClient) -> None:
+        assert self.commits(api_client) == [
+            ("m1", "main"),
+            ("r1", "release"),
+            ("m2", "main"),
+            ("n1", None),
+            ("r3", "release"),
+        ]
+
+    @pytest.mark.parametrize(
+        ("params", "expected"),
+        [
+            ({"branch": "main"}, ["m1", "m2"]),
+            ({"has_branch": "false"}, ["n1"]),
+            ({"has_branch": "true"}, ["m1", "r1", "m2", "r3"]),
+            ({"branch": "nope"}, []),
+            # The window is taken among the commits the filters keep.
+            ({"branch": "main", "last_n": 1}, ["m2"]),
+            ({"has_branch": "false", "last_n": 1}, ["n1"]),
+            # Without them, the branches share it, by ordinal and then by commit value.
+            ({"last_n": 2}, ["n1", "r3"]),
+            ({"last_n": 3}, ["m2", "n1", "r3"]),
+        ],
+    )
+    def test_keeps_the_commits_of_a_branch(
+        self, api_client: TestClient, params: dict[str, Any], expected: list[str]
+    ) -> None:
+        assert [commit for commit, _ in self.commits(api_client, **params)] == expected
 
 
 class TestTrendsMetric:

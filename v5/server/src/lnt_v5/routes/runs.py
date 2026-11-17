@@ -108,6 +108,7 @@ _SUBMIT_EXAMPLES = {
             "commit": {
                 "value": examples.COMMIT,
                 "ordinal": examples.ORDINAL,
+                "branch": examples.BRANCH,
                 "fields": examples.COMMIT_VALUES,
             },
             "run_parameters": examples.RUN_PARAMETERS,
@@ -618,10 +619,10 @@ def list_runs(
     responses=suite_responses(
         conflict=(
             "`duplicate`: a run with this UUID already exists. `conflict`: the submission "
-            "contradicts what is stored for its machine or commit, or another commit already has "
-            f"its ordinal. {SUITE_SCHEMA_CHANGED} The same `retry` is returned if the run's "
-            "machine or commit was deleted while the run was being stored; sending it again "
-            "creates them."
+            "contradicts what is stored for its machine or commit, or another commit on the same "
+            f"branch already has its ordinal. {SUITE_SCHEMA_CHANGED} The same `retry` is "
+            "returned if the run's machine or commit was deleted while the run was being stored; "
+            "sending it again creates them."
         )
     ),
 )

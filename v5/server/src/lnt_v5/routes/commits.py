@@ -2,20 +2,22 @@
 
 A commit is one of the two entities carrying schema-declared metadata (O2), so the object these
 endpoints accept and return is the same one a run submission nests under `commit`: the identity
-attribute `value`, the built-in `ordinal` and `tag`, and a `fields` dict of declared
+attribute `value`, the built-in `ordinal`, `tag` and `branch`, and a `fields` dict of declared
 `commit_fields`. That object, and the validation of `fields`, live in `suites/entities.py`, shared
 with everything else that writes one; only the response models are here.
 
-Three things here are specific to commits. `ordinal` is unique within the suite (O6), so a write
-that would give two commits the same one is refused with I4's `conflict` rather than failing in the
-database -- every write path that can set an ordinal attributes `uq_commit_ordinal` for that.
-`previous`/`next` on the detail response are computed by asking for the nearest ordinal in
-each direction, never by following a stored link (O6). And `sort=ordinal` keeps the commits that
-have no ordinal, after the others: see `Commits.keyset`.
+Three things here are specific to commits. `ordinal` is unique within the commit's branch (O6), so a
+write that would give two commits of a branch the same one is refused with I4's `conflict` rather
+than failing in the database -- every write path that can set an ordinal or a branch attributes
+`uq_commit_branch_ordinal` for that. `previous`/`next` on the detail response are computed by asking
+for the nearest ordinal on the commit's branch in each direction, never by following a stored link
+(O6). And `sort=ordinal` keeps the commits that have no ordinal, after the others: see
+`Commits.keyset`.
 """
 
 from __future__ import annotations
 
+from enum import Enum, auto
 from typing import Annotated, Any, Literal
 
 from fastapi import APIRouter, Body, Path, Query, Response
@@ -60,6 +62,7 @@ from lnt_v5.routes.suites import SUITES_PATH
 from lnt_v5.scopes import Scope
 from lnt_v5.strings import Storable
 from lnt_v5.suites.entities import (
+    Branch,
     CommitObject,
     Contradiction,
     DeleteAfterInactiveDays,
@@ -83,7 +86,7 @@ from lnt_v5.suites.scope import (
     suite_scope,
 )
 from lnt_v5.suites.submission import SubmittedCommit
-from lnt_v5.suites.tables import COMMIT_ORDINAL_CONSTRAINT, COMMIT_VALUE_CONSTRAINT
+from lnt_v5.suites.tables import COMMIT_BRANCH_ORDINAL_CONSTRAINT, COMMIT_VALUE_CONSTRAINT
 
 COMMITS_PATH = f"{SUITES_PATH}/{{suite}}/commits"
 
@@ -101,18 +104,22 @@ _NO_LIST_ENTITY = (
     "The test suite, the machine given in `machine`, or the commit given in `after_commit` or "
     "`before_commit` doesn't exist."
 )
-_ORDINAL_TAKEN = f"`conflict`: another commit already has this ordinal. {SUITE_SCHEMA_CHANGED}"
+_ORDINAL_TAKEN = (
+    "`conflict`: another commit on the same branch already has this ordinal. "
+    f"{SUITE_SCHEMA_CHANGED}"
+)
 
 # The path segment naming a commit.
 CommitKey = Annotated[str, Path(description="The commit's value, such as a Git SHA.")]
 
 _CREATE_EXAMPLES = {
     "commit": {
-        "summary": "A commit with an ordinal, a tag and its fields",
+        "summary": "A commit with an ordinal, a tag, a branch and its fields",
         "value": {
             "value": examples.NEXT_COMMIT,
             "ordinal": examples.NEXT_ORDINAL,
             "tag": examples.TAG,
+            "branch": examples.BRANCH,
             "fields": {
                 "svn_revision": f"r{examples.NEXT_ORDINAL}",
                 "commit_info": "[libc++] Implement P2697R1: std::bitset interface for string_view",
@@ -134,6 +141,10 @@ _UPDATE_EXAMPLES = {
         "value": {"ordinal": examples.NEXT_ORDINAL + 1},
     },
     "untag": {"summary": "Clear a commit's tag", "value": {"tag": None}},
+    "branch": {
+        "summary": "Move a commit to another branch",
+        "value": {"branch": "release/22.x"},
+    },
     "keep": {
         "summary": "Keep a commit however long it is unused",
         "value": {"delete_after_inactive_days": None},
@@ -152,6 +163,7 @@ _COMMIT = {
     "value": examples.COMMIT,
     "ordinal": examples.ORDINAL,
     "tag": None,
+    "branch": examples.BRANCH,
     "delete_after_inactive_days": None,
     "fields": examples.COMMIT_VALUES,
 }
@@ -160,15 +172,15 @@ _COMMIT = {
 # gives them, so they are written for API users.
 
 
-# `ordinal`, `tag`, `delete_after_inactive_days` and `fields` are redeclared without their
-# defaults. I4 requires every documented
-# key to be present in a response, and inheriting the request model's optionality would instead
-# tell a generated client they may be absent.
+# `ordinal`, `tag`, `branch`, `delete_after_inactive_days` and `fields` are redeclared without their
+# defaults. I4 requires every documented key to be present in a response, and inheriting the request
+# model's optionality would instead tell a generated client they may be absent.
 class Commit(CommitObject):
     """A commit: a version that was benchmarked."""
 
     ordinal: Ordinal | None
     tag: Tag | None
+    branch: Branch | None
     delete_after_inactive_days: DeleteAfterInactiveDays | None
     fields: dict[str, FieldValue] = Field(
         description=(
@@ -182,18 +194,18 @@ class Commit(CommitObject):
 # The neighbours are plain commit objects, without neighbours of their own -- the chain stops after
 # one step, so a client walking the order pages through it one request at a time.
 class CommitDetail(Commit):
-    """A commit, with the commits just before and after it in the suite's history."""
+    """A commit, with the commits just before and after it in the history of its branch."""
 
     previous: Commit | None = Field(
         description=(
-            "The commit with the next lower ordinal, skipping commits without one. Null if there "
-            "is none, or if this commit has no ordinal."
+            "The commit of the same branch with the next lower ordinal, skipping commits without "
+            "one. Null if there is none, or if this commit has no ordinal."
         )
     )
     next: Commit | None = Field(
         description=(
-            "The commit with the next higher ordinal, skipping commits without one. Null if there "
-            "is none, or if this commit has no ordinal."
+            "The commit of the same branch with the next higher ordinal, skipping commits without "
+            "one. Null if there is none, or if this commit has no ordinal."
         )
     )
 
@@ -203,13 +215,14 @@ class CommitDetail(Commit):
 # 400.
 class CommitUpdate(EntityObject):
     """Changes to a commit. Only include what you want to change; this also applies to the keys
-    of `fields`. Set the ordinal, the tag, `delete_after_inactive_days` or a field to null to clear
-    it. A commit's value can't be changed."""
+    of `fields`. Set the ordinal, the tag, the branch, `delete_after_inactive_days` or a field to
+    null to clear it. A commit's value can't be changed."""
 
     model_config = ConfigDict(json_schema_extra=omit_defaults)
 
     ordinal: Ordinal | None = None
     tag: Tag | None = None
+    branch: Branch | None = None
     delete_after_inactive_days: DeleteAfterInactiveDays | None = None
 
 
@@ -275,6 +288,7 @@ class Commits:
             self.table.c.commit,
             self.table.c.ordinal,
             self.table.c.tag,
+            self.table.c.branch,
             self.table.c.delete_after_inactive_days,
             *(self.table.c[field.name] for field in self.schema.commit_fields),
         )
@@ -335,6 +349,7 @@ class Commits:
             "value": row._mapping[self.table.c.commit],
             "ordinal": row._mapping[self.table.c.ordinal],
             "tag": row._mapping[self.table.c.tag],
+            "branch": row._mapping[self.table.c.branch],
             "delete_after_inactive_days": row._mapping[self.table.c.delete_after_inactive_days],
             "fields": rendered_fields(self.schema.commit_fields, self.table, row),
         }
@@ -342,28 +357,29 @@ class Commits:
     def detail(self, connection: Connection, value: str) -> CommitDetail:
         """One commit with its ordinal neighbours, as the detail, create and update responses go.
 
-        One statement, each part of it an index probe: the commit by its value, and the nearest
-        ordinal either side of the commit's own (O6). A query for the nearest ordinal rather than a
-        stored link, so nothing has to be maintained when an ordinal is assigned, changed or
-        cleared. A commit with no ordinal has no neighbours, and is never anyone else's: comparing
-        against a null ordinal is unknown, so those rows drop out without being filtered for.
+        Two statements, each part of them an index probe: the commit by its value, then the nearest
+        ordinal either side of the commit's own on its branch (O6). The second needs the first's
+        branch as a literal: a branch compared through a subquery would have to match a null branch
+        too (`IS NOT DISTINCT FROM`), which no index answers. A query for the nearest ordinal rather
+        than a stored link, so nothing has to be maintained when an ordinal or a branch is assigned,
+        changed or cleared. A commit with no ordinal has no neighbours, and is never anyone else's.
         """
-        column = self.table.c.ordinal
-        ordinal = select(column).where(self.table.c.commit == value).scalar_subquery()
-        rows = connection.execute(
-            union_all(
-                self.select().where(self.table.c.commit == value),
-                self.select().where(column < ordinal).order_by(column.desc()).limit(1),
-                self.select().where(column > ordinal).order_by(column.asc()).limit(1),
-            )
-        ).all()
-        row = next((row for row in rows if row._mapping[self.table.c.commit] == value), None)
+        row = connection.execute(self.select().where(self.table.c.commit == value)).one_or_none()
         if row is None:
             raise self.missing(value)
-        # The union is unordered, so each neighbour is told apart by which side of the commit's
-        # ordinal it falls. There are none at all when that ordinal is null.
-        neighbours = [other for other in rows if other is not row]
+        column = self.table.c.ordinal
         own = row._mapping[column]
+        if own is None:
+            return CommitDetail.model_construct(**self._attributes(row), previous=None, next=None)
+        same_branch = on_branch(self.table, row._mapping[self.table.c.branch])
+        neighbours = connection.execute(
+            union_all(
+                self.select().where(same_branch, column < own).order_by(column.desc()).limit(1),
+                self.select().where(same_branch, column > own).order_by(column.asc()).limit(1),
+            )
+        ).all()
+        # The union is unordered, so each neighbour is told apart by which side of the commit's
+        # ordinal it falls.
         return CommitDetail.model_construct(
             **self._attributes(row),
             previous=next((self.read(r) for r in neighbours if r._mapping[column] < own), None),
@@ -377,41 +393,76 @@ class Commits:
     def taken(self, value: str) -> str:
         return f"A commit '{value}' already exists in test suite '{self.suite.full_name}'"
 
-    def ordinal_taken(self, ordinal: int | None) -> str:
-        return (
-            f"Ordinal {ordinal} is already held by another commit in test suite "
-            f"'{self.suite.full_name}'"
-        )
+    def ordinal_taken(
+        self, value: str, branch: str | _Unknown | None, ordinal: int | _Unknown | None
+    ) -> str:
+        """The `conflict` for a write that gives commit `value` an ordinal another commit of its
+        branch holds (O6), naming the branch and the ordinal it ends up with. A run submission that
+        sends only one of the two does not know the other, which then goes by the commit's name.
+        """
+        if branch is UNKNOWN:
+            where = f"on the branch of commit '{value}'"
+        elif branch is None:
+            where = "without a branch"
+        else:
+            where = f"on branch '{branch}'"
+        held = f"the ordinal of commit '{value}'" if ordinal is UNKNOWN else f"ordinal {ordinal}"
+        return f"Another commit {where} in test suite '{self.suite.full_name}' already has {held}"
+
+    def placement(
+        self, connection: Connection, value: str, changes: dict[str, Any]
+    ) -> tuple[str | None, int | None]:
+        """The branch and ordinal `changes` leave commit `value` with, for `ordinal_taken`.
+
+        Read beforehand, since the violation aborts the transaction. Only when the changes move the
+        commit without saying where to, since they cannot violate the index otherwise.
+        """
+        if "branch" not in changes and "ordinal" not in changes:
+            return None, None
+        if "branch" in changes and "ordinal" in changes:
+            return changes["branch"], changes["ordinal"]
+        row = connection.execute(
+            select(self.table.c.branch, self.table.c.ordinal).where(self.table.c.commit == value)
+        ).one_or_none()
+        stored = (None, None) if row is None else (row.branch, row.ordinal)
+        return changes.get("branch", stored[0]), changes.get("ordinal", stored[1])
 
     def get_or_create(self, connection: Connection, submitted: SubmittedCommit) -> int:
         """The id of the commit a run submission names, creating it if it is not there (O2, O8).
 
-        `ordinal` and `tag` are reconciled exactly as a declared field is -- O2 says so, because
-        both are nullable and describe the commit rather than being a policy flag: each is set when
-        the commit has none, left alone when it already equals the submitted one, and refused with
-        I4's `conflict` when it differs.
+        `ordinal`, `tag` and `branch` are reconciled exactly as a declared field is -- O2 says so,
+        because they are nullable and describe the commit rather than being a policy flag: each is
+        set when the commit has none, left alone when it already equals the submitted one, and
+        refused with I4's `conflict` when it differs.
 
         `delete_after_inactive_days` is written at creation and never compared or filled in
         afterwards, as for a machine (see `Machines.get_or_create`): O2 makes it creation-only, so
         that a `submit` key cannot schedule an existing commit's deletion.
 
-        `uq_commit_ordinal` is attributed around the whole body rather than around either statement,
-        and that placement is load-bearing. The INSERT can trip it -- another commit already holds
-        the ordinal -- in which case the get-or-create re-raises rather than treating it as a lost
-        race, and this is what turns the re-raise into I4's `conflict` instead of a 500. The UPDATE
-        that fills in a NULL ordinal can equally lose that race to a commit created since.
+        `uq_commit_branch_ordinal` is attributed around the whole body rather than around either
+        statement, and that placement is load-bearing. The INSERT can trip it -- another commit of
+        the branch already holds the ordinal -- in which case the get-or-create re-raises rather
+        than treating it as a lost race, and this is what turns the re-raise into I4's `conflict`
+        instead of a 500. The UPDATE that fills in a NULL ordinal or branch can equally collide.
         """
-        # O2: only what the submission sends is matched, so the ordinal and the tag join the fields
-        # exactly when each was sent. An omitted one is neither compared nor written, and can never
-        # be the reason a submission is refused.
-        built_in = {"ordinal": submitted.ordinal, "tag": submitted.tag}
+        # O2: only what the submission sends is matched, so the ordinal, the tag and the branch join
+        # the fields exactly when each was sent. An omitted one is neither compared nor written, and
+        # can never be the reason a submission is refused.
+        built_in = {"ordinal": submitted.ordinal, "tag": submitted.tag, "branch": submitted.branch}
         matched: dict[str, Any] = dict(submitted.fields)
         matched |= {key: value for key, value in built_in.items() if value is not None}
 
+        # The branch and ordinal the commit ends up with: those sent, since a stored one that
+        # differs is a contradiction instead. One left out is whatever the commit has, which is
+        # not known here -- null if the INSERT trips the index, the stored one if a fill does.
         with reporting_violation(
-            COMMIT_ORDINAL_CONSTRAINT,
+            COMMIT_BRANCH_ORDINAL_CONSTRAINT,
             ErrorCode.CONFLICT,
-            self.ordinal_taken(submitted.ordinal),
+            self.ordinal_taken(
+                submitted.value,
+                UNKNOWN if submitted.branch is None else submitted.branch,
+                UNKNOWN if submitted.ordinal is None else submitted.ordinal,
+            ),
         ):
             return create_or_reconcile(
                 connection,
@@ -433,8 +484,9 @@ class Commits:
         configuration without reading the database. The ordinal gets wording of its own, because
         moving a commit in the order is the change a submitter most needs telling how to make.
 
-        The branch is unambiguous because D5 forbids a `commit_field` from taking a built-in
-        column's name, so `ordinal` here is always the built-in attribute and never a declared one.
+        Telling the ordinal apart by its key is unambiguous because D5 forbids a `commit_field`
+        from taking a built-in column's name, so `ordinal` here is always the built-in attribute
+        and never a declared one.
         """
 
         def error(key: str, stored: Any, submitted: Any) -> ApiError:
@@ -453,6 +505,41 @@ class Commits:
             return ApiError(ErrorCode.CONFLICT, message)
 
         return error
+
+
+class _Unknown(Enum):
+    """A value `Commits.ordinal_taken` is not told."""
+
+    UNKNOWN = auto()
+
+
+UNKNOWN = _Unknown.UNKNOWN
+
+
+def on_branch(commit: Table, branch: str | None) -> ColumnElement[bool]:
+    """The commits of `branch`, those without one if it is null (O6).
+
+    A literal comparison either way, which the `(branch, ordinal)` index answers, rather than
+    `IS NOT DISTINCT FROM`, which no index does.
+    """
+    return commit.c.branch.is_(None) if branch is None else commit.c.branch == branch
+
+
+def branch_conditions(
+    commit: Table, branch: str | None, has_branch: bool | None
+) -> list[ColumnElement[bool]]:
+    """The `branch=` and `has_branch=` filters of the commit list and of the time series (E3, E9).
+
+    `branch=` is matched exactly, so a value no commit has -- empty, or longer than any branch can
+    be -- is an empty result rather than an error: a branch is not an entity a request can name
+    wrongly (I3), and none may have had a commit yet.
+    """
+    conditions: list[ColumnElement[bool]] = []
+    if branch is not None:
+        conditions.append(on_branch(commit, branch))
+    if has_branch is not None:
+        conditions.append(commit.c.branch.is_not(None) if has_branch else commit.c.branch.is_(None))
+    return conditions
 
 
 def _missing(suite: str, value: str) -> ApiError:
@@ -486,8 +573,26 @@ def commit_id(connection: Connection, suite: Suite, value: str) -> int:
     )
 
 
-def commit_ordinal(connection: Connection, suite: Suite, value: str) -> int:
-    """The ordinal of a commit a request names as a range boundary (O6).
+def commit_bounds(
+    connection: Connection, suite: Suite, after: str | None, before: str | None
+) -> list[ColumnElement[bool]]:
+    """The commits strictly after `after` and strictly before `before`, each optional (O6).
+
+    The `after_commit`/`before_commit` of the commit list and of the time series. Ordinals only
+    order the commits of a branch, so each bound also keeps only the commits of its own commit's
+    branch: two bounds on different branches leave nothing between them, which is an empty result
+    rather than an error, as is a bound combined with `has_ordinal=false` (E3).
+    """
+    commit = suite.tables.commit
+    start = None if after is None else commit_position(connection, suite, after)
+    end = None if before is None else commit_position(connection, suite, before)
+    conditions = [on_branch(commit, branch) for branch, _ in filter(None, (start, end))]
+    conditions += exclusive_range(commit.c.ordinal, start and start[1], end and end[1])
+    return conditions
+
+
+def commit_position(connection: Connection, suite: Suite, value: str) -> tuple[str | None, int]:
+    """The branch and ordinal of a commit a request names as a range boundary (O6).
 
     The `after_commit`/`before_commit` of `GET /series` and of the commit list name a commit and
     mean its *position*, so both ways of failing to have one are the caller's mistake and neither
@@ -502,7 +607,9 @@ def commit_ordinal(connection: Connection, suite: Suite, value: str) -> int:
     to build a response body that is thrown away.
     """
     commit = suite.tables.commit
-    row = connection.execute(select(commit.c.ordinal).where(commit.c.commit == value)).one_or_none()
+    row = connection.execute(
+        select(commit.c.branch, commit.c.ordinal).where(commit.c.commit == value)
+    ).one_or_none()
     if row is None:
         raise _missing(suite.full_name, value)
     if row.ordinal is None:
@@ -511,7 +618,7 @@ def commit_ordinal(connection: Connection, suite: Suite, value: str) -> int:
             f"Commit '{value}' in test suite '{suite.full_name}' has no ordinal, so it has no "
             f"position in the commit order and cannot bound a range. Give it one with PATCH.",
         )
-    return int(row.ordinal)
+    return row.branch, int(row.ordinal)
 
 
 @router.get(
@@ -573,13 +680,31 @@ def list_commits(
             )
         ),
     ] = None,
+    branch: Annotated[
+        str | None,
+        Query(
+            description=(
+                "Only return commits on this branch. If no commit is on it, the result is empty. "
+                "Use `has_branch=false` for the commits without a branch."
+            )
+        ),
+    ] = None,
+    has_branch: Annotated[
+        bool | None,
+        Query(
+            description=(
+                "Only return commits that have (`true`) or don't have (`false`) a branch. Leave "
+                "out to return both."
+            )
+        ),
+    ] = None,
     after_commit: Annotated[
         str | None,
         Query(
             description=(
-                "Only return commits after this one (exclusive), by ordinal. Commits without an "
-                "ordinal are left out. Returns 404 if the commit doesn't exist, and 400 if it has "
-                "no ordinal."
+                "Only return commits after this one (exclusive), by ordinal, on the same branch. "
+                "Commits without an ordinal are left out. Returns 404 if the commit doesn't exist, "
+                "and 400 if it has no ordinal."
             )
         ),
     ] = None,
@@ -587,10 +712,10 @@ def list_commits(
         str | None,
         Query(
             description=(
-                "Only return commits before this one (exclusive), by ordinal. Commits without an "
-                "ordinal are left out. Returns 404 if the commit doesn't exist, and 400 if it has "
-                "no ordinal. To find the commit before a given one at which a machine has runs, "
-                "combine it with `machine`, `sort=-ordinal` and `limit=1`."
+                "Only return commits before this one (exclusive), by ordinal, on the same branch. "
+                "Commits without an ordinal are left out. Returns 404 if the commit doesn't exist, "
+                "and 400 if it has no ordinal. To find the commit before a given one at which a "
+                "machine has runs, combine it with `machine`, `sort=-ordinal` and `limit=1`."
             )
         ),
     ] = None,
@@ -601,7 +726,8 @@ def list_commits(
                 "`first_seen`: in the order the commits were added, oldest first "
                 "(`-first_seen`: newest first). `ordinal`: by ordinal, lowest first (`-ordinal`: "
                 "highest first), followed by the commits without an ordinal, in the order they "
-                "were added (`-ordinal`: newest first)."
+                "were added (`-ordinal`: newest first). Without `branch`, the commits of different "
+                "branches are interleaved by ordinal."
             )
         ),
     ] = "first_seen",
@@ -634,12 +760,9 @@ def list_commits(
         if has_profiles is not None:
             profiled = commits.has_run(on_machine, profiled=True)
             conditions.append(profiled if has_profiles else ~profiled)
+        conditions += branch_conditions(commits.table, branch, has_branch)
         # The bounds leave out the commits with no ordinal, whatever the sort (endpoints.md).
-        conditions += exclusive_range(
-            commits.table.c.ordinal,
-            None if after_commit is None else commit_ordinal(connection, suite, after_commit),
-            None if before_commit is None else commit_ordinal(connection, suite, before_commit),
-        )
+        conditions += commit_bounds(connection, suite, after_commit, before_commit)
         # A bound implies `has_ordinal=true`, so that the keyset never looks for unordered commits.
         if has_ordinal is None and (after_commit is not None or before_commit is not None):
             has_ordinal = True
@@ -679,7 +802,7 @@ def create_commit(
 
     You don't need to do this before submitting runs: submitting a run creates its commit if it
     doesn't exist yet. Creating a commit yourself is useful to give it an ordinal or a tag before
-    any run arrives.
+    any run arrives. Two commits of the same branch can't have the same ordinal.
     """
     with (
         engine.begin() as connection,
@@ -692,9 +815,9 @@ def create_commit(
                 COMMIT_VALUE_CONSTRAINT, ErrorCode.DUPLICATE, commits.taken(body.value)
             ),
             reporting_violation(
-                COMMIT_ORDINAL_CONSTRAINT,
+                COMMIT_BRANCH_ORDINAL_CONSTRAINT,
                 ErrorCode.CONFLICT,
-                commits.ordinal_taken(body.ordinal),
+                commits.ordinal_taken(body.value, body.branch, body.ordinal),
             ),
         ):
             connection.execute(
@@ -702,6 +825,7 @@ def create_commit(
                     commit=body.value,
                     ordinal=body.ordinal,
                     tag=body.tag,
+                    branch=body.branch,
                     delete_after_inactive_days=body.delete_after_inactive_days,
                     **values,
                 )
@@ -790,11 +914,12 @@ def update_commit(
     engine: EngineDep,
     registry: RegistryDep,
 ) -> CommitDetail:
-    """Set or clear a commit's ordinal, tag, `delete_after_inactive_days` and fields.
+    """Set or clear a commit's ordinal, tag, branch, `delete_after_inactive_days` and fields.
 
-    This is the only way to change an ordinal or a tag once it is set. Only include what you want
-    to change. If you change the ordinal, the tag or a field here, later run submissions that still
-    send the old value are rejected with a 409 `conflict` until they are updated.
+    This is the only way to change an ordinal, a tag or a branch once it is set. Only include what
+    you want to change. Two commits of the same branch can't have the same ordinal. If you change
+    the ordinal, the tag, the branch or a field here, later run submissions that still send the old
+    value are rejected with a 409 `conflict` until they are updated.
     """
     with (
         engine.begin() as connection,
@@ -804,7 +929,7 @@ def update_commit(
         changes = body.model_dump(exclude_unset=True)
         values: dict[str, Any] = {
             key: changes[key]
-            for key in ("ordinal", "tag", "delete_after_inactive_days")
+            for key in ("ordinal", "tag", "branch", "delete_after_inactive_days")
             if key in changes
         }
         if "fields" in changes:
@@ -814,9 +939,9 @@ def update_commit(
         # `detail` answers on its own -- an UPDATE with no values would match no rows either way.
         if values:
             with reporting_violation(
-                COMMIT_ORDINAL_CONSTRAINT,
+                COMMIT_BRANCH_ORDINAL_CONSTRAINT,
                 ErrorCode.CONFLICT,
-                commits.ordinal_taken(values.get("ordinal")),
+                commits.ordinal_taken(value, *commits.placement(connection, value, values)),
             ):
                 changed = connection.execute(
                     update(commits.table).where(commits.table.c.commit == value).values(**values)

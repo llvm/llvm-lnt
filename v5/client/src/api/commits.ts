@@ -136,8 +136,8 @@ export function resolvedCommitKey(suite: SuiteRef, value: string) {
 
 /** `detail`, without its neighbours: the commit as a list or `commits/resolve` gives it. */
 export function withoutNeighbours(detail: Schemas['CommitDetail']): Commit {
-  const { value, ordinal, tag, delete_after_inactive_days, fields } = detail
-  return { value, ordinal, tag, delete_after_inactive_days, fields }
+  const { value, ordinal, tag, branch, delete_after_inactive_days, fields } = detail
+  return { value, ordinal, tag, branch, delete_after_inactive_days, fields }
 }
 
 /** Store `detail` as the commit resolved, which a page about it then need not ask for again. */

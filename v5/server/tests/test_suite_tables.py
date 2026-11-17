@@ -27,7 +27,7 @@ from lnt_v5.suites import tables as suite_tables
 from lnt_v5.suites.schema import CommitField, Entry, MachineField, Metric, SuiteSchema
 from lnt_v5.suites.states import RegressionState
 from lnt_v5.suites.tables import (
-    COMMIT_ORDINAL_CONSTRAINT,
+    COMMIT_BRANCH_ORDINAL_CONSTRAINT,
     COMMIT_VALUE_CONSTRAINT,
     MACHINE_NAME_CONSTRAINT,
     REGRESSION_COMMIT_CONSTRAINT,
@@ -262,6 +262,7 @@ class TestBuiltInColumns:
                     "commit",
                     "ordinal",
                     "tag",
+                    "branch",
                     "first_seen_at",
                     "delete_after_inactive_days",
                     "git_sha",
@@ -362,6 +363,7 @@ class TestBuiltInColumns:
             # D1: an ordinal is optional, and NULL means unordered.
             ("commit", "ordinal", True),
             ("commit", "tag", True),
+            ("commit", "branch", True),
             # D5: the server always records when it first saw an entity, whereas deleting one after
             # inactivity is something only some entities ask for (O10).
             ("commit", "first_seen_at", False),
@@ -556,7 +558,7 @@ class TestNamingConvention:
             # Each of these is written out so that an endpoint can attribute a violation to it and
             # answer the specific 409 I4 gives it: `duplicate` or `conflict`.
             ("commit", COMMIT_VALUE_CONSTRAINT),
-            ("commit", COMMIT_ORDINAL_CONSTRAINT),
+            ("commit", COMMIT_BRANCH_ORDINAL_CONSTRAINT),
             ("run", RUN_UUID_CONSTRAINT),
             ("run", RUN_MACHINE_CONSTRAINT),
             ("run", RUN_COMMIT_CONSTRAINT),
@@ -613,6 +615,24 @@ class TestIndexes:
 
         assert tag["column_names"] == ["tag"]
         assert tag.get("dialect_options", {}).get("postgresql_where") is not None
+
+    def test_ordinals_are_unique_per_branch_among_the_commits_that_have_one(
+        self, db_engine: Engine, make_suite: Callable[..., SuiteTables]
+    ) -> None:
+        # O6: unique within a branch, a null branch counting as one, and only over the commits with
+        # an ordinal, which the ordinal also has a plain index of its own for (D5).
+        make_suite("nts")
+
+        indexes = indexes_of(inspect(db_engine), "nts", "commit")
+        unique = indexes[COMMIT_BRANCH_ORDINAL_CONSTRAINT]
+        options = unique.get("dialect_options", {})
+
+        assert unique["column_names"] == ["branch", "ordinal"]
+        assert unique["unique"]
+        assert options.get("postgresql_nulls_not_distinct")
+        assert options.get("postgresql_where") is not None
+        assert indexes["ix_commit_ordinal"]["column_names"] == ["ordinal"]
+        assert not indexes["ix_commit_ordinal"]["unique"]
 
     def test_the_inactivity_setting_of_commits_is_indexed_only_where_it_is_set(
         self, db_engine: Engine, make_suite: Callable[..., SuiteTables]

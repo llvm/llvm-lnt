@@ -14,11 +14,21 @@ v5 "Commit" concept separates them.
   `"experiment-vectorizer-v2"`), and it is the commit's identity. By default
   the UI also displays it, but a `commit_field` marked `display: true`
   overrides what is shown (see D4). Every run must have a commit.
-- **Ordinal**: an optional integer that places the commit in a total order. It
-  can be set inline in a run submission, at creation via
+- **Ordinal**: an optional integer that places the commit in the total order of
+  its branch. It can be set inline in a run submission, at creation via
   `POST /api/projects/{project}/suites/{suite}/commits`, or at any later time
   via PATCH. It is never inferred from the commit string, even if the string is
   numeric. `NULL` means unordered.
+- **Branch**: an optional free-form string naming the line of history the
+  commit is on, such as `main` or `release/19.x`, set in the same ways as the
+  ordinal. Ordinals only order the commits of one branch: two commits on
+  different branches may have the same ordinal, and what comes before or after
+  a commit (its neighbours, a range of commits) is only looked for on its own
+  branch. The commits without a branch behave as one branch of their own. The
+  branch is an attribute of the commit, not part of its identity: the commit
+  string stays unique across the suite, and still addresses the commit alone. A
+  commit reachable from several branches, such as a branch point, is on only
+  one of them. Nothing relates branches to each other.
 
 Runs therefore come in two tiers:
 1. A run on an ordered commit (ordinal set) takes full part in time series.
@@ -571,17 +581,27 @@ and the tables below are named that way.
 |--------|------|-------------|
 | id | INTEGER | PK |
 | commit | VARCHAR(256) | unique, not null |
-| ordinal | INTEGER | nullable, unique |
+| ordinal | INTEGER | nullable, indexed |
 | tag | VARCHAR(256) | nullable, indexed (partial: WHERE tag IS NOT NULL) |
+| branch | VARCHAR(256) | nullable |
 | first_seen_at | TIMESTAMP WITH TIME ZONE | not null, default `now()` |
 | delete_after_inactive_days | INTEGER | nullable, between 1 and 36500, indexed (partial: WHERE delete_after_inactive_days IS NOT NULL) |
 | _(dynamic)_ | per commit_fields | nullable |
 
 - `commit` is the identity string, submitted as `commit.value` (see O1).
-- `ordinal` has a regular unique constraint.
+- `(branch, ordinal)` has a regular unique index, `NULLS NOT DISTINCT` and
+  partial (`WHERE ordinal IS NOT NULL`): ordinals are unique within a branch,
+  the commits without a branch counting as one, and any number of commits of a
+  branch may have no ordinal (see O6). It is also what the lookups along a
+  branch's ordinals use (`previous`/`next`, the commit bounds and the trends'
+  window, see E3 and E9). `ordinal` has an index of its own, for listing the
+  commits of every branch by ordinal (see E3).
 - `tag` is an optional human-readable label (e.g. `release-18.1`), which can be
   set on every commit write path (see O2). Several commits may share a tag. The
   tag is always included in `?search=` substring matching (see O4).
+- `branch` is the line of history the commit is on (see D1), which can be set
+  on every commit write path (see O2). It is not matched by `?search=` (see
+  O4): a branch is shared by many commits, which `branch=` selects (see E3).
 - `first_seen_at` is when the server created the commit, from the database's
   clock. It is internal: no API response includes it. O10 counts it as
   activity. It is not what E3's `first_seen` order sorts by: that order is
@@ -598,8 +618,8 @@ and the tables below are named that way.
   regressions attributed to it are kept, with no commit (see
   `{suite}.regression`).
 - `commit_fields` names must not collide with the built-in column names (`id`,
-  `commit`, `ordinal`, `tag`, `first_seen_at`, `delete_after_inactive_days`);
-  the schema parser rejects them.
+  `commit`, `ordinal`, `tag`, `branch`, `first_seen_at`,
+  `delete_after_inactive_days`); the schema parser rejects them.
 
 #### `{suite}.machine`
 

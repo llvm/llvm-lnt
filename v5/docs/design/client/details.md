@@ -218,11 +218,12 @@ machine, with only this run selected (`runs_a={uuid}`), and the metric selected 
 the commit before it on the same machine: side A is the previous commit (see below) on this
 run's machine, with all of its runs, side B is this run's commit and machine with only this
 run selected (`runs_b={uuid}`), and the metric is the one selected on this page. The previous
-commit is the one with the nearest lower ordinal at which this machine has runs
-(`GET commits?machine={name}&before_commit={value}&sort=-ordinal&limit=1`), not the commit's
-`previous` neighbour, which may have no runs on this machine. The button is disabled, with a
-tooltip saying why, when the run's commit has no ordinal or the machine has no earlier commit,
-and while the previous commit is being looked up or could not be.
+commit is the one on the same branch with the nearest lower ordinal at which this machine has
+runs (`GET commits?machine={name}&before_commit={value}&sort=-ordinal&limit=1`, whose bound keeps
+only the commit's branch, see E3), not the commit's `previous` neighbour, which may have no runs
+on this machine. The button is disabled, with a tooltip saying why, when the run's commit has no
+ordinal or the machine has no earlier commit on its branch, and while the previous commit is
+being looked up or could not be.
 
 Both are links, so a modified click opens the comparison in a new tab (see AR2 "Routing"),
 unless "Compare with previous commit" is disabled (see AR8).
@@ -322,9 +323,9 @@ cleared.
 
 ### Navigation
 
-Previous / next buttons allow navigating to the previous or next commit based on ordinals.
-Each is greyed out when there is no such commit: when the commit has no ordinal, and at
-either end of the ordered range.
+Previous / next buttons allow navigating to the previous or next commit on the same branch
+based on ordinals (see E3). Each is greyed out when there is no such commit: when the commit has
+no ordinal, and at either end of its branch's ordered range.
 
 "View on {label}" (see AR20) follows them, as a button like them. The changes since the previous
 commit are left to the Graph and Compare pages.
@@ -360,7 +361,8 @@ Each row has a "Compare with previous" link, which does what the Run Detail page
 with previous commit" does for that row's run (see DT2). Since this page has no metric
 selector, the link carries the metric Run Detail would select by default. The previous commit
 is looked up once per machine rather than once per run. The link is disabled, with a tooltip
-saying why, when this commit has no ordinal or the row's machine has no earlier commit.
+saying why, when this commit has no ordinal or the row's machine has no earlier commit on its
+branch.
 
 
 ## DT4: Regression Detail -- `/projects/{p}/suites/{s}/regressions/{uuid}`

@@ -794,6 +794,107 @@ class TestTag:
         assert api_client.get(f"{COMMITS}/abc123").json()["tag"] == "release-18.1"
 
 
+class TestBranch:
+    """O2 and O6, inline: a submission may put a commit on a branch, but never move it."""
+
+    def test_puts_the_commit_it_creates_on_the_branch(
+        self, api_client: TestClient, submitted: Callable[..., Any]
+    ) -> None:
+        submitted(commit={"value": "abc123", "ordinal": 42, "branch": "main"})
+
+        assert api_client.get(f"{COMMITS}/abc123").json()["branch"] == "main"
+
+    def test_puts_a_commit_that_has_none_on_the_branch(
+        self, api_client: TestClient, submitted: Callable[..., Any]
+    ) -> None:
+        submitted(commit={"value": "abc123", "ordinal": 42})
+
+        submitted(commit={"value": "abc123", "branch": "main"})
+
+        assert api_client.get(f"{COMMITS}/abc123").json()["branch"] == "main"
+
+    def test_accepts_the_branch_the_commit_already_has(self, submit: Callable[..., Any]) -> None:
+        commit = {"value": "abc123", "branch": "main"}
+        assert submit(commit=commit).status_code == 201
+
+        assert submit(commit=commit).status_code == 201
+
+    def test_refuses_a_branch_that_contradicts_the_stored_one(
+        self, api_client: TestClient, submit: Callable[..., Any]
+    ) -> None:
+        submit(commit={"value": "abc123", "branch": "main"})
+
+        response = submit(commit={"value": "abc123", "branch": "release"})
+
+        assert response.status_code == 409
+        assert code_of(response) == "conflict"
+        assert api_client.get(f"{COMMITS}/abc123").json()["branch"] == "main"
+
+    @pytest.mark.parametrize(("null", "omitted"), [({"branch": None}, {}), ({}, {"branch": None})])
+    def test_an_omitted_or_null_branch_never_contradicts(
+        self,
+        api_client: TestClient,
+        submitted: Callable[..., Any],
+        null: dict[str, Any],
+        omitted: dict[str, Any],
+    ) -> None:
+        submitted(commit={"value": "abc123", "branch": "main"})
+
+        submitted(commit={"value": "abc123", **null, **omitted})
+
+        assert api_client.get(f"{COMMITS}/abc123").json()["branch"] == "main"
+
+    def test_accepts_an_ordinal_another_branch_holds(self, submit: Callable[..., Any]) -> None:
+        submit(commit={"value": "abc123", "ordinal": 42, "branch": "main"})
+
+        response = submit(commit={"value": "def456", "ordinal": 42, "branch": "release"})
+
+        assert response.status_code == 201
+
+    @pytest.mark.parametrize(
+        ("existing", "commit", "message"),
+        [
+            # Created with an ordinal its branch has.
+            (
+                None,
+                {"value": "def456", "ordinal": 42, "branch": "main"},
+                "Another commit on branch 'main' in test suite 'nts/nts' already has ordinal 42",
+            ),
+            # Given an ordinal its stored branch has: the submission does not name the branch.
+            (
+                {"value": "def456", "branch": "main"},
+                {"value": "def456", "ordinal": 42},
+                "Another commit on the branch of commit 'def456' in test suite 'nts/nts' already "
+                "has ordinal 42",
+            ),
+            # Put on a branch where its stored ordinal is taken.
+            (
+                {"value": "def456", "ordinal": 42},
+                {"value": "def456", "branch": "main"},
+                "Another commit on branch 'main' in test suite 'nts/nts' already has the ordinal "
+                "of commit 'def456'",
+            ),
+        ],
+    )
+    def test_refuses_to_give_two_commits_of_a_branch_one_ordinal(
+        self,
+        submit: Callable[..., Any],
+        submitted: Callable[..., Any],
+        existing: dict[str, Any] | None,
+        commit: dict[str, Any],
+        message: str,
+    ) -> None:
+        submitted(commit={"value": "abc123", "ordinal": 42, "branch": "main"})
+        if existing is not None:
+            submitted(commit=existing)
+
+        response = submit(commit=commit)
+
+        assert response.status_code == 409
+        assert code_of(response) == "conflict"
+        assert response.json()["error"]["message"] == message
+
+
 class TestSamples:
     """O1: what a test entry's samples become, as the rows PostgreSQL ends up holding."""
 

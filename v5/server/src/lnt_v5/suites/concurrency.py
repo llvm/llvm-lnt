@@ -79,11 +79,11 @@ def get_or_create(
 
     A failed INSERT is a lost race exactly when the row is there afterwards, whichever unique index
     reported it -- which is why the recovery re-reads rather than inspecting the constraint name. A
-    commit carrying an ordinal can trip `uq_commit_ordinal` before `uq_commit_commit` even when the
-    winner is this very commit, since PostgreSQL checks indexes in creation order, which
-    `REINDEX CONCURRENTLY` or re-creating a constraint changes. Anything else is re-raised: a
-    commit whose ordinal *another* commit holds is not there on the re-read, and the caller owes
-    `conflict` for it (I4).
+    commit carrying an ordinal can trip `uq_commit_branch_ordinal` before `uq_commit_commit` even
+    when the winner is this very commit, since PostgreSQL checks indexes in creation order, which
+    `REINDEX CONCURRENTLY` or re-creating an index changes. Anything else is re-raised: a commit
+    whose ordinal *another* commit of its branch holds is not there on the re-read, and the caller
+    owes `conflict` for it (I4).
 
     The caller owns the transaction. Only the INSERT is wrapped in a savepoint, so a submission
     that has already created its machine keeps it when it loses the race for its commit.

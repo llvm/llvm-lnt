@@ -1381,12 +1381,19 @@ class TestTimeSeriesOperations:
         operation = client.get("/api/openapi.json").json()["paths"][TRENDS_PATH]["get"]
         return {p["name"]: p for p in operation["parameters"] if p["in"] == "query"}
 
-    def test_trends_takes_exactly_the_four_query_parameters_endpoints_md_gives_it(
+    def test_trends_takes_exactly_the_query_parameters_endpoints_md_gives_it(
         self, client: TestClient
     ) -> None:
         parameters = self.trends_parameters(client)
 
-        assert set(parameters) == {"metric", "machine", "sample_agg", "last_n"}
+        assert set(parameters) == {
+            "metric",
+            "machine",
+            "sample_agg",
+            "last_n",
+            "branch",
+            "has_branch",
+        }
         assert {name for name, p in parameters.items() if p["required"]} == {"metric", "machine"}
 
     def test_the_trends_window_defaults_to_a_bounded_one(self, client: TestClient) -> None:
@@ -1431,6 +1438,7 @@ class TestTimeSeriesOperations:
             "submitted_at",
             "measured_at",
             "tag",
+            "branch",
         }
         assert set(point["required"]) == set(point["properties"])
 
@@ -1445,6 +1453,7 @@ class TestTimeSeriesOperations:
             "ordinal",
             "measured_at",
             "tag",
+            "branch",
             "value",
         }
         assert set(item["required"]) == set(item["properties"])
