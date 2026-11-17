@@ -4,7 +4,7 @@ import { usePreviousCommit, type PreviousCommit } from '../../api/commits'
 import { refOf, type Suite } from '../../api/suites'
 import { ButtonLink } from '../../components/button-link'
 import { comparePath } from '../../paths'
-import { commitDisplayValue, onBranch } from '../../schema'
+import { commitDisplayValue } from '../../schema'
 
 interface Props {
   schema: Suite
@@ -52,7 +52,9 @@ function title(previous: PreviousCommit, machineLabel: string, schema: Suite): s
     case 'unordered':
       return NO_ORDINAL
     case 'none':
-      return `${machineLabel} has no runs at an earlier commit${onBranch(previous.branch)}.`
+      return previous.branch === null
+        ? `${machineLabel} has no runs at an earlier commit.`
+        : `${machineLabel} has no runs at an earlier commit on ${previous.branch}.`
     case 'found':
       return `Compare with ${commitDisplayValue(previous.commit, schema)}`
   }

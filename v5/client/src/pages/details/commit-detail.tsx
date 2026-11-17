@@ -36,7 +36,7 @@ import { WithSchema } from '../../components/with-schema'
 import { isIntegerIn, plural } from '../../format'
 import { compareLabels, machineFilterText } from '../../labels'
 import { commitPath } from '../../paths'
-import { commitDisplayValue, defaultMetric, labelOf, onBranch, type Commit } from '../../schema'
+import { commitDisplayValue, defaultMetric, labelOf, type Commit } from '../../schema'
 import { trimmedStringParam, useUrlState } from '../../url-state'
 import { suiteTabPath } from '../test-suites/settings'
 import { DetailActionRow } from './action-row'
@@ -54,8 +54,11 @@ const DISPLAY_HELP =
   'The UI shows a commit by the value of this field, when it has one, rather than by its commit ' +
   'string.'
 
-/** D5's limit on a tag and on a branch. */
-const COMMIT_TEXT_LENGTH = 256
+/** D5's limit on a tag. */
+const TAG_LENGTH = 256
+
+/** D5's limit on a branch. */
+const BRANCH_LENGTH = 256
 
 const PARAMS = { machine_filter: trimmedStringParam() }
 
@@ -181,7 +184,7 @@ function CommitInfo({ schema, commit }: { schema: Suite; commit: CommitDetail })
           label="Branch"
           value={commit.branch}
           gate={manage}
-          maxLength={COMMIT_TEXT_LENGTH}
+          maxLength={BRANCH_LENGTH}
           onSave={(branch) => update({ branch })}
         />
       </InfoRow>
@@ -190,7 +193,7 @@ function CommitInfo({ schema, commit }: { schema: Suite; commit: CommitDetail })
           label="Tag"
           value={commit.tag}
           gate={manage}
-          maxLength={COMMIT_TEXT_LENGTH}
+          maxLength={TAG_LENGTH}
           onSave={(tag) => update({ tag })}
         />
       </InfoRow>
@@ -232,8 +235,8 @@ function Actions({ schema, commit }: { schema: Suite; commit: CommitDetail }) {
   const suite = refOf(schema)
   const { value } = commit
   const unordered = commit.ordinal === null
-  // Neighbours are those of the commit's branch (DT3).
-  const branch = onBranch(commit.branch)
+  // Its neighbours are those of its branch (DT3).
+  const noCommit = commit.branch === null ? 'No commit' : `No commit on ${commit.branch}`
   // A link to `neighbour`, which it names on hover, or why there is none.
   const link = (neighbour: Commit | null, none: string, label: string) => (
     <ButtonLink
@@ -267,8 +270,8 @@ function Actions({ schema, commit }: { schema: Suite; commit: CommitDetail }) {
         leaveTo: suiteTabPath(suite, 'commits'),
       }}
     >
-      {link(commit.previous, `No commit${branch} comes before this one.`, '← Previous commit')}
-      {link(commit.next, `No commit${branch} comes after this one.`, 'Next commit →')}
+      {link(commit.previous, `${noCommit} comes before this one.`, '← Previous commit')}
+      {link(commit.next, `${noCommit} comes after this one.`, 'Next commit →')}
       <CommitRepositoryLink schema={schema} commit={commit} look="button" />
     </DetailActionRow>
   )

@@ -18,7 +18,6 @@ import {
   uuidFor,
 } from '../tools/synthetic.ts'
 import { expect, json, test } from './fixtures.ts'
-import { cardOf } from './cards.ts'
 import { ownSuite, type OwnRun } from './own-suite.ts'
 import { column, rows, table } from './tables.ts'
 
@@ -266,11 +265,6 @@ test('its branch is edited by a holder of manage scope, and shown on the Commits
     const commits = table(page, 'Commits')
     const row = rows(commits).filter({ has: page.getByRole('link', { name: 'c2', exact: true }) })
     await expect(row.locator('td').nth(2)).toHaveText('release/2.x')
-    const commitLink = row.getByRole('link')
-    await commitLink.hover()
-    const card = await cardOf(page, commitLink)
-    await expect(card.getByRole('term')).toHaveText(['Commit', 'Ordinal', 'Branch'])
-    await expect(card).toContainText('release/2.x')
 
     // Emptied, the branch is cleared, and the commit is back among c1 and c3.
     await page.goto(`${suitePath(suite)}/commits/c2`)

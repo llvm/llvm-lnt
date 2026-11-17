@@ -498,9 +498,19 @@ describe('the Commit Detail page', () => {
     })
 
     it.each([
-      ['Ordinal', '99', 'Another commit without a branch already has ordinal 99'],
-      ['Branch', 'main', "Another commit on branch 'main' already has ordinal 100"],
-    ])('report a change to the %s the API refuses, keeping the editor open', async (field, text, why) => {
+      [
+        'Ordinal',
+        '99',
+        "Another commit without a branch in test suite 'llvm/libcxx' already has ordinal 99",
+        '100Edit',
+      ],
+      [
+        'Branch',
+        'main',
+        "Another commit on branch 'main' in test suite 'llvm/libcxx' already has ordinal 100",
+        '--Edit',
+      ],
+    ])('report a change to the %s the API refuses, keeping the editor open', async (field, text, why, shown) => {
       signIn('manage')
       mockSent('patch', COMMIT_ROUTE, () => errorResponse(409, 'conflict', why))
       renderCommit()
@@ -510,7 +520,8 @@ describe('the Commit Detail page', () => {
 
       expect(await screen.findByRole('alert')).toHaveTextContent(why)
       expect(screen.getByRole('textbox', { name: field })).toHaveValue(text)
-      expect(await infoRows('Commit')).not.toContainEqual([field, `${text}Edit`])
+      fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
+      expect(await infoRows('Commit')).toContainEqual([field, shown])
     })
 
     it('are saved one after the other, so that the later answer is the one shown', async () => {

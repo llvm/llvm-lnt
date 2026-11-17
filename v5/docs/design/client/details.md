@@ -314,13 +314,13 @@ even when this commit has no value for it. Hovering the badge explains that the 
 commit by that field's value, when it has one, rather than by its commit string (see AR6). A
 change to that field changes the commit's display value wherever the UI shows it, but not on
 this page, which shows the commit string. The ordinal, the branch and the tag are edited in
-place (see AR12) through `PATCH /commits/{value}`, which requires `manage` scope. Emptying any
-of them clears it. An ordinal is an integer that its column can hold (see D3 and D5): any other text
-is invalid (see AR11). The commit's `delete_after_inactive_days` is shown and edited in a
-`Delete after inactivity` row, as on the Machine Detail page (see DT1). While the setting is
-set and the commit has an ordinal, the row says after the number of days that it has no
-effect (see O10). It can still be edited, since it takes effect again if the ordinal is
-cleared.
+place (see AR12) through `PATCH /commits/{value}`, which requires `manage` scope. Emptying
+any of them clears it. An ordinal is an integer that its column can hold (see D3 and D5):
+any other text is invalid (see AR11). The commit's `delete_after_inactive_days` is shown and
+edited in a `Delete after inactivity` row, as on the Machine Detail page (see DT1). While
+the setting is set and the commit has an ordinal, the row says after the number of days that
+it has no effect (see O10). It can still be edited, since it takes effect again if the
+ordinal is cleared.
 
 ### Navigation
 
