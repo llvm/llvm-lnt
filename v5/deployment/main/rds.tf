@@ -3,6 +3,11 @@
 #
 # It is automatically backed up every day and backups are kept for 7 days.
 #
+# Changes made to the database take effect as soon as they are applied, rather than in the next
+# maintenance window, so that a deploy's changes are live once it completes. Deploys are deliberate
+# and already cause a short outage, but this means that a change which restarts the database, like
+# its instance class or a major version upgrade, also restarts it at deploy time.
+#
 # In production, the database can't be deleted without first turning off deletion protection, and
 # deleting it takes a final snapshot and keeps the automated backups. Other environments are deleted
 # outright, so that they can be torn down without any manual step.
@@ -28,6 +33,9 @@ resource "aws_db_instance" "main" {
   instance_class = "db.t4g.micro"
 
   allocated_storage = 20 # 20gb for the initial deployment
+  # gp3 gets at least 3,000 IOPS and 125 MiB/s whatever its size, whereas gp2 scales with the
+  # volume's size (100 IOPS at 20gb) and relies on burst credits beyond that.
+  storage_type      = "gp3"
   storage_encrypted = true
 
   db_name  = "lnt"
@@ -46,4 +54,6 @@ resource "aws_db_instance" "main" {
 
   backup_retention_period  = 7
   delete_automated_backups = !local.is_production
+
+  apply_immediately = true
 }

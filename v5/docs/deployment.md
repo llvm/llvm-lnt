@@ -137,6 +137,10 @@ Changing the image tag rewrites the instance's `user_data`, and `user_data_repla
 the EC2 instance is recreated to pick it up. That replacement *is* the deployment mechanism; expect a
 short outage on each deploy. Because all persistent state lives in RDS, nothing is lost.
 
+Changes to the database's configuration also take effect during the deploy rather than in RDS's
+maintenance window. Some of them, like changing the instance class or upgrading Postgres, restart the
+database.
+
 Alternatively, deployment can be triggered locally:
 
 ```sh
