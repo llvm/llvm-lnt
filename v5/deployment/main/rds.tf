@@ -4,9 +4,9 @@
 # It is automatically backed up every day and backups are kept for 7 days.
 #
 # Changes made to the database take effect as soon as they are applied, rather than in the next
-# maintenance window, so that a deploy's changes are live once it completes. Deploys are deliberate
-# and already cause a short outage, but this means that a change which restarts the database, like
-# its instance class or a major version upgrade, also restarts it at deploy time.
+# maintenance window, so that a deploy applies its changes right away. Deploys are deliberate and
+# already cause a short outage, but changes that restart the database, like a new instance class or a
+# major version upgrade, then do so at deploy time.
 #
 # In production, the database can't be deleted without first turning off deletion protection, and
 # deleting it takes a final snapshot and keeps the automated backups. Other environments are deleted
