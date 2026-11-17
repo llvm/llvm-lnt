@@ -51,6 +51,7 @@ const FIELDS_SUITE: Suite = {
 const FULL = commit(HASH, {
   ordinal: 593922,
   tag: 'llvm-22.0',
+  branch: 'release/22.x',
   fields: {
     svn_revision: 'r593922',
     commit_info: '[libc++] Optimize std::find\n\nA long description.',
@@ -527,7 +528,7 @@ describe('a ⓘ', () => {
 })
 
 describe('the content', () => {
-  it('shows the commit, its ordinal and every field it has a value for, in schema order', async () => {
+  it('shows the commit, its ordinal, its branch and every field it has a value for, in schema order', async () => {
     await renderLink({ schema: FIELDS_SUITE })
     // After `renderLink`, whose `userEvent.setup` installs a clipboard of its own.
     const writeText = mockClipboard()
@@ -541,6 +542,7 @@ describe('the content', () => {
     expect(labels).toEqual([
       'Commit',
       'Ordinal',
+      'Branch',
       'svn_revision',
       'commit_info',
       'review',
@@ -556,22 +558,23 @@ describe('the content', () => {
     const copy = within(values[0]).getByRole('button', { name: 'Copy commit' })
     expect(copy).toHaveAttribute('title', 'Copy commit')
     expect(values[1]).toHaveTextContent('593922')
-    expect(values[2]).toHaveTextContent('r593922')
+    expect(values[2]).toHaveTextContent('release/22.x')
+    expect(values[3]).toHaveTextContent('r593922')
     // Cut to two lines, but whole in the page.
-    expect(values[3].firstElementChild).toHaveClass('clamped')
-    expect(values[3]).toHaveTextContent('[libc++] Optimize std::find A long description.')
-    expect(within(values[4]).getByRole('link')).toHaveAttribute(
+    expect(values[4].firstElementChild).toHaveClass('clamped')
+    expect(values[4]).toHaveTextContent('[libc++] Optimize std::find A long description.')
+    expect(within(values[5]).getByRole('link')).toHaveAttribute(
       'href',
       'https://github.com/llvm/llvm-project/pull/1',
     )
-    expect(values[5]).toHaveTextContent('2026-08-25, 2:22:41 PM')
+    expect(values[6]).toHaveTextContent('2026-08-25, 2:22:41 PM')
 
     await user.click(copy)
     expect(writeText).toHaveBeenCalledWith(HASH)
     await waitFor(() => expect(copy).toHaveAccessibleName('Copied.'))
   })
 
-  it('has no ordinal row for a commit without one, and its commit string as its heading', async () => {
+  it('has no ordinal or branch row for a commit without them, and its commit string as its heading', async () => {
     await renderLink({ given: commit(HASH) })
     await open()
     expect(card()).toHaveAccessibleName(HASH)

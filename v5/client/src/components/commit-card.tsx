@@ -116,6 +116,7 @@ function CommitSummary({ schema, commit, headingId }: ContentProps & { commit: C
           <CommitString suite={refOf(schema)} value={commit.value} />
         </InfoRow>
         {commit.ordinal !== null && <InfoRow label="Ordinal">{commit.ordinal}</InfoRow>}
+        {commit.branch !== null && <InfoRow label="Branch">{commit.branch}</InfoRow>}
         {fields.map(({ field, value }) => (
           <InfoRow key={field.name} label={labelOf(field)}>
             {/* Cut to two lines, but whole to assistive technology, which ignores the cut. */}

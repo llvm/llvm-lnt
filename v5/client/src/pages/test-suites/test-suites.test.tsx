@@ -847,6 +847,7 @@ describe('the Commits tab', () => {
         commit('abc123', {
           ordinal: 591886,
           tag: 'llvm-22.0',
+          branch: 'release/22.x',
           fields: { svn_revision: 'r591886', commit_info: '[libc++] Speed up std::format' },
         }),
         commit('experiment', {
@@ -862,13 +863,15 @@ describe('the Commits tab', () => {
 
     const commits = await table('Commits')
     // The fields the schema lists follow, cut short when long, and whole on hover.
-    expect(headersOf(commits)).toEqual(['Commit', 'Ordinal', 'Tag', 'commit_info'])
+    expect(headersOf(commits)).toEqual(['Commit', 'Ordinal', 'Branch', 'Tag', 'commit_info'])
     const [first, experiment, bare] = rowsOf(commits)
-    expect(first).toBe('r591886 | 591886 | llvm-22.0 | [libc++] Speed up std::format')
-    expect(bare).toBe('bare | -- | -- | --')
+    expect(first).toBe(
+      'r591886 | 591886 | release/22.x | llvm-22.0 | [libc++] Speed up std::format',
+    )
+    expect(bare).toBe('bare | -- | -- | -- | --')
     // Assistive technology reads the whole value rather than the cut one.
     const info = 'A/B experiment: a faster floating-point path for std::format'
-    expect(experiment).toMatch(/^experiment \| -- \| -- \| /)
+    expect(experiment).toMatch(/^experiment \| -- \| -- \| -- \| /)
     const cut = within(commits).getByTitle(info)
     expect(cut).toHaveTextContent(/^A\/B experiment: a faster floating-point path for …$/)
     expect(cut).toHaveAttribute('aria-hidden', 'true')

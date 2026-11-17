@@ -52,7 +52,9 @@ function title(previous: PreviousCommit, machineLabel: string, schema: Suite): s
     case 'unordered':
       return NO_ORDINAL
     case 'none':
-      return `${machineLabel} has no runs at an earlier commit.`
+      return previous.branch === null
+        ? `${machineLabel} has no runs at an earlier commit.`
+        : `${machineLabel} has no runs at an earlier commit on ${previous.branch}.`
     case 'found':
       return `Compare with ${commitDisplayValue(previous.commit, schema)}`
   }

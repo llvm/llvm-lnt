@@ -344,7 +344,10 @@ experiment commits; see D1), most recently seen first, as
 picker searches the server, as AR9 describes, rather than fetching every commit
 and filtering locally: a machine can have tens of thousands of commits. The
 search covers the display value the suggestions show only if the schema marks
-the display field `searchable` (see O4).
+the display field `searchable` (see O4). Each suggestion shows the commit's
+branch, when it has one, in muted text after its display value; once one is
+picked, the input shows its display value alone. The search covers the branch
+(see O4), but Enter does not match it (see AR14).
 
 A commit the picker is given rather than
 chosen -- restored from the URL, or kept while its filters change -- is looked
@@ -522,6 +525,7 @@ The card shows:
 - a `Commit` row with the commit string, linking to the commit's page, followed
   by a button copying it;
 - an `Ordinal` row with the commit's ordinal, left out when it has none;
+- a `Branch` row with the commit's branch, left out when it has none;
 - a row for each commit field that has a value for the commit, in schema order,
   labelled as AR6 says, with the value as DT1 shows a machine's;
 - "View on {label}" for the commit (see AR20).

@@ -156,13 +156,14 @@ const RUNS = [
 ]
 
 describe('the Commit Detail page', () => {
-  it('shows the commit string, its ordinal, its tag and its fields, labelled', async () => {
-    renderCommit()
+  it('shows the commit string, its ordinal, its branch, its tag and its fields, labelled', async () => {
+    renderCommit({ detail: () => HttpResponse.json({ ...DETAIL, branch: 'release/19.x' }) })
 
     expect(await screen.findByRole('heading', { level: 1 })).toHaveTextContent(`Commit: ${VALUE}`)
     expect(await infoRows('Commit')).toEqual([
       ['Commit', VALUE],
       ['Ordinal', '100Edit'],
+      ['Branch', 'release/19.xEdit'],
       ['Tag', 'v1Edit'],
       ['Delete after inactivity', inactivityCell('--')],
       ['svn_revision display', 'r100Edit'],
@@ -194,7 +195,7 @@ describe('the Commit Detail page', () => {
         HttpResponse.json({ ...DETAIL, fields: { ...DETAIL.fields, svn_revision: null } }),
     })
 
-    expect((await infoRows('Commit'))[4]).toEqual(['svn_revision display', '--Edit'])
+    expect((await infoRows('Commit'))[5]).toEqual(['svn_revision display', '--Edit'])
   })
 
   it('shows a field value that is a URL as a link, even the display field', async () => {
@@ -204,7 +205,7 @@ describe('the Commit Detail page', () => {
         HttpResponse.json({ ...DETAIL, fields: { ...DETAIL.fields, svn_revision: url } }),
     })
 
-    expect((await infoRows('Commit'))[4]).toEqual(['svn_revision display', `${url}Edit`])
+    expect((await infoRows('Commit'))[5]).toEqual(['svn_revision display', `${url}Edit`])
     const box = screen.getByRole('group', { name: 'Commit' })
     expect(within(box).getByRole('link', { name: url })).toHaveAttribute('href', url)
   })
@@ -213,13 +214,13 @@ describe('the Commit Detail page', () => {
     const fields = SUITE.commit_fields.map((field) => ({ ...field, display: false }))
     renderCommit({ suites: [{ ...SUITE, commit_fields: fields }] })
 
-    expect((await infoRows('Commit')).slice(4)).toEqual([
+    expect((await infoRows('Commit')).slice(5)).toEqual([
       ['svn_revision', 'r100Edit'],
       ['commit_info', 'Fix the vectorizerEdit'],
     ])
   })
 
-  it('shows a missing ordinal and tag as such', async () => {
+  it('shows a missing ordinal, branch and tag as such', async () => {
     renderCommit({
       detail: () =>
         HttpResponse.json({ ...DETAIL, ordinal: null, tag: null, previous: null, next: null }),
@@ -227,7 +228,8 @@ describe('the Commit Detail page', () => {
 
     const rows = await infoRows('Commit')
     expect(rows[1]).toEqual(['Ordinal', '--Edit'])
-    expect(rows[2]).toEqual(['Tag', '--Edit'])
+    expect(rows[2]).toEqual(['Branch', '--Edit'])
+    expect(rows[3]).toEqual(['Tag', '--Edit'])
   })
 
   it('shows only the error for a commit that does not exist, with no retry, and the trail', async () => {
@@ -295,6 +297,18 @@ describe('the Commit Detail page', () => {
     it.each<[string, Partial<Schemas['CommitDetail']>, string, string]>([
       ['first', { previous: null }, '← Previous commit', 'No commit comes before this one.'],
       ['last', { next: null }, 'Next commit →', 'No commit comes after this one.'],
+      [
+        'first on its branch',
+        { previous: null, branch: 'release/19.x' },
+        '← Previous commit',
+        'No commit on release/19.x comes before this one.',
+      ],
+      [
+        'last on its branch',
+        { next: null, branch: 'release/19.x' },
+        'Next commit →',
+        'No commit on release/19.x comes after this one.',
+      ],
     ])('are not linked from the %s commit, saying why', async (_, change, name, why) => {
       renderCommit({ detail: () => HttpResponse.json({ ...DETAIL, ...change }) })
 
@@ -391,13 +405,13 @@ describe('the Commit Detail page', () => {
     })
   })
 
-  describe('its ordinal and tag', () => {
+  describe('its ordinal, branch and tag', () => {
     it('cannot be edited without manage scope', async () => {
       signIn('triage')
       renderCommit()
 
       await screen.findByRole('group', { name: 'Commit' })
-      for (const field of ['Ordinal', 'Tag', 'Delete after inactivity']) {
+      for (const field of ['Ordinal', 'Branch', 'Tag', 'Delete after inactivity']) {
         await waitFor(() =>
           expect(editButton(field)).toHaveAttribute(
             'title',
@@ -462,23 +476,52 @@ describe('the Commit Detail page', () => {
 
       save('Tag', '  ')
 
-      await expectInfo(2, ['Tag', '--Edit'])
+      await expectInfo(3, ['Tag', '--Edit'])
       expect(sent.map(({ body }) => body)).toEqual([{ tag: null }])
     })
 
-    it('report a change the API refuses, keeping the editor open with its text', async () => {
+    it('change the branch, at most 256 characters long, and clear it when emptied', async () => {
       signIn('manage')
-      mockSent('patch', COMMIT_ROUTE, () =>
-        errorResponse(409, 'conflict', "Ordinal 99 is already used by commit 'prev99'"),
-      )
+      const sent = mockSent('patch', COMMIT_ROUTE, (body) => HttpResponse.json(patched(body)))
       renderCommit()
-      await ready('Commit', () => editButton('Ordinal'))
+      await ready('Commit', () => editButton('Branch'))
 
-      save('Ordinal', '99')
+      save('Branch', ' release/19.x ')
+      await expectInfo(2, ['Branch', 'release/19.xEdit'])
+      fireEvent.click(editButton('Branch'))
+      expect(screen.getByRole('textbox', { name: 'Branch' })).toHaveAttribute('maxlength', '256')
+      fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
+      save('Branch', '')
+      await expectInfo(2, ['Branch', '--Edit'])
 
-      expect(await screen.findByRole('alert')).toHaveTextContent('already used by commit')
-      expect(screen.getByRole('textbox', { name: 'Ordinal' })).toHaveValue('99')
-      expect((await infoRows('Commit'))[1][1]).not.toContain('99Edit')
+      expect(sent.map(({ body }) => body)).toEqual([{ branch: 'release/19.x' }, { branch: null }])
+    })
+
+    it.each([
+      [
+        'Ordinal',
+        '99',
+        "Another commit without a branch in test suite 'llvm/libcxx' already has ordinal 99",
+        '100Edit',
+      ],
+      [
+        'Branch',
+        'main',
+        "Another commit on branch 'main' in test suite 'llvm/libcxx' already has ordinal 100",
+        '--Edit',
+      ],
+    ])('report a change to the %s the API refuses, keeping the editor open', async (field, text, why, shown) => {
+      signIn('manage')
+      mockSent('patch', COMMIT_ROUTE, () => errorResponse(409, 'conflict', why))
+      renderCommit()
+      await ready('Commit', () => editButton(field))
+
+      save(field, text)
+
+      expect(await screen.findByRole('alert')).toHaveTextContent(why)
+      expect(screen.getByRole('textbox', { name: field })).toHaveValue(text)
+      fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
+      expect(await infoRows('Commit')).toContainEqual([field, shown])
     })
 
     it('are saved one after the other, so that the later answer is the one shown', async () => {
@@ -502,8 +545,9 @@ describe('the Commit Detail page', () => {
       act(() => first.open())
 
       await waitFor(async () =>
-        expect((await infoRows('Commit')).slice(1, 3)).toEqual([
+        expect((await infoRows('Commit')).slice(1, 4)).toEqual([
           ['Ordinal', '42Edit'],
+          ['Branch', '--Edit'],
           ['Tag', 'v9Edit'],
         ]),
       )
@@ -520,7 +564,7 @@ describe('the Commit Detail page', () => {
 
       save('Tag', 'v9')
 
-      await expectInfo(2, ['Tag', 'v9Edit'])
+      await expectInfo(3, ['Tag', 'v9Edit'])
       expect([runQueries.length, regressionQueries.length, detailCalls.count]).toEqual(before)
     })
 
@@ -539,6 +583,33 @@ describe('the Commit Detail page', () => {
       expect(new Set(lookups.slice(2).map((query) => query.get('machine')))).toEqual(
         new Set(['linux', 'macos']),
       )
+    })
+
+    it('look up the commit before this one on each machine again once the branch changes', async () => {
+      signIn('manage')
+      mockSent('patch', COMMIT_ROUTE, (body) => HttpResponse.json(patched(body)))
+      let moved = false
+      const { lookups } = renderCommit({
+        runs: RUNS,
+        previous: () => HttpResponse.json(cursorPage(moved ? [] : [BEFORE])),
+      })
+      const runs = await table('Runs')
+      await waitFor(() => expect(compareLinks(runs)[0]).toHaveAttribute('href'))
+      expect(lookups).toHaveLength(2)
+      await ready('Commit', () => editButton('Branch'))
+
+      moved = true
+      save('Branch', 'release/19.x')
+
+      // No machine has runs at an earlier commit on the new branch.
+      await waitFor(() =>
+        expect(compareLinks(runs).map((compare) => compare.title)).toEqual([
+          'linux has no runs at an earlier commit on release/19.x.',
+          'macos has no runs at an earlier commit on release/19.x.',
+          'macos has no runs at an earlier commit on release/19.x.',
+        ]),
+      )
+      expect(lookups).toHaveLength(4)
     })
 
     it('leave every run without a previous commit once the ordinal is cleared', async () => {
@@ -578,7 +649,7 @@ describe('the Commit Detail page', () => {
       await ready('Commit', () => editButton('Tag'))
 
       save('Tag', 'v9')
-      await expectInfo(2, ['Tag', 'v9Edit'])
+      await expectInfo(3, ['Tag', 'v9Edit'])
       fireEvent.click(screen.getByRole('button', { name: 'Browser back' }))
 
       expect(await within(await table('Commits')).findByText('v9')).toBeInTheDocument()
@@ -614,9 +685,9 @@ describe('the Commit Detail page', () => {
       await ready('Commit', () => editButton('commit_info'))
 
       save('commit_info', ' Fix the vectorizer\n\nIt was slow. ')
-      await expectInfo(5, ['commit_info', 'Fix the vectorizer\n\nIt was slow.Edit'])
+      await expectInfo(6, ['commit_info', 'Fix the vectorizer\n\nIt was slow.Edit'])
       save('svn_revision', '')
-      await expectInfo(4, ['svn_revision display', '--Edit'])
+      await expectInfo(5, ['svn_revision display', '--Edit'])
 
       expect(sent).toEqual([
         {
@@ -643,7 +714,7 @@ describe('the Commit Detail page', () => {
       await ready('Commit', () => editButton('svn_revision'))
 
       save('svn_revision', 'r200')
-      await expectInfo(4, ['svn_revision display', 'r200Edit'])
+      await expectInfo(5, ['svn_revision display', 'r200Edit'])
       fireEvent.click(screen.getByRole('button', { name: 'Browser back' }))
 
       const commits = await table('Commits')
@@ -653,7 +724,7 @@ describe('the Commit Detail page', () => {
   })
 
   describe('its deletion after inactivity', () => {
-    const row = async () => (await infoRows('Commit'))[3]
+    const row = async () => (await infoRows('Commit'))[4]
 
     it('shows the days, and that they have no effect while the commit has an ordinal', async () => {
       renderCommit({
@@ -712,12 +783,12 @@ describe('the Commit Detail page', () => {
       await ready('Commit', () => editButton('Delete after inactivity'))
 
       save('Delete after inactivity', ' 30 ')
-      await expectInfo(3, [
+      await expectInfo(4, [
         'Delete after inactivity',
         inactivityCell('30 days (No effect while the commit has an ordinal.)'),
       ])
       save('Delete after inactivity', '')
-      await expectInfo(3, ['Delete after inactivity', inactivityCell('--')])
+      await expectInfo(4, ['Delete after inactivity', inactivityCell('--')])
 
       expect(sent.map(({ body }) => body)).toEqual([
         { delete_after_inactive_days: 30 },

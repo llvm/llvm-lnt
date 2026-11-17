@@ -107,11 +107,11 @@ function holdsCommits(query: Query): boolean {
 }
 
 /**
- * Mark stale what shows a commit of `suite`, after a change to its ordinal, tag or fields: every
- * query about commits, every list that holds its commits' display values, and every trend, which
- * ordinals place and window (E9). Nothing is fetched again until it is shown. What names a commit
- * only by its value is left alone, such as a run's samples, which never change and would otherwise
- * all be fetched again when next shown.
+ * Mark stale what shows a commit of `suite`, after a change to its ordinal, branch, tag or fields:
+ * every query about commits, every list that holds its commits' display values, and every trend,
+ * which ordinals and branches place and window (E9). Nothing is fetched again until it is shown.
+ * What names a commit only by its value is left alone, such as a run's samples, which never change
+ * and would otherwise all be fetched again when next shown.
  */
 export async function commitChanged(queryClient: QueryClient, suite: SuiteRef): Promise<void> {
   await queryClient.invalidateQueries({
@@ -206,23 +206,25 @@ export type PreviousCommit =
   | { state: 'failed'; error: unknown }
   /** The run's commit has no ordinal, so no commit comes before it. */
   | { state: 'unordered' }
-  /** The machine has no run at an earlier commit. */
-  | { state: 'none' }
+  /** The machine has no run at an earlier commit of `branch`, the run's commit's. */
+  | { state: 'none'; branch: string | null }
   | { state: 'found'; commit: Commit }
 
 /**
- * The commit before `value` at which `machine` has runs: the one with the nearest lower ordinal
- * among the machine's commits (DT2), which the commit's own `previous` neighbour need not be. The
- * commit is resolved first, since only one with an ordinal has a commit before it (the API refuses
- * the others). The lookup is cached per machine, commit and ordinal, so that runs of the same
- * machine at the same commit share it, and a new ordinal looks it up again.
+ * The commit before `value` at which `machine` has runs: the one of its branch with the nearest
+ * lower ordinal among the machine's commits (DT2), which the commit's own `previous` neighbour need
+ * not be. The commit is resolved first, since only one with an ordinal has a commit before it (the
+ * API refuses the others). The lookup is cached per machine, commit, ordinal and branch, so that
+ * runs of the same machine at the same commit share it, and a new ordinal or branch looks it up
+ * again.
  */
 export function usePreviousCommit(suite: SuiteRef, value: string, machine: string): PreviousCommit {
   const commit = useResolvedCommit(suite, value)
   const ordinal = commit.data?.ordinal
+  const branch = commit.data?.branch ?? null
   const ordered = ordinal != null
   const lookup = useQuery({
-    queryKey: [...queryKeys.commits(suite), 'previous', { machine, commit: value, ordinal }],
+    queryKey: [...queryKeys.commits(suite), 'previous', { machine, commit: value, ordinal, branch }],
     queryFn: ({ signal }) =>
       firstCommit(suite, { machine, before_commit: value, sort: '-ordinal' }, signal),
     enabled: ordered,
@@ -236,5 +238,5 @@ export function usePreviousCommit(suite: SuiteRef, value: string, machine: strin
   if (!ordered) return { state: 'unordered' }
   if (lookup.isError) return { state: 'failed', error: lookup.error }
   if (lookup.isPending) return { state: 'pending' }
-  return lookup.data ? { state: 'found', commit: lookup.data } : { state: 'none' }
+  return lookup.data ? { state: 'found', commit: lookup.data } : { state: 'none', branch }
 }

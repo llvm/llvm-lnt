@@ -77,7 +77,7 @@ path and params to restore state. On changes, updates the URL.
 |-----|---------|-----|---------------|
 | Runs | Run list with cursor pagination, most recently submitted first | `GET runs?search=...&sort=-submitted_at&limit=25` | Machine, commit or UUID prefix (see O4) |
 | Machines | Every machine, by label (see AR23) | `GET machines?search=...` | Substring match on machine name, display name and searchable machine fields |
-| Commits | Commit list with cursor pagination, most recently seen first | `GET commits?search=...&sort=-first_seen&limit=25` | Substring match on commit, tag and searchable commit fields |
+| Commits | Commit list with cursor pagination, most recently seen first | `GET commits?search=...&sort=-first_seen&limit=25` | Substring match on commit, tag, branch and searchable commit fields |
 | Regressions | Full regression triage interface (see below) | `GET regressions?state=...&machine=...&metric=...&has_commit=...&search=...&sort=-created_at&limit=25` | State chips, machine combobox, metric selector, "No commit set" checkbox, title or UUID prefix search |
 | Schema | The suite's schema, its export, editing, renaming, moving and deletion (see TS6 and TS7) | `GET /api/projects` (E13); writes in TS6 and TS7 | -- |
 
@@ -140,16 +140,18 @@ This tab shows the commits present in the test suite, most recently seen first
 not they have an ordinal. It shows a table like:
 
 ```
-Commit            Ordinal                 Tag            commit_info
+Commit            Ordinal    Branch          Tag            commit_info
 ------------------------------------------------------------------------------------------
-0f985af790f8      591886                  --             [libc++] Speed up std::to_chars
-0f69d2804b9b      588009                  llvm-22.0      --
+0f985af790f8      591886     --              --             [libc++] Speed up std::to_chars
+3c1d0a5e77b2      588012     release/22.x    --             [libc++] Fix std::format
+0f69d2804b9b      588009     --              llvm-22.0      --
 etc...
 ```
 
 - `Commit` is a link to the commit detail page, showing the display value without its
   ` (tag)` suffix, with its card (see AR21).
 - `Ordinal` is the ordinal value for that commit, or `--` if there is no ordinal.
+- `Branch` is the commit's branch, or `--` if it has none.
 - `Tag` is the tag associated to that commit if any, or `--` if there is no tag.
 - After `Tag`, a column for each commit field the schema marks `listed: true`
   (see D4), in schema order, headed by the field's label (see AR6). A cell shows
@@ -157,8 +159,8 @@ etc...
   shown whole on hover and to assistive technology when longer than 50
   characters.
 
-Above the table, a `Search commits...` box searches the commits by value, tag and searchable
-fields (see O4).
+Above the table, a `Search commits...` box searches the commits by value, tag, branch and
+searchable fields (see O4).
 
 ## TS5: Regressions tab
 
