@@ -18,6 +18,7 @@ import {
   uuidFor,
 } from '../tools/synthetic.ts'
 import { expect, json, test } from './fixtures.ts'
+import { cardOf } from './cards.ts'
 import { ownSuite, type OwnRun } from './own-suite.ts'
 import { column, rows, table } from './tables.ts'
 
@@ -156,6 +157,7 @@ test('cannot be changed without a token', async ({ page, request }) => {
   )
 
   await expect(page.getByRole('button', { name: 'Edit Ordinal' })).toBeDisabled()
+  await expect(page.getByRole('button', { name: 'Edit Branch' })).toBeDisabled()
   await expect(page.getByRole('button', { name: 'Edit Tag' })).toBeDisabled()
   await expect(page.getByRole('button', { name: 'Edit svn_revision' })).toBeDisabled()
   await expect(page.getByRole('button', { name: 'Delete commit' })).toBeDisabled()
@@ -221,6 +223,66 @@ test('its ordinal and tag are edited by a holder of manage scope', async ({
       `/api${suitePath(suite)}/commits/c2`,
     )
     expect(cleared.tag).toBeNull()
+  })
+})
+
+test('its branch is edited by a holder of manage scope, and shown on the Commits tab', async ({
+  page,
+  request,
+  tokenFor,
+  signIn,
+}, testInfo) => {
+  // `c1` to `c3` without a branch, and `r2` on release/1.x, with the ordinal `c2` has.
+  const runs = [...RUNS, { ...RUNS[1], commit: 'r2', branch: 'release/1.x' }]
+  await ownSuite(request, tokenFor, testInfo, runs, async (suite) => {
+    await signIn(page, 'manage')
+    await page.goto(`${suitePath(suite)}/commits/c2`)
+    const info = page.getByRole('group', { name: 'Commit', exact: true })
+    const branch = page.getByRole('textbox', { name: 'Branch' })
+    const stored = async () =>
+      (await json<Schemas['CommitDetail']>(request, `/api${suitePath(suite)}/commits/c2`)).branch
+
+    // A branch on which another commit has the commit's ordinal is refused.
+    await page.getByRole('button', { name: 'Edit Branch' }).click()
+    await branch.fill('release/1.x')
+    await branch.press('Enter')
+    await expect(page.getByRole('alert')).toContainText(
+      "Another commit on branch 'release/1.x'",
+    )
+    await expect(branch).toHaveValue('release/1.x')
+
+    // Alone on its branch, the commit has no neighbours.
+    await branch.fill(' release/2.x ')
+    await branch.press('Enter')
+    await expect(branch).toHaveCount(0)
+    await expect(info).toContainText('release/2.x')
+    await expect(link(page, '← Previous commit')).toHaveAttribute(
+      'title',
+      'No commit on release/2.x comes before this one.',
+    )
+    expect(await stored()).toBe('release/2.x')
+
+    await page.goto(`${suitePath(suite)}?tab=commits`)
+    const commits = table(page, 'Commits')
+    const row = rows(commits).filter({ has: page.getByRole('link', { name: 'c2', exact: true }) })
+    await expect(row.locator('td').nth(2)).toHaveText('release/2.x')
+    const commitLink = row.getByRole('link')
+    await commitLink.hover()
+    const card = await cardOf(page, commitLink)
+    await expect(card.getByRole('term')).toHaveText(['Commit', 'Ordinal', 'Branch'])
+    await expect(card).toContainText('release/2.x')
+
+    // Emptied, the branch is cleared, and the commit is back among c1 and c3.
+    await page.goto(`${suitePath(suite)}/commits/c2`)
+    await page.getByRole('button', { name: 'Edit Branch' }).click()
+    await branch.fill('')
+    await branch.press('Enter')
+    await expect(branch).toHaveCount(0)
+    await expect(link(page, 'Next commit →')).toHaveAttribute(
+      'href',
+      `${suitePath(suite)}/commits/c3`,
+    )
+    expect(await stored()).toBeNull()
   })
 })
 

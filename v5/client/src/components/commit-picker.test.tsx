@@ -230,6 +230,40 @@ describe('CommitPicker', () => {
     expect(lookups(queries)).toEqual([])
   })
 
+  describe('on several branches', () => {
+    const MAIN = commit('main300', { fields: { svn_revision: 'r300', commit_info: null } })
+    const RELEASE = commit('rel300', {
+      branch: 'release/19.x',
+      fields: { svn_revision: 'r300', commit_info: null },
+    })
+
+    it('shows the branch of a suggestion that has one, but not in the input once picked', async () => {
+      mockCommits(() => cursorPage([RELEASE, PLAIN]))
+      const user = userEvent.setup()
+      const { input } = renderPicker()
+
+      await openList(user)
+      await waitFor(() => expect(options()).toEqual(['r300 release/19.x', 'abc456']))
+      await user.click(screen.getByRole('option', { name: 'r300 release/19.x' }))
+
+      expect(value()).toBe('rel300')
+      expect(input).toHaveValue('r300')
+    })
+
+    it('does not pick by Enter a display value that commits of two branches share', async () => {
+      const queries = mockCommits(() => cursorPage([RELEASE, MAIN]))
+      const user = userEvent.setup()
+      const { input } = renderPicker()
+
+      await user.type(input, 'r300{Enter}')
+      await waitFor(() => expect(queries.some((query) => query.get('search') === 'r300')).toBe(true))
+      await settle()
+
+      expect(value()).toBe('none')
+      expect(input).toHaveValue('r300')
+    })
+  })
+
   it('picks a commit by its commit string, entered with Enter', async () => {
     serveCommits()
     const user = userEvent.setup()

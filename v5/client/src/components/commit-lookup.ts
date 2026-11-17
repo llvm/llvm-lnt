@@ -12,11 +12,14 @@ export interface CommitSuggestion extends Suggestion {
   commit: Commit
 }
 
-/** A commit as a suggestion: shown by its display value, and entered by its commit string too. */
+/**
+ * A commit as a suggestion: shown by its display value, followed by its branch in muted text when
+ * it has one (AR15), and entered by its commit string too.
+ */
 export function suggestionOf(commit: Commit, schema: Suite): CommitSuggestion {
   const text = commitDisplayValue(commit, schema)
   const aliases = text === commit.value ? undefined : [commit.value]
-  return { key: commit.value, text, aliases, commit }
+  return { key: commit.value, text, aliases, note: commit.branch ?? undefined, commit }
 }
 
 /** The query key of the lookup of `commit` among the suite's commits under `filters`. */

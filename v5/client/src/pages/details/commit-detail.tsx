@@ -36,7 +36,7 @@ import { WithSchema } from '../../components/with-schema'
 import { isIntegerIn, plural } from '../../format'
 import { compareLabels, machineFilterText } from '../../labels'
 import { commitPath } from '../../paths'
-import { commitDisplayValue, defaultMetric, labelOf, type Commit } from '../../schema'
+import { commitDisplayValue, defaultMetric, labelOf, onBranch, type Commit } from '../../schema'
 import { trimmedStringParam, useUrlState } from '../../url-state'
 import { suiteTabPath } from '../test-suites/settings'
 import { DetailActionRow } from './action-row'
@@ -54,8 +54,8 @@ const DISPLAY_HELP =
   'The UI shows a commit by the value of this field, when it has one, rather than by its commit ' +
   'string.'
 
-/** D5's limit on a tag. */
-const TAG_LENGTH = 256
+/** D5's limit on a tag and on a branch. */
+const COMMIT_TEXT_LENGTH = 256
 
 const PARAMS = { machine_filter: trimmedStringParam() }
 
@@ -135,7 +135,7 @@ function useUpdateCommit(suite: SuiteRef, value: string) {
     onSuccess: async (updated) => {
       // What shows the commit elsewhere fetches it again when next shown. The commit itself is
       // among it, so it is stored after, as the API returned it, which leaves it fresh. Its rows'
-      // lookups of the commit before it on their machines follow its ordinal (see
+      // lookups of the commit before it on their machines follow its ordinal and its branch (see
       // `usePreviousCommit`).
       await commitChanged(queryClient, suite)
       storeCommit(queryClient, suite, updated)
@@ -156,8 +156,8 @@ function invalidOrdinal(text: string): string | undefined {
 }
 
 /**
- * The commit, and its ordinal, tag and fields, which a holder of `manage` scope can edit, the
- * display field marked as such.
+ * The commit, and its ordinal, branch, tag and fields, which a holder of `manage` scope can edit,
+ * the display field marked as such.
  */
 function CommitInfo({ schema, commit }: { schema: Suite; commit: CommitDetail }) {
   const update = useUpdateCommit(refOf(schema), commit.value)
@@ -176,12 +176,21 @@ function CommitInfo({ schema, commit }: { schema: Suite; commit: CommitDetail })
           onSave={(text) => update({ ordinal: text === null ? null : Number(text) })}
         />
       </InfoRow>
+      <InfoRow label="Branch">
+        <InlineEdit
+          label="Branch"
+          value={commit.branch}
+          gate={manage}
+          maxLength={COMMIT_TEXT_LENGTH}
+          onSave={(branch) => update({ branch })}
+        />
+      </InfoRow>
       <InfoRow label="Tag">
         <InlineEdit
           label="Tag"
           value={commit.tag}
           gate={manage}
-          maxLength={TAG_LENGTH}
+          maxLength={COMMIT_TEXT_LENGTH}
           onSave={(tag) => update({ tag })}
         />
       </InfoRow>
@@ -223,6 +232,8 @@ function Actions({ schema, commit }: { schema: Suite; commit: CommitDetail }) {
   const suite = refOf(schema)
   const { value } = commit
   const unordered = commit.ordinal === null
+  // Neighbours are those of the commit's branch (DT3).
+  const branch = onBranch(commit.branch)
   // A link to `neighbour`, which it names on hover, or why there is none.
   const link = (neighbour: Commit | null, none: string, label: string) => (
     <ButtonLink
@@ -256,8 +267,8 @@ function Actions({ schema, commit }: { schema: Suite; commit: CommitDetail }) {
         leaveTo: suiteTabPath(suite, 'commits'),
       }}
     >
-      {link(commit.previous, 'No commit comes before this one.', '← Previous commit')}
-      {link(commit.next, 'No commit comes after this one.', 'Next commit →')}
+      {link(commit.previous, `No commit${branch} comes before this one.`, '← Previous commit')}
+      {link(commit.next, `No commit${branch} comes after this one.`, 'Next commit →')}
       <CommitRepositoryLink schema={schema} commit={commit} look="button" />
     </DetailActionRow>
   )

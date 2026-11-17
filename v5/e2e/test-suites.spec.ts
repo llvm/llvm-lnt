@@ -373,7 +373,7 @@ test.describe('the Commits tab', () => {
     })
     // Its `commit_info` is long, and is cut short, whole on hover and to assistive technology.
     const info = 'A/B experiment: a faster floating-point path for std::format'
-    await expect(experiment.locator('td')).toHaveText([EXPERIMENT, '--', '--', /^A\/B /])
+    await expect(experiment.locator('td')).toHaveText([EXPERIMENT, '--', '--', '--', /^A\/B /])
     const cut = experiment.locator('td').last().getByTitle(info)
     await expect(cut).toHaveText(/^A\/B .*…$/)
     await expect(cut).toHaveAttribute('aria-hidden', 'true')
@@ -382,7 +382,7 @@ test.describe('the Commits tab', () => {
     await search.fill(TAG)
     await settled(commits)
     const tagged = rows(commits).filter({ hasText: TAG }).first()
-    await expect(tagged.locator('td')).toHaveText([/^r\d+$/, /^\d+$/, TAG, /./])
+    await expect(tagged.locator('td')).toHaveText([/^r\d+$/, /^\d+$/, '--', TAG, /./])
     // Its `commit_info`, whole, though the cell shows it cut short.
     await expect(tagged.getByText(TAGGED_INFO, { exact: true })).toBeAttached()
   })

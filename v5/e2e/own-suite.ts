@@ -15,6 +15,8 @@ export interface OwnRun {
   machine: string
   commit: string
   ordinal: number
+  /** The commit's branch, none if left out. */
+  branch?: string
   tests: Submission['tests']
 }
 
@@ -82,13 +84,13 @@ export async function ownSuite(
     })
     expect(created.status(), await created.text()).toBe(201)
     const uuids: string[] = []
-    for (const { machine, commit, ordinal, tests } of runs) {
+    for (const { machine, commit, ordinal, branch, tests } of runs) {
       const response = await request.post(`/api${suitePath(suite)}/runs`, {
         headers,
         data: {
           format_version: '5',
           machine: { name: machine, fields: { hardware: 'Apple M4' } },
-          commit: { value: commit, ordinal },
+          commit: { value: commit, ordinal, branch },
           tests,
         },
       })

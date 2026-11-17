@@ -301,6 +301,18 @@ describe('the Run Detail page', () => {
       if (options.commit !== undefined) expect(lookups).toEqual([])
     })
 
+    it('names the branch of a commit on one when the machine has no earlier commit on it', async () => {
+      renderRun({
+        commit: { ...ORDERED, branch: 'release/19.x' },
+        previous: () => HttpResponse.json(cursorPage([])),
+      })
+
+      const link = await main().findByRole('link', { name: 'Compare with previous commit' })
+      const why = 'linux-x86_64 has no runs at an earlier commit on release/19.x.'
+      await waitFor(() => expect(link).toHaveAccessibleDescription(why))
+      expect(link).not.toHaveAttribute('href')
+    })
+
     it('cannot compare with the previous commit while it is being looked up', async () => {
       const answer = gate()
       renderRun({

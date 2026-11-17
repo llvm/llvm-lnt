@@ -140,16 +140,18 @@ This tab shows the commits present in the test suite, most recently seen first
 not they have an ordinal. It shows a table like:
 
 ```
-Commit            Ordinal                 Tag            commit_info
+Commit            Ordinal    Branch          Tag            commit_info
 ------------------------------------------------------------------------------------------
-0f985af790f8      591886                  --             [libc++] Speed up std::to_chars
-0f69d2804b9b      588009                  llvm-22.0      --
+0f985af790f8      591886     --              --             [libc++] Speed up std::to_chars
+3c1d0a5e77b2      588012     release/22.x    --             [libc++] Fix std::format
+0f69d2804b9b      588009     --              llvm-22.0      --
 etc...
 ```
 
 - `Commit` is a link to the commit detail page, showing the display value without its
   ` (tag)` suffix, with its card (see AR21).
 - `Ordinal` is the ordinal value for that commit, or `--` if there is no ordinal.
+- `Branch` is the commit's branch, or `--` if it has none.
 - `Tag` is the tag associated to that commit if any, or `--` if there is no tag.
 - After `Tag`, a column for each commit field the schema marks `listed: true`
   (see D4), in schema order, headed by the field's label (see AR6). A cell shows

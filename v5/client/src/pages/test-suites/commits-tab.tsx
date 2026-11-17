@@ -80,6 +80,7 @@ function columns(schema: Suite): Column<Commit>[] {
       looks: ['numeric'],
       cell: (commit) => (commit.ordinal === null ? MISSING : String(commit.ordinal)),
     },
+    { id: 'branch', header: 'Branch', cell: (commit) => commit.branch ?? MISSING },
     { id: 'tag', header: 'Tag', cell: (commit) => commit.tag ?? MISSING },
     ...listedColumns<Commit>(schema.commit_fields),
   ]

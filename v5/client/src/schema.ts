@@ -96,6 +96,14 @@ export function commitDisplayValue(
 }
 
 /**
+ * ` on {branch}`, or nothing for no branch: where the commits before or after a commit on `branch`
+ * are, said after the words for them, since they are only those of its branch (E3).
+ */
+export function onBranch(branch: string | null): string {
+  return branch === null ? '' : ` on ${branch}`
+}
+
+/**
  * The display value of the commit `value`, from `commits`, which resolved it. While it is not among
  * them -- not resolved yet, or deleted since it was named -- it is `value` itself, followed by
  * ` (tag)` when the caller knows the commit's `tag`.
