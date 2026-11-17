@@ -200,12 +200,16 @@ function GraphPage() {
   )
 
   // The branch plotted, once the suite's branches are known: nothing is plotted until then, since
-  // the URL's could be dropped (GR1).
+  // the URL's could be dropped (GR1). Known once listed since the page was opened, rather than from
+  // a list cached before, which may lack a branch that a link leads to, such as one whose first
+  // commit has just been given an ordinal. Listing them again later leaves the chart as it is.
   const branchList = useBranches(suite, schema !== undefined)
-  const branches = branchList.data
+  const branches = branchList.isFetchedAfterMount ? branchList.data : undefined
   const branch = branches && plottedBranch(branches, settings.branch)
+  // A branch the list does not hold gives way to the list's first entry, rather than to the
+  // default, which may not be listed (GR1).
   useDropUnusable(
-    branchList,
+    { data: branches, isSuccess: branchList.isSuccess && branches !== undefined },
     (list) => plottedBranch(list, settings.branch) === settings.branch,
     () => update({ branch }),
   )

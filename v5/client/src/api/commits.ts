@@ -133,10 +133,13 @@ export type BranchName = string | null
 /**
  * The branches of the suite's commits with an ordinal (E3): null first, if some have no branch,
  * then the names, by code point. Under the suite's commits, so that a change to a commit's branch
- * or ordinal marks it stale (see `commitChanged`). Nothing is asked unless `enabled`.
+ * or ordinal marks it stale (see `commitChanged`). Listed again whenever a page that reads them
+ * opens, however recently they were, so that a page can tell once they are current (see
+ * `isFetchedAfterMount`). Nothing is asked unless `enabled`.
  */
 export function useBranches(suite: SuiteRef, enabled = true) {
   return useQuery({
+    refetchOnMount: 'always',
     queryKey: [...queryKeys.commits(suite), 'branches'],
     queryFn: async ({ signal }): Promise<BranchName[]> => {
       const { items } = await unwrap(

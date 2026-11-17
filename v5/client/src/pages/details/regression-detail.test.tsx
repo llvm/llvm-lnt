@@ -1079,6 +1079,26 @@ describe('the Indicators table', () => {
     )
   })
 
+  it("leads to the Graph without a branch once looking the regression's commit up failed", async () => {
+    renderRegression({ detail: WITH_INDICATORS, suites: [WITH_TEXT] })
+    const failed = { count: 0 }
+    server.use(
+      mockApi('post', '/api/projects/{project}/suites/{suite}/commits/resolve', () => {
+        failed.count++
+        return errorResponse(500, 'internal_error', 'The lookup broke.')
+      }),
+    )
+    const indicators = await table('Indicators')
+
+    await waitFor(() => expect(failed.count).toBeGreaterThan(0))
+    await waitFor(() =>
+      expect(within(indicators).getAllByRole('link', { name: 'View on graph' })[1]).toHaveAttribute(
+        'href',
+        '/graph?project=llvm&suite=libcxx&machine=linux&metric=execution_time&test=BM_sort&regressions=all',
+      ),
+    )
+  })
+
   it('leads to the Graph at once, without a branch, for a regression without a commit', async () => {
     renderRegression({ detail: { ...WITH_INDICATORS, commit: null }, suites: [WITH_TEXT] })
     const indicators = await table('Indicators')

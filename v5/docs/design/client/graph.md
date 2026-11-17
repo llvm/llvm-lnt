@@ -14,7 +14,7 @@ several metrics at once, each in a panel of its own.
 
 - **Suite selector**: A required dropdown at the top of the page, over the test
   suites defined on the instance, grouped by project (see AR22). All other
-  controls (branch, machines, metrics, test filter, aggregation, regression
+  controls (machines, metrics, test filter, aggregation, regression
   annotations, baselines) are disabled until a suite is selected. Changing the
   suite clears the branch, the machines, the metrics, the selected tests, the
   highlighted commits (GR16) and the chart. The test filter, the aggregation,
@@ -33,7 +33,8 @@ several metrics at once, each in a panel of its own.
   pick from. Without a branch in the URL (GR14), or once one that the list does
   not hold is dropped (see AR2 "State"), the page plots the list's first entry,
   and writes it to the URL if it is a named branch. Nothing is plotted until
-  the branches are listed. Changing the branch keeps everything else: the
+  the branches are listed, which the page does anew each time it is opened,
+  rather than trusting a list fetched before. Changing the branch keeps everything else: the
   machines, the metrics, the selected tests, the baselines and the highlighted
   commits.
 
@@ -192,8 +193,8 @@ into the chart while data is still loading, the zoom is preserved across
 incremental updates. The x-axis range is always preserved (it was established by
 the scaffold or by user zoom), until the scaffold itself changes, because the
 branch changed, a machine was removed or a machine's scaffold has arrived, which
-resets the zoom of every panel, even when the scaffold of the branch picked was
-fetched before. Each panel's y-axis range is preserved only when the user has
+resets the zoom of every panel. A branch change resets the zoom even if its
+scaffold is cached. Each panel's y-axis range is preserved only when the user has
 explicitly zoomed it, and only until the metric at the panel's place changes,
 since another metric has another scale; otherwise, it auto-ranges to
 accommodate new data as it arrives. Adding a metric therefore keeps every
@@ -470,7 +471,7 @@ Baseline lines (GR9), regression annotations (GR15) and the highlighted commits
 
 ### GR13: API Calls
 
-- `GET branches` (branch selector)
+- `GET branches` (the branch plotted, and its selector)
 - `GET series?machine={name}&metric=...&test={test}&branch={branch}&has_ordinal=true`
   (or `has_branch=false` in place of `branch=`; one per selected test, metric
   and machine, on the branch plotted)

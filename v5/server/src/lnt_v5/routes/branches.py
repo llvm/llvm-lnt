@@ -66,7 +66,16 @@ def branch_names(connection: Connection, suite: Suite) -> list[str | None]:
             walk.c.branch.is_not(None)
         )
     )
-    unbranched = select(commit.c.id).where(ordered, commit.c.branch.is_(None)).exists()
+    # Whether some commit with an ordinal has no branch: whether the index, which holds the nulls
+    # last, ends with one. Asked of the index's end rather than with `EXISTS`, for which PostgreSQL
+    # may scan the table, through the commits with neither a branch nor an ordinal.
+    unbranched = (
+        select(commit.c.branch.is_(None))
+        .where(ordered)
+        .order_by(commit.c.branch.desc().nulls_first())
+        .limit(1)
+        .scalar_subquery()
+    )
     found = union_all(
         select(walk.c.branch).where(walk.c.branch.is_not(None)),
         select(cast(null(), String).label("branch")).where(unbranched),

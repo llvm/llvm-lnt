@@ -2,6 +2,7 @@ import { act, fireEvent, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { HttpResponse } from 'msw'
 import type { PlotData } from 'plotly.js'
+import { Link } from 'react-router'
 import { describe, expect, it, vi } from 'vitest'
 import { colorOfName } from '../../chart-colors'
 import { PROJECT, cursorPage, inProject, machine } from '../../test/fixtures'
@@ -461,17 +462,35 @@ describe('the branch (GR1, GR3, GR14)', () => {
     expect(branchesOf(scaffoldsIn(recorded))).toEqual(['release/1.x', 'release/1.x'])
   })
 
-  it('plots nothing until the branches are listed, and says so if they cannot be', async () => {
+  it('plots nothing until the branches are listed, keeping the branch of the URL', async () => {
     const branches = gate()
     const recorded = mockWorld({ ...BRANCHED, branchesWait: () => branches.promise })
-    renderPage(`${GRAPHED}&test=a`)
+    const url = `${GRAPHED}&test=a&branch=release%2F1.x`
+    renderPage(url)
     await waitFor(() => expect(box('a')).toBeChecked())
 
     expect(scaffoldsIn(recorded)).toEqual([])
     expect(recorded.series).toEqual([])
     expect(layout().annotations).toEqual([])
+    expect(currentUrl()).toBe(url)
+    expect(screen.queryByRole('button', { name: / Branch$/ })).not.toBeInTheDocument()
     act(() => branches.open())
+    await waitFor(() => expect(traces()).toEqual(['a - m1: r10=5 r20=6']))
+    expect(currentUrl()).toBe(url)
+  })
+
+  it('checks the branch of the URL against the branches listed anew, not those listed before', async () => {
+    mockWorld()
+    const linked = `${GRAPHED}&test=a&branch=release%2F1.x`
+    renderPage(`${GRAPHED}&test=a`, <Link to={linked}>Elsewhere's link</Link>)
     await waitFor(() => expect(traces()).toEqual(['a - m1: c10=1 c20=2']))
+
+    // Meanwhile, release/1.x has had its first commits with an ordinal.
+    mockWorld(BRANCHED)
+    fireEvent.click(screen.getByRole('link', { name: "Elsewhere's link" }))
+
+    await waitFor(() => expect(traces()).toEqual(['a - m1: r10=5 r20=6']))
+    expect(currentUrl()).toBe(linked)
   })
 
   it('says why the branches could not be listed, and tries again', async () => {

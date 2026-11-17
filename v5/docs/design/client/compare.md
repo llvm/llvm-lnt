@@ -373,8 +373,9 @@ Interactivity:
     ordinal: without one, it is not on the Graph's x-axis (GR3). The link is
     disabled (see AR8) while side B's commit is being looked up (CP6), and when
     that commit has no ordinal. If a lookup fails, that commit is not
-    highlighted, but the link stays enabled, without a branch if side B's
-    lookup failed;
+    highlighted, but the link stays enabled. If side B's fails, the link has no
+    branch, and side A's commit is not highlighted either, since its branch
+    cannot be compared with side B's;
   - the test's Profile link, when its row has one (CP2).
 
   It closes on Escape, on its close button, on a click anywhere but on it, on
