@@ -272,9 +272,17 @@ class TestListSearch:
     def test_matches_a_searchable_field(self, api_client: TestClient) -> None:
         assert values_in(page(api_client, "search=deadbeef")) == ["abc123"]
 
-    def test_ignores_the_branch(self, api_client: TestClient) -> None:
-        # O4: a branch is shared by many commits, and `branch=` is how to select them.
-        assert values_in(page(api_client, "search=main")) == []
+    def test_matches_the_branch(self, api_client: TestClient) -> None:
+        # O4 covers the branch as it does the tag: by substring, whatever the case.
+        assert values_in(page(api_client, "search=AI")) == ["ghi789"]
+
+    def test_matches_a_branch_or_a_tag_alike(
+        self, api_client: TestClient, create: Callable[..., Any]
+    ) -> None:
+        # A commit without a branch still matches by its tag, and one on a branch by its branch.
+        create("jkl012", branch="release/19.x")
+
+        assert values_in(page(api_client, "search=release")) == ["def456", "jkl012"]
 
     def test_is_case_insensitive(self, api_client: TestClient) -> None:
         assert values_in(page(api_client, "search=JaNe")) == ["abc123"]

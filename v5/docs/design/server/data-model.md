@@ -599,8 +599,8 @@ and the tables below are named that way.
   set on every commit write path (see O2). Several commits may share a tag. The
   tag is always included in `?search=` substring matching (see O4).
 - `branch` is the line of history the commit is on (see D1), which can be set
-  on every commit write path (see O2). It is not matched by `?search=` (see
-  O4): a branch is shared by many commits, which `branch=` selects (see E3).
+  on every commit write path (see O2). Like the tag, it is always included in
+  `?search=` substring matching (see O4).
 - `first_seen_at` is when the server created the commit, from the database's
   clock. It is internal: no API response includes it. O10 counts it as
   activity. It is not what E3's `first_seen` order sorts by: that order is

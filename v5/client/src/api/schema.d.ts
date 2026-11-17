@@ -5155,7 +5155,7 @@ export interface operations {
             query?: {
                 /** @description To get the next page, set this to `cursor.next` from the previous response, and keep the other parameters the same (except `limit`). Omit it to get the first page. If it is rejected with `invalid_cursor`, start again from the first page. */
                 cursor?: string | null;
-                /** @description Only return commits whose value, tag or any searchable field contains this text. Not case-sensitive. */
+                /** @description Only return commits whose value, tag, branch or any searchable field contains this text. Not case-sensitive. */
                 search?: string | null;
                 /** @description Only return the commit with exactly this value, if it also matches the other filters. If no commit has this value, the result is empty. Use it to check whether a commit is among those a list with the other filters returns. */
                 commit?: string | null;
@@ -5589,7 +5589,7 @@ export interface operations {
             query?: {
                 /** @description To get the next page, set this to `cursor.next` from the previous response, and keep the other parameters the same (except `limit`). Omit it to get the first page. If it is rejected with `invalid_cursor`, start again from the first page. */
                 cursor?: string | null;
-                /** @description Only return runs whose machine (its name, its display name or any searchable field) or commit (its value, its tag or any searchable field) contains this text, or whose UUID starts with it. Not case-sensitive. */
+                /** @description Only return runs whose machine (its name, its display name or any searchable field) or commit (its value, its tag, its branch or any searchable field) contains this text, or whose UUID starts with it. Not case-sensitive. */
                 search?: string | null;
                 /** @description Only return runs on this machine. Returns 404 if the machine doesn't exist. */
                 machine?: string | null;

@@ -265,7 +265,7 @@ instead. An empty term matches every row.
 
 | Endpoint | Matches against |
 |----------|-----------------|
-| `GET /api/projects/{project}/suites/{suite}/commits?search=abc` | The `commit` column, the `tag` column, and any `searchable` commit field, but not the `branch` column, which `branch=` filters on instead (see E3) |
+| `GET /api/projects/{project}/suites/{suite}/commits?search=abc` | The `commit` column, the `tag` column, the `branch` column, and any `searchable` commit field |
 | `GET /api/projects/{project}/suites/{suite}/machines?search=x86` | The `name` column, the `display_name` column, and any `searchable` machine field |
 | `GET /api/projects/{project}/suites/{suite}/tests?search=bench` | The `name` column |
 | `GET /api/projects/{project}/suites/{suite}/runs?search=x86` | The run's machine, as the Machines `search=` above matches it; the run's commit, as the Commits `search=` above matches it; and the run's `uuid`, by prefix |

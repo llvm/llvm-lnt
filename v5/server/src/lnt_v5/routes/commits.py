@@ -545,13 +545,14 @@ def _missing(suite: str, value: str) -> ApiError:
 
 
 def commit_search(suite: Suite, term: str) -> ColumnElement[bool]:
-    """O4's commit predicate: the commit string, the tag, or any searchable commit field.
+    """O4's commit predicate: the commit string, the tag, the branch, or any searchable commit
+    field.
 
     Shared with `GET /runs?search=`, which applies it through the run's commit, for the same reason
     as `machine_search`.
     """
     return search_condition(
-        term, suite.tables.commit, ["commit", "tag"], suite.schema.commit_fields
+        term, suite.tables.commit, ["commit", "tag", "branch"], suite.schema.commit_fields
     )
 
 
@@ -637,8 +638,8 @@ def list_commits(
         str | None,
         Query(
             description=(
-                "Only return commits whose value, tag or any searchable field contains this text. "
-                "Not case-sensitive."
+                "Only return commits whose value, tag, branch or any searchable field contains "
+                "this text. Not case-sensitive."
             )
         ),
     ] = None,

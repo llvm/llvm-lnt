@@ -181,7 +181,7 @@ The regressions attributed to the commit are kept, with no commit (see D5).
 **Filters:**
 
 - `search=`: case-insensitive substring match on the commit string, the tag,
-  and searchable commit fields, but not the branch (see O4).
+  the branch and searchable commit fields (see O4).
 - `commit=`: only the commit with this value, if it also satisfies the other
   filters. An unknown commit gives an empty result (see I3). A commit picker
   uses it to check that it would offer a commit it was given (see AR15).

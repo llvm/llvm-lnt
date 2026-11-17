@@ -503,8 +503,8 @@ def list_runs(
         Query(
             description=(
                 "Only return runs whose machine (its name, its display name or any searchable "
-                "field) or commit (its value, its tag or any searchable field) contains this text, "
-                "or whose UUID starts with it. Not case-sensitive."
+                "field) or commit (its value, its tag, its branch or any searchable field) "
+                "contains this text, or whose UUID starts with it. Not case-sensitive."
             )
         ),
     ] = None,
