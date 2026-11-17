@@ -343,6 +343,27 @@ describe('the details of a bar (CP3)', () => {
     await waitFor(() => expect(graphLink()).toBe(`${GRAPH}&highlight=c1&highlight=c2`))
   })
 
+  it("leads to the branch of side B's commit, highlighting side A's only on the same one", async () => {
+    mockWorld({ ...WORLD, branches: { c2: 'release/1.x' } })
+    await shown()
+
+    click(0)
+
+    // Side A's commit has no branch: it is not on the x-axis of release/1.x.
+    const onBranch = GRAPH.replace('libcxx&', 'libcxx&branch=release%2F1.x&')
+    await waitFor(() => expect(graphLink()).toBe(`${onBranch}&highlight=c2`))
+  })
+
+  it("highlights side A's commit too when it is on the same branch as side B's", async () => {
+    mockWorld({ ...WORLD, branches: { c1: 'release/1.x', c2: 'release/1.x' } })
+    await shown()
+
+    click(0)
+
+    const onBranch = GRAPH.replace('libcxx&', 'libcxx&branch=release%2F1.x&')
+    await waitFor(() => expect(graphLink()).toBe(`${onBranch}&highlight=c1&highlight=c2`))
+  })
+
   it("highlights only side B's commit when side A's has no ordinal", async () => {
     mockWorld({ ...WORLD, adHoc: ['c1'] })
     await shown()

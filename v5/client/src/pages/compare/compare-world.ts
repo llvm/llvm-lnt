@@ -88,6 +88,8 @@ interface World {
   profilesAnswer?: (hex: string) => Response | undefined
   /** The commits without an ordinal: the others have their number, `c2` the ordinal 2. */
   adHoc?: string[]
+  /** The branches of commits that have one, by commit string: by default, none has. */
+  branches?: Record<string, string>
   /** The `svn_revision` of commits that have one, libcxx's display field, by commit string. */
   revisions?: Record<string, string>
   /** The display names of the machines that have one, by name (AR23). */
@@ -110,6 +112,7 @@ export function mockWorld({
   profiles = {},
   profilesAnswer,
   adHoc = [],
+  branches = {},
   revisions = {},
   displayNames = {},
 }: World = {}) {
@@ -121,6 +124,7 @@ export function mockWorld({
   const commitOf = (value: string) =>
     commit(value, {
       ordinal: adHoc.includes(value) ? null : Number(value.slice(1)),
+      branch: branches[value] ?? null,
       fields: { svn_revision: revisions[value] ?? null, commit_info: null },
     })
   mockResolve([...new Set(Object.keys(runs).map((key) => key.split('/')[1]))].map(commitOf))

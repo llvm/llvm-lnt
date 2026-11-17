@@ -1039,15 +1039,54 @@ describe('the Indicators table', () => {
       'href',
       '/projects/llvm/suites/libcxx/machines/linux',
     )
-    const graphs = within(indicators).getAllByRole('link', { name: 'View on graph' })
-    expect(graphs[1]).toHaveAttribute(
-      'href',
-      '/graph?project=llvm&suite=libcxx&machine=linux&metric=execution_time&test=BM_sort&regressions=all',
+    // On the commit's branch, once it is known: it has none.
+    await waitFor(() =>
+      expect(within(indicators).getAllByRole('link', { name: 'View on graph' })[1]).toHaveAttribute(
+        'href',
+        '/graph?project=llvm&suite=libcxx&machine=linux&metric=execution_time&test=BM_sort&regressions=all',
+      ),
     )
+    const graphs = within(indicators).getAllByRole('link', { name: 'View on graph' })
     // The Graph page plots only numeric metrics.
     expect(graphs[3]).not.toHaveAttribute('href')
     expect(graphs[3]).toHaveAttribute('aria-disabled', 'true')
     expect(graphs[3]).toHaveAttribute('title', 'The Graph page only plots numeric metrics.')
+  })
+
+  it("leads to the Graph on the branch of the regression's commit, once it is known (DT4)", async () => {
+    const onBranch = commit('rel1', { ordinal: 3, branch: 'release/1.x' })
+    const lookup = gate()
+    const detail = { ...WITH_INDICATORS, commit: onBranch.value }
+    renderRegression({ detail, suites: [WITH_TEXT] })
+    server.use(
+      mockApi('post', '/api/projects/{project}/suites/{suite}/commits/resolve', async () => {
+        await lookup.promise
+        return HttpResponse.json({ results: { rel1: onBranch }, not_found: [] })
+      }),
+    )
+    const indicators = await table('Indicators')
+    const graph = () => within(indicators).getAllByRole('link', { name: 'View on graph' })[1]
+
+    expect(graph()).not.toHaveAttribute('href')
+    expect(graph()).toHaveAttribute('title', "The regression's commit is still being looked up.")
+    act(() => lookup.open())
+    await waitFor(() =>
+      expect(graph()).toHaveAttribute(
+        'href',
+        '/graph?project=llvm&suite=libcxx&branch=release%2F1.x&machine=linux&metric=execution_time' +
+          '&test=BM_sort&regressions=all',
+      ),
+    )
+  })
+
+  it('leads to the Graph at once, without a branch, for a regression without a commit', async () => {
+    renderRegression({ detail: { ...WITH_INDICATORS, commit: null }, suites: [WITH_TEXT] })
+    const indicators = await table('Indicators')
+
+    expect(within(indicators).getAllByRole('link', { name: 'View on graph' })[1]).toHaveAttribute(
+      'href',
+      '/graph?project=llvm&suite=libcxx&machine=linux&metric=execution_time&test=BM_sort&regressions=all',
+    )
   })
 
   it('names their machines by label, which the filter covers too (AR23)', async () => {

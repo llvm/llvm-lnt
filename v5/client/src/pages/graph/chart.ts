@@ -4,6 +4,7 @@
  */
 
 import type { Data, DTickValue, Layout, LayoutAxis, PlotData, Shape, YAxisName } from 'plotly.js'
+import type { BranchName } from '../../api/commits'
 import { markerOf } from '../../chart-markers'
 import type { PlotGeometry } from '../../components/chart'
 import { noDataAnnotations } from '../../components/plot-annotations'
@@ -156,6 +157,8 @@ export interface BaselineLine {
   machineLabel: string
   /** The display value of the baseline's commit. */
   commit: string
+  /** The branch of the baseline's commit, null if it has none, once it is known. */
+  branch: BranchName | undefined
   test: string
   value: number
   color: string
@@ -175,9 +178,13 @@ const SPAN = Array.from({ length: ACROSS }, (_, i) => i / (ACROSS - 1))
  */
 export function baselineTraces(lines: BaselineLine[]): Data[] {
   return lines.map((line) => {
-    const { metric, panel, label, suiteLabel, machineLabel, commit, test, value, color } = line
+    const { metric, panel, label, suiteLabel, machineLabel, commit, branch, test, value, color } =
+      line
     const tooltip = [
-      ...[suiteLabel, machineLabel, commit, test].map(escapeHtml),
+      ...[suiteLabel, machineLabel, commit].map(escapeHtml),
+      // The commit's branch, on a line of its own, when it has one.
+      branch == null ? '' : `Branch: ${escapeHtml(branch)}<br>`,
+      escapeHtml(test),
       labelledValue(value, metric),
     ]
     return {
@@ -191,8 +198,8 @@ export function baselineTraces(lines: BaselineLine[]): Data[] {
       customdata: SPAN.map(() => tooltip),
       hovertemplate:
         '<b>Baseline</b><br>Suite: %{customdata[0]}<br>Machine: %{customdata[1]}<br>' +
-        'Commit: %{customdata[2]}<br>Test: %{customdata[3]}<br>' +
-        '%{customdata[4]}<extra></extra>',
+        'Commit: %{customdata[2]}<br>%{customdata[3]}Test: %{customdata[4]}<br>' +
+        '%{customdata[5]}<extra></extra>',
       line: { color, width: 1.5, dash: 'dash' },
     }
   })

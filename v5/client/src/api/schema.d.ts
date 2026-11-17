@@ -498,6 +498,31 @@ export interface paths {
         patch: operations["update_commit"];
         trace?: never;
     };
+    "/api/projects/{project}/suites/{suite}/branches": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List branches
+         * @description The branches that the suite's commits with an ordinal are on: first null, if some of them
+         *     have no branch, then each branch name, by code point. Commits without an ordinal aren't
+         *     considered. Use a name with `branch=`, or null with `has_branch=false`, on the commit list, the
+         *     series and the trends.
+         *
+         *     **Authorization:** no API key needed.
+         */
+        get: operations["list_branches"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/projects/{project}/suites/{suite}/runs": {
         parameters: {
             query?: never;
@@ -1135,6 +1160,29 @@ export interface components {
         Authentication: {
             /** @description The API key the request was made with. Null if it was made without one. */
             key: components["schemas"]["ApiKey"] | null;
+        };
+        /**
+         * Branch
+         * @description A branch that commits with an ordinal are on.
+         */
+        Branch: {
+            /**
+             * Name
+             * @description The branch's name, or null for the commits without a branch.
+             * @example main
+             */
+            name: string | null;
+        };
+        /**
+         * BranchList
+         * @description All the results.
+         */
+        BranchList: {
+            /**
+             * Items
+             * @description The results.
+             */
+            items: components["schemas"]["Branch"][];
         };
         /**
          * Commit
@@ -5574,6 +5622,67 @@ export interface operations {
                 };
             };
             /** @description `conflict`: another commit on the same branch already has this ordinal. `retry`: the suite's schema changed while the request was being handled. Send it again. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    list_branches: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The name of the project. */
+                project: string;
+                /** @description The name of the test suite. */
+                suite: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BranchList"];
+                };
+            };
+            /** @description The request is invalid. This includes query parameters the operation doesn't accept, and single-valued parameters given more than once. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description This operation needs an API key and none was sent, or the key is malformed, unknown or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The project or the test suite doesn't exist. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description `retry`: the suite's schema changed while the request was being handled. Send it again. */
             409: {
                 headers: {
                     [name: string]: unknown;

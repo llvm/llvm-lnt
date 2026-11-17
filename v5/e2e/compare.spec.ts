@@ -546,6 +546,56 @@ test("links a test to its profile on both sides, side B on its default test", as
   )
 })
 
+test("views a bar on the Graph on side B's branch, highlighting side A's commit only on it (CP3)", async ({
+  page,
+  request,
+  tokenFor,
+}, testInfo) => {
+  const run = (commit: string, ordinal: number, value: number, branch?: string) => ({
+    machine: 'm1',
+    commit,
+    ordinal,
+    branch,
+    tests: [{ name: 'bench', samples: [{ execution_time: value }] }],
+  })
+  // c1 without a branch, and r1 and r2 on release/1.x, r1 with c1's ordinal.
+  const runs = [run('c1', 1, 1), run('r1', 1, 2, 'release/1.x'), run('r2', 2, 3, 'release/1.x')]
+  await ownSuite(request, tokenFor, testInfo, runs, async (suite) => {
+    const { project, suite: name } = suite
+    const graphLink = async (commitA: string) => {
+      await page.goto(
+        `/compare?project_a=${project}&suite_a=${name}&machine_a=m1&commit_a=${commitA}` +
+          `&project_b=${project}&suite_b=${name}&machine_b=m1&commit_b=r2&metric=execution_time`,
+      )
+      await expect(rows(table(page, 'Comparison')).first()).toContainText('Geomean')
+      // Hovered first, as Plotly reports a click on the bar whose hover label shows, from
+      // elsewhere, where the pointer may still be from the previous comparison. Inside the bar,
+      // whose top is at the top of the plot.
+      const top = await pointOf(page, 0, 0)
+      const position = { x: top.x, y: top.y + 20 }
+      await page.mouse.move(0, 0)
+      await plotOf(page).hover({ position })
+      await expect(page.locator('.hoverlayer .hovertext')).toContainText('Click for details')
+      await plotOf(page).click({ position })
+      return page.getByRole('dialog').getByRole('link', { name: 'View on graph' })
+    }
+    const graph =
+      `/graph?project=${project}&suite=${name}&branch=release%2F1.x&machine=m1` +
+      '&metric=execution_time&test=bench'
+
+    // Side A's commit has no branch: it is not on the x-axis of side B's.
+    await expect(await graphLink('c1')).toHaveAttribute('href', `${graph}&highlight=r2`)
+
+    const link = await graphLink('r1')
+    await expect(link).toHaveAttribute('href', `${graph}&highlight=r1&highlight=r2`)
+    await link.click()
+    await expect(page).toHaveURL(`${graph}&highlight=r1&highlight=r2`)
+    await expect(page.getByRole('list', { name: 'Highlighted commits' })).toHaveText(
+      /Highlighted: r1.*Highlighted: r2/,
+    )
+  })
+})
+
 test('adds the comparison to a new regression, then to that one', async ({
   page,
   request,

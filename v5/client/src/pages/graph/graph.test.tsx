@@ -24,6 +24,7 @@ import { server } from '../../test/server'
 import {
   COMMITS,
   GRAPH_SUITE,
+  SAMPLES,
   GRAPHED,
   TEXT_SUITE,
   TESTS,
@@ -268,9 +269,9 @@ describe('the Graph page (GR1)', () => {
 
     await waitFor(() => expect(traces()).toEqual(['a - m1: c10=1 c20=2']))
     // m2 has no test a: it is not asked about it, which the API would refuse (E9). Only the
-    // commits with an ordinal, the only ones the x-axis places (GR3).
+    // commits of the branch plotted with an ordinal, the only ones the x-axis places (GR3).
     expect(recorded.series.map(({ query }) => query.toString())).toEqual([
-      'metric=execution_time&machine=m1&test=a&has_ordinal=true',
+      'metric=execution_time&machine=m1&test=a&has_branch=false&has_ordinal=true',
     ])
     expect(currentUrl()).toBe(`${GRAPHED}&test=a`)
   })
@@ -371,6 +372,128 @@ describe('the Graph page (GR1)', () => {
 
     await userEvent.setup().click(screen.getByRole('button', { name: 'Remove m2' }))
     await waitFor(() => expect(layout().uirevision).not.toBe(revision))
+  })
+})
+
+/** A world whose machines also have commits on release/1.x, and test a samples at them. */
+const BRANCHED = {
+  branch: { name: 'release/1.x', commits: { m1: [10, 20], m2: [20] } },
+  samples: {
+    ...SAMPLES,
+    'm1/a': [...SAMPLES['m1/a'], ['r10', 'r4', 5], ['r20', 'r5', 6]] satisfies Sample[],
+  },
+}
+
+/** The branch filters of the queries `queries`, as `branch=` or `has_branch=` says them. */
+const branchesOf = (queries: URLSearchParams[]) =>
+  queries.map((query) => query.get('branch') ?? `has_branch=${query.get('has_branch')}`)
+
+/** The queries of `GET /series` (GR2). */
+const seriesIn = (recorded: Recorded) => recorded.series.map(({ query }) => query)
+
+/** The queries of the x-axis scaffold among those of `GET commits` (GR3). */
+const scaffoldsIn = (recorded: Recorded) =>
+  recorded.commits.filter((query) => query.get('has_ordinal') === 'true')
+
+describe('the branch (GR1, GR3, GR14)', () => {
+  it("is not offered while the suite's commits are on no branch", async () => {
+    const recorded = mockWorld()
+    renderPage(`${GRAPHED}&test=a`)
+
+    await waitFor(() => expect(traces()).toEqual(['a - m1: c10=1 c20=2']))
+    expect(screen.queryByRole('button', { name: / Branch$/ })).not.toBeInTheDocument()
+    expect(branchesOf(seriesIn(recorded))).toEqual(['has_branch=false'])
+    expect(branchesOf(scaffoldsIn(recorded))).toEqual(['has_branch=false', 'has_branch=false'])
+  })
+
+  it('plots the commits without a branch, then the branch picked, keeping the rest', async () => {
+    const recorded = mockWorld(BRANCHED)
+    renderPage(`${GRAPHED}&test=a&highlight=c20`)
+    // The trace, then the highlighted commit's circle (GR16), which the x-axis holds.
+    const unbranchedTraces = ['a - m1: c10=1 c20=2', 'a - m1 - highlighted: c20=2']
+    await waitFor(() => expect(traces()).toEqual(unbranchedTraces))
+    expect(selectButton('Branch')).toHaveTextContent('No branch')
+    const unbranched = layout().uirevision
+    await userEvent.setup().click(selectButton('Branch'))
+    expect(optionsIn(screen.getByRole('listbox'))).toEqual(['No branch', 'release/1.x'])
+    await userEvent.setup().click(screen.getByRole('option', { name: 'release/1.x' }))
+
+    await waitFor(() => expect(traces()).toEqual(['a - m1: r10=5 r20=6']))
+    expect(layout().xaxis?.categoryarray).toEqual(['r10', 'r20'])
+    expect(layout().uirevision).not.toBe(unbranched)
+    expect(currentUrl()).toBe(`${GRAPHED}&test=a&highlight=c20&branch=release%2F1.x`)
+    expect(branchesOf(seriesIn(recorded))).toEqual([
+      'has_branch=false',
+      'release/1.x',
+    ])
+    expect(recorded.series[1].query.get('has_ordinal')).toBe('true')
+    // The highlighted commit is of no other branch: it stays, off the x-axis.
+    expect(main().getByRole('list', { name: 'Highlighted commits' })).toHaveTextContent(
+      /^Highlighted: c20×$/,
+    )
+
+    // Back to the commits without a branch, which are not asked for again, and reset the zoom.
+    const branched = layout().uirevision
+    await pickOption('Branch', 'No branch')
+    await waitFor(() => expect(traces()).toEqual(unbranchedTraces))
+    expect(layout().uirevision).not.toBe(branched)
+    expect(recorded.series).toHaveLength(2)
+    expect(scaffoldsIn(recorded)).toHaveLength(4)
+    expect(currentUrl()).toBe(`${GRAPHED}&test=a&highlight=c20`)
+  })
+
+  it("drops a branch that none of the suite's commits with an ordinal is on", async () => {
+    mockWorld(BRANCHED)
+    renderPage(`${GRAPHED.replace('libcxx&', 'libcxx&branch=nope&')}&test=a`)
+
+    await waitFor(() => expect(currentUrl()).toBe(`${GRAPHED}&test=a`))
+    await waitFor(() => expect(traces()).toEqual(['a - m1: c10=1 c20=2']))
+  })
+
+  it('plots the first branch of a suite whose commits all have one, which the URL names', async () => {
+    const recorded = mockWorld({ ...BRANCHED, commits: { m1: [], m2: [] } })
+    renderPage(`${GRAPHED}&test=a`)
+
+    await waitFor(() => expect(traces()).toEqual(['a - m1: r10=5 r20=6']))
+    expect(currentUrl()).toBe(`${GRAPHED}&test=a&branch=release%2F1.x`)
+    expect(selectButton('Branch')).toHaveTextContent('release/1.x')
+    // Nothing was asked of the commits without a branch, which the suite lists none of.
+    expect(branchesOf(scaffoldsIn(recorded))).toEqual(['release/1.x', 'release/1.x'])
+  })
+
+  it('plots nothing until the branches are listed, and says so if they cannot be', async () => {
+    const branches = gate()
+    const recorded = mockWorld({ ...BRANCHED, branchesWait: () => branches.promise })
+    renderPage(`${GRAPHED}&test=a`)
+    await waitFor(() => expect(box('a')).toBeChecked())
+
+    expect(scaffoldsIn(recorded)).toEqual([])
+    expect(recorded.series).toEqual([])
+    expect(layout().annotations).toEqual([])
+    act(() => branches.open())
+    await waitFor(() => expect(traces()).toEqual(['a - m1: c10=1 c20=2']))
+  })
+
+  it('says why the branches could not be listed, and tries again', async () => {
+    const recorded = mockWorld(BRANCHED)
+    server.use(
+      mockApi('get', '/api/projects/{project}/suites/{suite}/branches', () =>
+        errorResponse(500, 'internal_error', 'The branches broke.'),
+      ),
+    )
+    renderPage(`${GRAPHED}&test=a`)
+
+    const why = /The branches could not be listed: The branches broke\./
+    expect(await main().findByText(why)).toBeInTheDocument()
+    expect(recorded.series).toEqual([])
+    expect(layout().annotations).toEqual([])
+    server.use(
+      mockApi('get', '/api/projects/{project}/suites/{suite}/branches', () =>
+        HttpResponse.json({ items: [{ name: null }] }),
+      ),
+    )
+    await userEvent.setup().click(main().getByRole('button', { name: 'Retry' }))
+    await waitFor(() => expect(traces()).toEqual(['a - m1: c10=1 c20=2']))
   })
 })
 
@@ -827,10 +950,11 @@ describe('the selection (GR6, GR7, GR14)', () => {
     await waitFor(() => expect(query()).toMatchObject({ metric: ['compile_time'], test: ['b'] }))
   })
 
-  it('clears the machines, metric, tests and highlight on a new suite, not the rest', async () => {
-    mockWorld()
-    renderPage(`${GRAPHED}&test=a&test_filter=a&sample_agg=max&highlight=c20`)
+  it('clears the branch, machines, metric, tests and highlight on a new suite, not the rest', async () => {
+    mockWorld(BRANCHED)
+    renderPage(`${GRAPHED}&test=a&test_filter=a&sample_agg=max&highlight=c20&branch=release%2F1.x`)
     await waitFor(() => expect(box('a')).toBeChecked())
+    await waitFor(() => expect(selectButton('Branch')).toHaveTextContent('release/1.x'))
 
     await pickSuite('Suite', 'llvm', 'text_only')
 

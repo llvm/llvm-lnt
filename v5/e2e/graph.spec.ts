@@ -420,6 +420,57 @@ test("shows a test's name as it is in the tooltip, even with Plotly's template s
   })
 })
 
+test('plots one branch at a time, with a baseline of any (GR1, GR3, GR9)', async ({
+  page,
+  request,
+  tokenFor,
+}, testInfo) => {
+  const run = (commit: string, ordinal: number, value: number, branch?: string) => ({
+    machine: 'm1',
+    commit,
+    ordinal,
+    branch,
+    tests: [{ name: 'bench', samples: [{ execution_time: value }] }],
+  })
+  // c1 to c3 without a branch, and r1 and r2 on release/1.x, with the ordinals of c1 and c2.
+  const runs = [
+    run('c1', 1, 1),
+    run('c2', 2, 2),
+    run('c3', 3, 3),
+    run('r1', 1, 10, 'release/1.x'),
+    run('r2', 2, 20, 'release/1.x'),
+  ]
+  await ownSuite(request, tokenFor, testInfo, runs, async (suite) => {
+    const commits = () =>
+      plotOf(page).evaluate(
+        (element) => (element as PlotDiv)._fullData.find((d) => d.name === 'bench - m1')?.x,
+      )
+    const branch = () => new URL(page.url()).searchParams.get('branch')
+    await page.goto(
+      `/graph?project=${suite.project}&suite=${suite.suite}&branch=nope&machine=m1` +
+        `&metric=execution_time&test=bench&baseline=${suite.project}/${suite.suite}/m1/r2`,
+    )
+
+    // A branch no commit with an ordinal is on is dropped, for the commits without one.
+    await expect.poll(branch).toBeNull()
+    await expect(selectButton(page, 'Branch')).toContainText('No branch')
+    await expect.poll(commits).toEqual(['c1', 'c2', 'c3'])
+    // The baseline, of another branch, says which.
+    const chips = page.getByRole('list', { name: 'Baselines added' })
+    await expect(chips).toContainText(`m1 › r2 · release/1.x`)
+    await expect(tracesOf(page)).toHaveCount(2)
+
+    await pickOption(page, 'Branch', 'release/1.x')
+
+    await expect.poll(branch).toBe('release/1.x')
+    await expect.poll(commits).toEqual(['r1', 'r2'])
+    await expect(tracesOf(page)).toHaveCount(2)
+    await page.reload()
+    await expect.poll(commits).toEqual(['r1', 'r2'])
+    await expect(selectButton(page, 'Branch')).toContainText('release/1.x')
+  })
+})
+
 test('adds a baseline from its panel, drawn across the chart (GR9)', async ({ page, request }) => {
   // The commit the picker suggests first (AR15).
   const path =

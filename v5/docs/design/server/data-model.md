@@ -593,8 +593,8 @@ and the tables below are named that way.
   partial (`WHERE ordinal IS NOT NULL`): ordinals are unique within a branch,
   the commits without a branch counting as one, and any number of commits of a
   branch may have no ordinal (see O6). It is also what the lookups by ordinal
-  within a branch use. `ordinal` has an index of its own, for listing the
-  commits of every branch by ordinal (see E3).
+  within a branch and the branch list (E3) use. `ordinal` has an index of its
+  own, for listing the commits of every branch by ordinal (see E3).
 - `tag` is an optional human-readable label (e.g. `release-18.1`), which can be
   set on every commit write path (see O2). Several commits may share a tag. The
   tag is always included in `?search=` substring matching (see O4).

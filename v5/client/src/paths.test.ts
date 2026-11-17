@@ -81,6 +81,16 @@ describe('graphPath', () => {
       graphPath({ suite: suiteRef('llvm', 'nts'), machines: ['m2', 'm&1'], metric: 'score' }),
     ).toBe('/graph?project=llvm&suite=nts&machine=m2&machine=m%261&metric=score')
   })
+
+  it('sets the branch after the suite, and leaves it out for the commits without one', () => {
+    const suite = suiteRef('llvm', 'nts')
+    expect(graphPath({ suite, branch: 'release/19.x', machines: ['m1'] })).toBe(
+      '/graph?project=llvm&suite=nts&branch=release%2F19.x&machine=m1',
+    )
+    expect(graphPath({ suite, branch: null, machines: ['m1'] })).toBe(
+      '/graph?project=llvm&suite=nts&machine=m1',
+    )
+  })
 })
 
 describe('profilesPath', () => {

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef } from 'react'
 import { Link } from 'react-router'
 import { VisuallyHidden } from 'react-aria-components'
 import { authedApi, unwrap, type Schemas } from '../../api/client'
+import { useResolvedCommit, type BranchName } from '../../api/commits'
 import { useMachineLabels, type MachineLabels } from '../../api/machines'
 import { INDICATOR_BATCH, useRegressionMutation, withIndicators } from '../../api/regressions'
 import { refOf, type Suite, type SuiteRef } from '../../api/suites'
@@ -28,6 +29,9 @@ const PARAMS = { indicator_filter: trimmedStringParam() }
 
 /** Why an indicator cannot be viewed on the Graph page, which plots only numeric metrics (GR1). */
 const NOT_PLOTTED = 'The Graph page only plots numeric metrics.'
+
+/** Why an indicator cannot be viewed on the Graph page yet, whose branch is not known yet (DT4). */
+const LOOKING_UP = "The regression's commit is still being looked up."
 
 const indicatorKey = (indicator: Indicator) => indicator.uuid
 
@@ -57,6 +61,13 @@ export function RegressionIndicators({
   const triage = useScopeGate('triage', suite)
   const labelOfMachine = useMachineLabels(suite)
   const [settings, update] = useUrlState(PARAMS)
+  // The branch of the regression's commit, which the Graph shows it on (DT4): undefined while the
+  // commit is looked up, as its link at the top of the page also does, and null without a commit,
+  // or once the lookup has failed.
+  const { commit } = regression
+  const resolved = useResolvedCommit(suite, commit ?? '', commit !== null)
+  const branch: BranchName | undefined =
+    commit === null ? null : resolved.isPending ? undefined : (resolved.data?.branch ?? null)
 
   const metrics = useMemo(
     () => new Map(schema.metrics.map((metric) => [metric.name, metric])),
@@ -156,6 +167,7 @@ export function RegressionIndicators({
     () =>
       indicatorColumns({
         suite,
+        branch,
         rows: selection.rows,
         keys,
         metrics,
@@ -164,7 +176,17 @@ export function RegressionIndicators({
         removeGate,
         onRemove: removeOne,
       }),
-    [suite, selection.rows, keys, metrics, labelOfMachine, metricLabel, removeGate, removeOne],
+    [
+      suite,
+      branch,
+      selection.rows,
+      keys,
+      metrics,
+      labelOfMachine,
+      metricLabel,
+      removeGate,
+      removeOne,
+    ],
   )
 
   const selected = selection.selected.size
@@ -241,6 +263,8 @@ function heading(total: Counts, part?: Counts): string {
 
 interface ColumnOptions {
   suite: SuiteRef
+  /** The branch of the regression's commit, once it is known (see `GraphLink`). */
+  branch: BranchName | undefined
   rows: RowSelection
   /** The keys of the rows shown. */
   keys: readonly string[]
@@ -254,6 +278,7 @@ interface ColumnOptions {
 
 function indicatorColumns({
   suite,
+  branch,
   rows,
   keys,
   metrics,
@@ -294,7 +319,9 @@ function indicatorColumns({
       id: 'graph',
       header: <VisuallyHidden>Graph</VisuallyHidden>,
       looks: ['nowrap'],
-      cell: (indicator) => <GraphLink suite={suite} indicator={indicator} metrics={metrics} />,
+      cell: (indicator) => (
+        <GraphLink suite={suite} branch={branch} indicator={indicator} metrics={metrics} />
+      ),
     },
     {
       id: 'remove',
@@ -317,16 +344,19 @@ function indicatorColumns({
 }
 
 /**
- * The indicator on the Graph page, with every state's regressions marked, so that this one's commit
- * is (GR15). The Graph page plots only numeric metrics, so for any other, the link leads nowhere,
- * and says why (AR8).
+ * The indicator on the Graph page, on the branch of the regression's commit, with every state's
+ * regressions marked, so that this one's commit is (GR15). The Graph page plots only numeric
+ * metrics, so for any other, the link leads nowhere, and says why (AR8), as it does while the
+ * branch is not known.
  */
 function GraphLink({
   suite,
+  branch,
   indicator,
   metrics,
 }: {
   suite: SuiteRef
+  branch: BranchName | undefined
   indicator: Indicator
   metrics: Map<string, Metric>
 }) {
@@ -334,12 +364,15 @@ function GraphLink({
   if (metric === undefined || !isNumeric(metric)) {
     return <DisabledLink title={NOT_PLOTTED}>View on graph</DisabledLink>
   }
+  if (branch === undefined) return <DisabledLink title={LOOKING_UP}>View on graph</DisabledLink>
   const { machine, test } = indicator
-  return (
-    <Link
-      to={graphPath({ suite, machines: [machine], metric: metric.name, test, regressions: 'all' })}
-    >
-      View on graph
-    </Link>
-  )
+  const to = graphPath({
+    suite,
+    branch,
+    machines: [machine],
+    metric: metric.name,
+    test,
+    regressions: 'all',
+  })
+  return <Link to={to}>View on graph</Link>
 }

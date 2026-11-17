@@ -25,6 +25,7 @@ from sqlalchemy import Engine, event, insert, select, text
 from conftest import PROFILE_COLUMNS, code_of, suite_path, walk_pages
 from introspection import counted, row_count
 from lnt_v5.querying import MAX_LIMIT
+from lnt_v5.routes.branches import BRANCHES_PATH
 from lnt_v5.routes.commits import COMMITS_PATH
 from lnt_v5.scopes import Scope
 from lnt_v5.suites.tables import NAME_LENGTH, SuiteTables
@@ -556,6 +557,79 @@ class TestListBranches:
 
     def test_refuses_a_has_branch_that_is_not_a_boolean(self, api_client: TestClient) -> None:
         response = page(api_client, "has_branch=maybe")
+
+        assert response.status_code == 400
+        assert code_of(response) == "invalid_request"
+
+
+BRANCHES = BRANCHES_PATH.format(project="nts", suite="nts")
+
+
+def branches_in(api_client: TestClient) -> list[str | None]:
+    response = api_client.get(BRANCHES)
+    assert response.status_code == 200, response.text
+    return [item["name"] for item in response.json()["items"]]
+
+
+class TestBranchList:
+    """`GET /branches`: the branches of the commits with an ordinal (E3)."""
+
+    def test_is_an_empty_envelope_for_a_suite_without_commits(
+        self, api_client: TestClient, suite: SuiteTables
+    ) -> None:
+        assert api_client.get(BRANCHES).json() == {"items": []}
+
+    def test_lists_null_alone_when_no_ordered_commit_has_a_branch(
+        self, api_client: TestClient, create: Callable[..., Any]
+    ) -> None:
+        create("n1", ordinal=1)
+        create("n2", ordinal=2)
+        # Without an ordinal, a commit's branch is not listed.
+        create("unordered", branch="main")
+
+        assert branches_in(api_client) == [None]
+
+    def test_lists_null_first_then_the_names_by_code_point(
+        self, api_client: TestClient, create: Callable[..., Any]
+    ) -> None:
+        # Names a locale's collation orders otherwise, ignoring punctuation or case, each on a few
+        # commits, created out of order.
+        for i, branch in enumerate(["ab", "a_b", "Z", "a-b", "a", "ab", "Z", "release/19.x"]):
+            create(f"c{i}", ordinal=i, branch=branch)
+        create("n", ordinal=1)
+
+        assert branches_in(api_client) == [None, "Z", "a", "a-b", "a_b", "ab", "release/19.x"]
+
+    def test_leaves_out_null_when_every_ordered_commit_has_a_branch(
+        self, api_client: TestClient, create: Callable[..., Any]
+    ) -> None:
+        create("m1", ordinal=1, branch="main")
+        create("unordered")
+
+        assert branches_in(api_client) == ["main"]
+
+    def test_follows_a_branch_change(
+        self,
+        api_client: TestClient,
+        create: Callable[..., Any],
+        patch: Callable[..., Any],
+    ) -> None:
+        create("m1", ordinal=1, branch="main")
+        assert patch("m1", {"branch": "release"}).status_code == 200
+
+        assert branches_in(api_client) == ["release"]
+
+    def test_needs_no_credential(self, api_client: TestClient, suite: SuiteTables) -> None:
+        assert api_client.get(BRANCHES).status_code == 200
+
+    def test_is_a_404_for_a_suite_that_does_not_exist(self, api_client: TestClient) -> None:
+        response = api_client.get(BRANCHES_PATH.format(project="nts", suite="nope"))
+
+        assert response.status_code == 404
+        assert code_of(response) == "not_found"
+
+    def test_refuses_a_filter(self, api_client: TestClient, suite: SuiteTables) -> None:
+        response = api_client.get(f"{BRANCHES}?machine=linux")
 
         assert response.status_code == 400
         assert code_of(response) == "invalid_request"

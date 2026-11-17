@@ -347,7 +347,7 @@ export function GraphChart({
   const lines = useMemo(
     () =>
       metrics.flatMap((metric, panel) =>
-        baselines.flatMap(({ suiteLabel, machineLabel, display, label, samples }) => {
+        baselines.flatMap(({ suiteLabel, machineLabel, display, branch, label, samples }) => {
           const ofMetric = samples.get(metric.name)
           if (ofMetric === undefined) return []
           return selected.flatMap((test): BaselineLine[] => {
@@ -362,6 +362,7 @@ export function GraphChart({
                 suiteLabel,
                 machineLabel,
                 commit: display,
+                branch,
                 test,
                 value,
                 color: colorOfName(test),
@@ -405,8 +406,12 @@ export function GraphChart({
     [traces, highlights],
   )
 
-  // What the x-axis is made of: a change resets the zoom (GR5).
-  const revision = machines.filter((machine) => listed.has(machine)).join('\0')
+  // What the x-axis is made of: a change resets the zoom (GR5), even to a scaffold already listed,
+  // such as that of a branch plotted before.
+  const revision = JSON.stringify([
+    scaffold.branch ?? null,
+    ...machines.filter((machine) => listed.has(machine)),
+  ])
   // Where the plot draws, to place the points' samples and the details over it, and the x-axis it
   // was drawn with.
   const [drawnAt, setDrawnAt] = useState<{ geometry: PlotGeometry; revision: string } | null>(

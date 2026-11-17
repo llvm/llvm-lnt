@@ -17,6 +17,7 @@
 import { useCallback, useMemo } from 'react'
 import { useQueries, type QueryClient } from '@tanstack/react-query'
 import { api, unwrap, type Schemas } from './client'
+import { branchFilter, type BranchName } from './commits'
 import { failuresOf } from './failures'
 import { queryKeys } from './keys'
 import { readNdjson } from './ndjson'
@@ -103,50 +104,56 @@ export async function fetchMeasurements(
 }
 
 /**
- * A selected test on a machine whose list for a metric holds it: a trace, whose measurements a
- * query loads.
+ * A selected test on a machine whose list for a metric holds it, on the branch plotted: a trace,
+ * whose measurements a query loads.
  */
 interface Trace {
+  branch: BranchName
   metric: string
   machine: string
   test: string
 }
 
 /**
- * The measurements of a trace. Only those of commits with an ordinal, the only ones the x-axis
- * places (GR3).
+ * The measurements of a trace. Only those of commits of its branch with an ordinal, the only ones
+ * the x-axis places (GR3).
  */
 function fetchTrace(
   suite: SuiteRef,
-  { metric, machine, test }: Trace,
+  { branch, metric, machine, test }: Trace,
   signal: AbortSignal,
 ): Promise<Measurement[]> {
-  return fetchMeasurements(suite, { metric, machine, test: [test], has_ordinal: true }, signal)
+  const query = { metric, machine, test: [test], ...branchFilter(branch), has_ordinal: true }
+  return fetchMeasurements(suite, query, signal)
 }
 
 const NO_MEASUREMENTS: Measurement[] = []
 
 /**
- * The measurements of the `selected` tests for each of `metrics`, on each machine of `testsOf`,
- * which gives the tests each machine's list holds for each metric: a test it does not hold is not
- * asked for, since it has no value for the metric there, and the API refuses a request naming a
- * test that does not exist (E9).
+ * The measurements on `branch` of the `selected` tests for each of `metrics`, on each machine of
+ * `testsOf`, which gives the tests each machine's list holds for each metric: a test it does not
+ * hold is not asked for, since it has no value for the metric there, and the API refuses a request
+ * naming a test that does not exist (E9). Nothing is asked for while the branch is not known.
  */
 export function useSeries(
   suite: SuiteRef,
+  branch: BranchName | undefined,
   metrics: readonly string[],
   selected: ReadonlySet<string>,
   testsOf: ReadonlyMap<string, ReadonlyMap<string, ReadonlySet<string>>>,
 ): Series {
   const traces = useMemo(() => {
     const wanted: Trace[] = []
+    if (branch === undefined) return wanted
     for (const metric of metrics) {
       for (const [machine, held] of testsOf.get(metric) ?? []) {
-        for (const test of selected) if (held.has(test)) wanted.push({ metric, machine, test })
+        for (const test of selected) {
+          if (held.has(test)) wanted.push({ branch, metric, machine, test })
+        }
       }
     }
     return wanted
-  }, [metrics, testsOf, selected])
+  }, [branch, metrics, testsOf, selected])
   const combine = useCallback((results: TraceResult[]) => combineTraces(traces, results), [traces])
   return useQueries({
     queries: traces.map((trace) => ({

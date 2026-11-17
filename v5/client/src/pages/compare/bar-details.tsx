@@ -40,10 +40,11 @@ function useTestRuns(
 }
 
 /**
- * "View on graph" (CP3): the Graph of `test` in side B's context, with side B's commit highlighted,
- * and side A's too when it has the same suite and machine, each once known to have an ordinal, without
- * which a commit is not on the Graph's x-axis (GR3, GR16). It leads nowhere while side B's commit
- * is looked up, or once it has none. A failed lookup leaves its commit out rather than block it.
+ * "View on graph" (CP3): the Graph of `test` in side B's context, on the branch of side B's commit,
+ * with that commit highlighted, and side A's too when it has the same suite, machine and branch,
+ * each once known to have an ordinal, without which a commit is not on the Graph's x-axis (GR3,
+ * GR16). It leads nowhere while side B's commit is looked up, or once it has none. A failed lookup
+ * leaves its commit out rather than block it, and side B's leaves out the branch too.
  */
 function useGraphLink(
   a: Side,
@@ -55,18 +56,20 @@ function useGraphLink(
   const { suite, machine, commit } = b.settings
   const besideB = a.settings.suite === suite && a.settings.machine === machine
   const resolvedB = useResolvedCommit(suite, commit)
-  const ordinalA = useResolvedCommit(suite, a.settings.commit, besideB).data?.ordinal
-  const ordinalB = resolvedB.data?.ordinal
+  const resolvedA = useResolvedCommit(suite, a.settings.commit, besideB).data
+  const commitB = resolvedB.data
   if (resolvedB.isPending) return { to: null, why: "Side B's commit is still being looked up." }
-  if (ordinalB === null) {
+  if (commitB?.ordinal === null) {
     return { to: null, why: "Side B's commit has no ordinal: it is not on the Graph's x-axis." }
   }
+  const alongB = besideB && resolvedA != null && resolvedA.branch === commitB?.branch
   const highlight = [
-    ...(besideB && ordinalA != null ? [a.settings.commit] : []),
-    ...(ordinalB !== undefined ? [commit] : []),
+    ...(alongB && resolvedA.ordinal !== null ? [a.settings.commit] : []),
+    ...(commitB != null ? [commit] : []),
   ]
   const to = graphPath({
     suite,
+    branch: commitB?.branch,
     machines: [machine],
     metric: metric.name,
     test,

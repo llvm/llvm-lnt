@@ -6,6 +6,7 @@
 
 import { useMemo } from 'react'
 import { skipToken, useQueries } from '@tanstack/react-query'
+import type { BranchName } from '../api/commits'
 import { combineResults, type Failures } from '../api/failures'
 import { machinesQuery } from '../api/machines'
 import { machineLabel } from '../labels'
@@ -47,6 +48,8 @@ export interface CheckedCommit {
   found: boolean | undefined
   /** The display value of the commit (AR6), or the commit string until it is known. */
   display: string
+  /** The commit's branch, null if it has none, once it is known. */
+  branch: BranchName | undefined
   /**
    * Whether it is known to be unusable: its suite, its machine or its commit does not exist, or
    * the machine has no run at the commit (AR2 "State").
@@ -123,6 +126,7 @@ export function useCheckedCommits(
           machineLabel: machines[i] ? machineLabel(machines[i]) : entry.machine,
           found: lookup === undefined ? undefined : lookup !== null,
           display: lookup?.text ?? entry.commit,
+          branch: lookup?.commit.branch,
           unusable:
             (suites !== undefined && schemas[i] === undefined) ||
             machineKnown[i] === false ||

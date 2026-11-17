@@ -6,6 +6,7 @@ import {
   DEFAULT_AGGREGATION,
   type Aggregation,
 } from '../../aggregation'
+import { useBranches, type BranchName } from '../../api/commits'
 import { hasMachine, useMachineLabels, useMachineList } from '../../api/machines'
 import { useMarkedRegressions } from '../../api/regressions'
 import { useScaffold } from '../../api/scaffold'
@@ -37,6 +38,7 @@ import {
   booleanParam,
   enumParam,
   listParam,
+  optionalStringParam,
   stringParam,
   type Param,
   trimmedStringParam,
@@ -93,6 +95,8 @@ const PARAMS = {
   // The suite, by its project's name and its own (AR22), which go together.
   project: stringParam(),
   suite: stringParam(),
+  /** The branch plotted, by name, or null for the commits without a branch (GR1). */
+  branch: optionalStringParam(),
   /** The machines, in the order of their chips. */
   machine: listParam(),
   /** The metrics, in the order of the chart's panels (GR1). */
@@ -109,6 +113,7 @@ const PARAMS = {
 
 /** What a suite change clears, since it does not apply to another suite (GR1). */
 const IN_SUITE = {
+  branch: null as BranchName,
   machine: [] as string[],
   metric: [] as string[],
   test: [] as string[],
@@ -119,6 +124,22 @@ const NO_NAMES: string[] = []
 const NO_METRICS: Metric[] = []
 const NO_SUITES: Suite[] = []
 const nameOf = (name: string) => name
+
+/** The branch selector's value for a branch: its name, or empty for the commits without one. */
+const branchKey = (branch: BranchName) => branch ?? ''
+
+/** The branch of a value of the branch selector (see `branchKey`). */
+const branchOfKey = (key: string): BranchName => key || null
+
+/**
+ * The branch plotted, given the suite's `branches` and the one the URL names (GR1): that one, if
+ * the list holds it, and otherwise the list's first entry, which is null, the commits without a
+ * branch, if they are listed at all. An empty list, of a suite without commits with an ordinal,
+ * leaves nothing to plot, which the commits without a branch stand for.
+ */
+function plottedBranch(branches: readonly BranchName[], named: BranchName): BranchName {
+  return branches.includes(named) ? named : (branches[0] ?? null)
+}
 
 /**
  * The Graph page (GR1-GR16), started afresh whenever the user navigates to it -- a link to another
@@ -178,6 +199,22 @@ function GraphPage() {
     () => update({ metric: metricNames }),
   )
 
+  // The branch plotted, once the suite's branches are known: nothing is plotted until then, since
+  // the URL's could be dropped (GR1).
+  const branchList = useBranches(suite, schema !== undefined)
+  const branches = branchList.data
+  const branch = branches && plottedBranch(branches, settings.branch)
+  useDropUnusable(
+    branchList,
+    (list) => plottedBranch(list, settings.branch) === settings.branch,
+    () => update({ branch }),
+  )
+  const branchOptions = useMemo(
+    () =>
+      (branches ?? []).map((name) => ({ value: branchKey(name), label: name ?? 'No branch' })),
+    [branches],
+  )
+
   const tests = useTestNames(suite, machines, metricNames, { keep: true })
   const filter = useTextFilter(
     tests.names,
@@ -217,8 +254,8 @@ function GraphPage() {
     if (shared || known) update({ test: shared ? sorted : [] })
   }, [sorted, shared, known, update])
 
-  const series = useSeries(suite, metricNames, selected, tests.byMetric)
-  const scaffold = useScaffold(suite, machines)
+  const series = useSeries(suite, branch, metricNames, selected, tests.byMetric)
+  const scaffold = useScaffold(suite, branch, machines)
 
   // The baselines (GR9), those of the URL that are unusable dropped (AR2 "State").
   const baselines = useBaselines(
@@ -264,6 +301,9 @@ function GraphPage() {
   const checking =
     suites.isPending ||
     (schema !== undefined && settings.machine.length > 0 && listed === undefined)
+  // Whether the branch plotted is still being found, which the chart's panels cannot be said to be
+  // empty until, unlike the test table, whose tests are those of every branch.
+  const branchPending = schema !== undefined && branch === undefined
   const listing = !tests.complete && tests.error === null
   // The metrics whose tests some machine has not listed yet, or could not: their panels are not
   // empty yet (GR12).
@@ -344,6 +384,15 @@ function GraphPage() {
             placeholder="-- Select suite --"
             onChange={(key) => chooseSuite(suiteOfFullName(key))}
           />
+          {/* Only once the suite is known to have a branch to pick. */}
+          {branches?.some((name) => name !== null) && (
+            <Select
+              label="Branch"
+              options={branchOptions}
+              value={branchKey(branch ?? null)}
+              onChange={(key) => update({ branch: branchOfKey(key) })}
+            />
+          )}
           <MachineChips
             // Once the machines are known, only those that exist, as the chart marks them.
             machines={listed ? machines : settings.machine}
@@ -423,6 +472,13 @@ function GraphPage() {
           </div>
         </div>
       </ControlsPanel>
+      {branchList.isError && (
+        <ErrorMessage
+          context="The branches could not be listed"
+          error={branchList.error}
+          onRetry={() => void branchList.refetch()}
+        />
+      )}
       {machineList.isError && (
         <ErrorMessage
           context="The machines could not be listed"
@@ -476,7 +532,9 @@ function GraphPage() {
         series={series}
         sampleAgg={settings.sample_agg}
         runAgg={settings.run_agg}
-        settled={!checking && !scaffold.pending && scaffold.failures.length === 0}
+        settled={
+          !checking && !branchPending && !scaffold.pending && scaffold.failures.length === 0
+        }
         unlisted={unlisted}
         baselines={baselines.states}
         regressions={regressions.regressions}
@@ -488,6 +546,7 @@ function GraphPage() {
         emphasis={emphasis}
         hovered={hovered}
         closeOn={[
+          branch,
           sorted,
           machines.join('\0'),
           metricNames.join('\0'),

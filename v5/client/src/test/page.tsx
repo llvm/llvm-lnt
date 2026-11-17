@@ -226,6 +226,22 @@ export function mockMachines(respond: Respond<Schemas['MachineList']>) {
   return queries
 }
 
+/**
+ * Answer `GET /branches` with `names`, null for the commits without a branch, once `wait` has
+ * resolved, if given.
+ */
+export function mockBranches(
+  names: (string | null)[],
+  { wait }: { wait?: () => Promise<void> } = {},
+) {
+  server.use(
+    mockApi('get', '/api/projects/{project}/suites/{suite}/branches', async () => {
+      await wait?.()
+      return HttpResponse.json({ items: names.map((name) => ({ name })) })
+    }),
+  )
+}
+
 /** Answer `GET /trends` with `respond`'s items; returns its queries. */
 export function mockTrends(respond: Respond<Schemas['TrendPoint'][]>) {
   const { queries, answer } = recording(respond)

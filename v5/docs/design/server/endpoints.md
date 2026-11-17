@@ -133,6 +133,7 @@ GET    /api/projects/{project}/suites/{suite}/commits/{value}              -- De
 PATCH  /api/projects/{project}/suites/{suite}/commits/{value}              -- Update ordinal, tag, branch, and/or fields
 DELETE /api/projects/{project}/suites/{suite}/commits/{value}              -- Delete commit (cascades to runs/samples; keeps regressions, with no commit)
 POST   /api/projects/{project}/suites/{suite}/commits/resolve              -- Batch resolve commit strings to summaries
+GET    /api/projects/{project}/suites/{suite}/branches                     -- The branches of the commits with an ordinal
 ```
 
 The `{value}` in a path is the commit's identity string. Commits are also
@@ -253,6 +254,25 @@ string longer than the column holds. A string containing a NUL character is the
 exception: it is rejected with 400 (see D5).
 
 Not paginated: the response is bounded by the size of the request.
+
+### Branches
+
+`GET /api/projects/{project}/suites/{suite}/branches` lists the branches that
+the suite's commits with an ordinal are on, for a client to offer a choice of
+one, such as the Graph's (see GR1). Commits without an ordinal are not
+considered: no series or trend places them. It takes no filters.
+
+```json
+{"items": [{"name": null}, {"name": "main"}, {"name": "release/19.x"}]}
+```
+
+Each item is a branch object, `{name}`, where `name` is the branch, or `null`
+for the commits without a branch, which `has_branch=false` selects on the commit
+list, series and trends. The item with a `null` name comes first, and only if
+some commit with an ordinal has no branch. The names follow, by code point. A
+suite without commits with an ordinal gives an empty list.
+
+Not paginated, in I2's unpaginated envelope: a suite has few branches.
 
 
 ## E4: Runs

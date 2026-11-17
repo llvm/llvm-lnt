@@ -56,7 +56,8 @@
   `has_branch=true|false` those with or without one. `after_commit=` and
   `before_commit=` bound the list by ordinal on the named commit's branch,
   leaving out the commits without one and those of other branches. A commit's
-  `previous`/`next` are on its branch too.
+  `previous`/`next` are on its branch too. `GET .../branches` lists the
+  branches of the commits with an ordinal, `null` first for those without one.
 - **Run** -- one submission of results for one machine at one commit,
   identified by a UUID. Several runs may share a machine and a commit.
 - **Test** -- a benchmark name, created implicitly by submission. Test names
@@ -110,6 +111,7 @@ POST   /api/projects/{project}/suites/{suite}/commits/resolve                rea
 GET    /api/projects/{project}/suites/{suite}/commits/{value}                read    One commit, with its previous/next by ordinal on its branch
 PATCH  /api/projects/{project}/suites/{suite}/commits/{value}                manage  Set or clear its ordinal, tag, branch or fields
 DELETE /api/projects/{project}/suites/{suite}/commits/{value}                manage  Delete a commit and its runs
+GET    /api/projects/{project}/suites/{suite}/branches                       read    The branches of the commits with an ordinal
 
 GET    /api/projects/{project}/suites/{suite}/runs                           read    List runs (machine=, commit=, search=, sort=, ...)
 POST   /api/projects/{project}/suites/{suite}/runs                           submit  Submit a run

@@ -13,7 +13,7 @@ import type { SuiteSchema } from '../../api/suites'
 import { chartProps } from '../../test/chart-props'
 import { BARE_SUITE, SUITE, commit, cursorPage, machine, metric } from '../../test/fixtures'
 import { mockApi, mockSeries, ndjsonResponse } from '../../test/mock-api'
-import { main, mockCommits, mockMachines, mockSuites } from '../../test/page'
+import { main, mockBranches, mockCommits, mockMachines, mockSuites } from '../../test/page'
 import { toggleOptions } from '../../test/select'
 import { server } from '../../test/server'
 
@@ -41,8 +41,15 @@ export interface World {
   machines?: string[]
   /** The tests of each machine, for any metric. */
   tests?: Record<string, string[]>
-  /** The commits each machine has runs at, by ordinal. */
+  /** The commits without a branch each machine has runs at, by ordinal. */
   commits?: Record<string, number[]>
+  /**
+   * A branch, and the commits of it each machine has runs at, by ordinal: `r10` for ordinal 10, say
+   * (see `branchCommitAt`).
+   */
+  branch?: { name: string; commits: Record<string, number[]> }
+  /** What the list of branches waits for before it is answered. */
+  branchesWait?: () => Promise<void>
   /** The samples of each test on each machine, under `machine/test`. */
   samples?: Record<string, Sample[]>
   /** The samples of the metrics named, in place of `samples`, which are any other metric's. */
@@ -69,6 +76,23 @@ export const SAMPLES: Record<string, Sample[]> = {
 
 export const commitAt = (ordinal: number) =>
   commit(`c${ordinal}`, { ordinal, fields: { svn_revision: `r${ordinal}`, commit_info: null } })
+
+/** The commit of `branch` at `ordinal`, named after it with an `r`: `r10` for ordinal 10, say. */
+const branchCommitAt = (ordinal: number, branch: string) =>
+  commit(`r${ordinal}`, {
+    ordinal,
+    branch,
+    fields: { svn_revision: `b${ordinal}`, commit_info: null },
+  })
+
+/**
+ * Whether `query` keeps the commits of `branch`, null for those without one: its `branch=` or
+ * `has_branch=false`, if it has either (E3).
+ */
+function keeps(query: URLSearchParams, branch: string | null): boolean {
+  if (query.has('branch')) return query.get('branch') === branch
+  return query.get('has_branch') !== 'false' || branch === null
+}
 
 /** A line of `GET /series` for `metric`, the one metric the Graph page asks for at a time. */
 export const pointOf = (
@@ -101,6 +125,8 @@ export interface Recorded {
   tests: string[]
   /** The commits looked up with `GET commits?commit=`, in order, as `{machine}/{commit}`. */
   lookups: string[]
+  /** The queries of `GET commits`, in order. */
+  commits: URLSearchParams[]
 }
 
 /**
@@ -111,14 +137,21 @@ export function mockWorld({
   machines = MACHINES,
   tests = TESTS,
   commits = COMMITS,
+  branch,
+  branchesWait,
   samples = SAMPLES,
   samplesOf = {},
   suitesWait,
   suites = [],
   testsIn = {},
 }: World = {}): Recorded {
-  const recorded: Recorded = { series: [], tests: [], lookups: [] }
   mockSuites([GRAPH_SUITE, TEXT_SUITE, ...suites], { wait: suitesWait })
+  const recorded: Recorded = { series: [], tests: [], lookups: [], commits: [] }
+  // Null if some machine has a commit without a branch, then the world's branch.
+  const unbranched = Object.values(commits).some((ordinals) => ordinals.length > 0)
+  mockBranches([...(unbranched ? [null] : []), ...(branch ? [branch.name] : [])], {
+    wait: branchesWait,
+  })
   mockMachines(() => ({ items: machines.map((name) => machine(name)) }))
   server.use(
     mockApi('get', '/api/projects/{project}/suites/{suite}/tests', ({ request, params }) => {
@@ -129,7 +162,14 @@ export function mockWorld({
     }),
   )
   mockCommits((query) => {
-    const listed = (commits[query.get('machine')!] ?? []).map(commitAt)
+    recorded.commits.push(query)
+    const machineName = query.get('machine')!
+    const listed = [
+      ...(keeps(query, null) ? (commits[machineName] ?? []).map(commitAt) : []),
+      ...(branch && keeps(query, branch.name)
+        ? (branch.commits[machineName] ?? []).map((at) => branchCommitAt(at, branch.name))
+        : []),
+    ]
     const only = query.get('commit')
     if (only !== null) recorded.lookups.push(`${query.get('machine')}/${only}`)
     return cursorPage(only === null ? listed : listed.filter((entry) => entry.value === only))
@@ -139,9 +179,11 @@ export function mockWorld({
     const commit = query.get('commit')
     const metric = query.get('metric')!
     const measured = samplesOf[metric] ?? samples
+    // The world's branch's commits are named with an `r` (see `branchCommitAt`).
+    const kept = (at: string) => keeps(query, at.startsWith('r') ? (branch?.name ?? null) : null)
     const points = query.getAll('test').flatMap((test) =>
       (measured[`${machineName}/${test}`] ?? [])
-        .filter(([at]) => commit === null || at === commit)
+        .filter(([at]) => (commit === null || at === commit) && kept(at))
         .map((s) => pointOf(machineName, test, s, metric)),
     )
     return ndjsonResponse([points])
