@@ -225,7 +225,7 @@ test('its ordinal and tag are edited by a holder of manage scope', async ({
   })
 })
 
-test('its branch is edited by a holder of manage scope, and shown and searched on the Commits tab', async ({
+test('its branch is edited by a holder of manage scope', async ({
   page,
   request,
   tokenFor,
@@ -265,6 +265,7 @@ test('its branch is edited by a holder of manage scope, and shown and searched o
     await page.goto(`${suitePath(suite)}?tab=commits&search=release/2`)
     const commits = table(page, 'Commits')
     await expect(rows(commits)).toHaveCount(1)
+    await expect(rows(commits).getByRole('link', { name: 'c2', exact: true })).toBeVisible()
     await expect(rows(commits).locator('td').nth(2)).toHaveText('release/2.x')
 
     // Emptied, the branch is cleared, and the commit is back among c1 and c3.

@@ -263,6 +263,7 @@ describe('CommitPicker', () => {
       await settle()
 
       expect(value()).toBe('none')
+      expect(input).toHaveValue('release/19.x')
     })
 
     it('does not pick by Enter a display value that commits of two branches share', async () => {
