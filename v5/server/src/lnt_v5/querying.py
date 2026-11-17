@@ -116,8 +116,8 @@ def search_condition(
 
     One function for every substring match of O4, because they differ only in which columns they
     cover: an entity's own always-searched columns (`identity` -- a machine's `name`, a commit's
-    `commit` and `tag`, a test's `name`, a regression's `title`) plus every declared entry marked
-    `searchable`. A UUID is matched by prefix instead, with `uuid_prefix`.
+    `commit`, `tag` and `branch`, a test's `name`, a regression's `title`) plus every declared entry
+    marked `searchable`. A UUID is matched by prefix instead, with `uuid_prefix`.
 
     `autoescape` is doing real work: without it the `%` and `_` in the caller's term would be LIKE
     wildcards, so a search for `100%` would match every row and one for `a_b` would match `axb`.

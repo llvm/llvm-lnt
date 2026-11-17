@@ -244,7 +244,10 @@ class Runs:
 
         A term that matches more than `_MAX_RESOLVED` machines or commits (a character or two, as
         typed) is executed as it stands instead, rather than with an array of most of the table's
-        ids: so many runs then match that walking them in order fills a page at once.
+        ids: so many runs then match that walking them in order fills a page at once. A branch's
+        name, which many commits share, can match that many too, and then few runs may match, as
+        with `machine=X&search=main` for a machine that only runs a release branch. That walks X's
+        range of the `(machine_id, measured_at)` index, which is bounded, rather than the table.
         """
         machines = select(self._machine.c.id).where(machine_search(self.suite, term))
         commits = select(self._commit.c.id).where(commit_search(self.suite, term))

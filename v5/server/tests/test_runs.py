@@ -1877,7 +1877,11 @@ class TestListSearch:
         submitted(
             uuid=self.DARWIN,
             machine=darwin,
-            commit={"value": "r555800", "fields": {"git_sha": "sha-of-r555800"}},
+            commit={
+                "value": "r555800",
+                "branch": "release/19.x",
+                "fields": {"git_sha": "sha-of-r555800"},
+            },
         )
         submitted(uuid=self.DARWIN_AT_RELEASE, machine=darwin, commit={"value": "r555703"})
 
@@ -1900,6 +1904,9 @@ class TestListSearch:
     def test_matches_the_tag(self, api_client: TestClient) -> None:
         assert self.found(api_client, "llvmorg-22") == {self.LINUX, self.DARWIN_AT_RELEASE}
 
+    def test_matches_the_branch(self, api_client: TestClient) -> None:
+        assert self.found(api_client, "ELEASE/19") == {self.DARWIN}
+
     def test_matches_a_searchable_commit_field(self, api_client: TestClient) -> None:
         assert self.found(api_client, "jane") == {self.LINUX, self.DARWIN_AT_RELEASE}
 
@@ -1919,7 +1926,9 @@ class TestListSearch:
         # `86` is in one run's machine name (`x86`) and at the start of another's UUID.
         assert self.found(api_client, "86") == {self.LINUX, self.DARWIN}
 
-    @pytest.mark.parametrize("term", ["", "x86", "arm", "555", "llvmorg", "jane", "0", "86b"])
+    @pytest.mark.parametrize(
+        "term", ["", "x86", "arm", "555", "llvmorg", "release", "jane", "0", "86b"]
+    )
     def test_is_the_union_of_the_machine_commit_and_uuid_matches(
         self, api_client: TestClient, term: str
     ) -> None:
