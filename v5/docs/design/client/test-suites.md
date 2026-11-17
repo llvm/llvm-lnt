@@ -159,8 +159,8 @@ etc...
   shown whole on hover and to assistive technology when longer than 50
   characters.
 
-Above the table, a `Search commits...` box searches the commits by value, tag and searchable
-fields (see O4).
+Above the table, a `Search commits...` box searches the commits by value, tag, branch and
+searchable fields (see O4).
 
 ## TS5: Regressions tab
 

@@ -250,6 +250,21 @@ describe('CommitPicker', () => {
       expect(input).toHaveValue('r300')
     })
 
+    it('searches for a branch, but does not pick a commit by Enter on it', async () => {
+      const queries = mockCommits(() => cursorPage([RELEASE]))
+      const user = userEvent.setup()
+      const { input } = renderPicker()
+
+      await user.type(input, 'release/19.x{Enter}')
+      await waitFor(() =>
+        expect(queries.some((query) => query.get('search') === 'release/19.x')).toBe(true),
+      )
+      expect(await screen.findByRole('option', { name: 'r300 release/19.x' })).toBeInTheDocument()
+      await settle()
+
+      expect(value()).toBe('none')
+    })
+
     it('does not pick by Enter a display value that commits of two branches share', async () => {
       const queries = mockCommits(() => cursorPage([RELEASE, MAIN]))
       const user = userEvent.setup()
