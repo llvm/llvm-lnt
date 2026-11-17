@@ -154,7 +154,7 @@ class TestEntryNames:
             )
         )
 
-    @pytest.mark.parametrize("name", ["id", "commit", "ordinal", "tag"])
+    @pytest.mark.parametrize("name", ["id", "commit", "ordinal", "tag", "branch"])
     def test_a_commit_field_cannot_shadow_a_commit_column(self, name: str) -> None:
         with pytest.raises(ValidationError, match="built-in column on 'commit'"):
             SuiteSchema.model_validate(schema(commit_fields=[{"name": name, "type": "text"}]))

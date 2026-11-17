@@ -276,6 +276,7 @@ class TestReadBack:
                 "value": c["value"],
                 "ordinal": c["ordinal"],
                 "tag": None,
+                "branch": None,
                 "delete_after_inactive_days": None,
                 "fields": dataset.declared("commit_fields", c["fields"]),
             }
@@ -348,6 +349,7 @@ class TestTimeSeries:
                     # Submitted without a time zone, so read as UTC (D3).
                     "measured_at": f"{run['measured_at']}Z",
                     "tag": None,
+                    "branch": None,
                 }
                 for run in dataset.submissions
                 if run["machine"]["name"] == machine

@@ -128,9 +128,9 @@ has few machines; see D5).
 
 ```
 GET    /api/projects/{project}/suites/{suite}/commits                      -- List (cursor-paginated, searchable)
-POST   /api/projects/{project}/suites/{suite}/commits                      -- Create with metadata (fields) and, optionally, an ordinal and a tag
-GET    /api/projects/{project}/suites/{suite}/commits/{value}              -- Detail (includes previous/next commit by ordinal)
-PATCH  /api/projects/{project}/suites/{suite}/commits/{value}              -- Update ordinal, tag, and/or fields
+POST   /api/projects/{project}/suites/{suite}/commits                      -- Create with metadata (fields) and, optionally, an ordinal, a tag and a branch
+GET    /api/projects/{project}/suites/{suite}/commits/{value}              -- Detail (includes previous/next commit by ordinal on its branch)
+PATCH  /api/projects/{project}/suites/{suite}/commits/{value}              -- Update ordinal, tag, branch, and/or fields
 DELETE /api/projects/{project}/suites/{suite}/commits/{value}              -- Delete commit (cascades to runs/samples; keeps regressions, with no commit)
 POST   /api/projects/{project}/suites/{suite}/commits/resolve              -- Batch resolve commit strings to summaries
 ```
@@ -146,9 +146,10 @@ submission nests under `commit` (see O1):
 
 - `value`: the commit's identity. It is immutable (commits cannot be renamed),
   and sending it to `PATCH` is rejected with 400.
-- `ordinal` and `tag`: built-in attributes. A run submission can set them
-  inline (see O1), and they can be set at creation or at any time with `PATCH`
-  (see O2 and O6).
+- `ordinal`, `tag` and `branch`: built-in attributes. A run submission can set
+  them inline (see O1), and they can be set at creation or at any time with
+  `PATCH` (see O2 and O6). The branch is a string of 1 to 256 characters, like
+  the tag; the ordinal orders the commits of its branch (see D1).
 - `delete_after_inactive_days`: a built-in attribute, as on a machine (see E2),
   after which the commit is deleted along with everything `DELETE` deletes. It
   has no effect while the commit has an ordinal (see O10).
@@ -156,21 +157,22 @@ submission nests under `commit` (see O1):
   key is rejected with 400 (see O2).
 
 Responses use the same object. The detail response adds `previous` and `next`:
-the commits with the nearest lower and nearest higher `ordinal`, as commit
-objects without their own `previous` and `next`. Commits with no ordinal are
-skipped. Both keys are `null` at either end of the ordered range, and on a
-commit that has no ordinal itself.
+the commits of the same branch with the nearest lower and nearest higher
+`ordinal`, as commit objects without their own `previous` and `next`. Commits
+with no ordinal are skipped. Both keys are `null` at either end of the ordered
+range, and on a commit that has no ordinal itself.
 
 **Updating.** On `PATCH`, an omitted key is left unchanged. Sending
-`ordinal: null`, `tag: null` or `delete_after_inactive_days: null` clears a
-previously set value. The same applies to each key of `fields`.
+`ordinal: null`, `tag: null`, `branch: null` or
+`delete_after_inactive_days: null` clears a previously set value. The same
+applies to each key of `fields`.
 
 **Responses.**
 
 | Route | Success | Errors |
 |-------|---------|--------|
-| `POST /commits` | 201 with the created commit's detail body, and a `Location` header pointing at its detail route | 400 for an undeclared key in `fields`; 409 `duplicate` if a commit with that value already exists; 409 `conflict` if the ordinal is held by another commit (see O6) |
-| `PATCH /commits/{value}` | 200 with the commit's detail body | 400 for an undeclared key in `fields`; 409 `conflict` if the ordinal is held by another commit (see O6) |
+| `POST /commits` | 201 with the created commit's detail body, and a `Location` header pointing at its detail route | 400 for an undeclared key in `fields`, or a `tag` or `branch` that is empty or longer than 256 characters; 409 `duplicate` if a commit with that value already exists; 409 `conflict` if the ordinal is held by another commit of the same branch (see O6) |
+| `PATCH /commits/{value}` | 200 with the commit's detail body | 400 for an undeclared key in `fields`, or a `tag` or `branch` that is empty or longer than 256 characters; 409 `conflict` if the change, of the ordinal, of the branch or of both, would give the commit an ordinal another commit of its branch holds (see O6) |
 | `DELETE /commits/{value}` | 204 | |
 
 `DELETE` removes the commit, its runs, and their samples and profiles (see D5).
@@ -179,7 +181,7 @@ The regressions attributed to the commit are kept, with no commit (see D5).
 **Filters:**
 
 - `search=`: case-insensitive substring match on the commit string, the tag,
-  and searchable commit fields (see O4).
+  the branch and searchable commit fields (see O4).
 - `commit=`: only the commit with this value, if it also satisfies the other
   filters. An unknown commit gives an empty result (see I3). A commit picker
   uses it to check that it would offer a commit it was given (see AR15).
@@ -190,12 +192,20 @@ The regressions attributed to the commit are kept, with no commit (see D5).
   `machine=`, only the runs on that machine are considered.
 - `has_ordinal=`: boolean. `true` returns only commits with an ordinal, and
   `false` only commits without one.
+- `branch=`: only the commits on this branch, matched exactly. A value no commit
+  has, including an empty one or one longer than a branch can be, gives an
+  empty result (see I3).
+- `has_branch=`: boolean. `true` returns only commits with a branch, and
+  `false` only commits without one, which `branch=` cannot name.
 - `after_commit=`, `before_commit=`: exclusive bounds on the ordinal (strictly
-  after, strictly before the named commit's). When either is given, commits
-  with no ordinal are excluded, whatever the `sort`. Combined with `machine=`
-  and `sort=-ordinal&limit=1`, `before_commit=` finds the commit before a given
-  one at which a machine has runs. An unknown commit is 404, and one that has
-  no ordinal is 400 (see I3).
+  after, strictly before the named commit's), among the commits of the named
+  commit's branch (see O6). When either is given, commits with no ordinal are
+  excluded, whatever the `sort`. Two bounds on different branches, or a bound
+  combined with a `branch=` or `has_branch=` its commit does not satisfy, give
+  an empty result. Combined with `machine=` and `sort=-ordinal&limit=1`,
+  `before_commit=` finds the commit before a given one on its branch at which a
+  machine has runs. An unknown commit is 404, and one that has no ordinal is
+  400 (see I3).
 
 **Sort:**
 
@@ -210,7 +220,10 @@ The regressions attributed to the commit are kept, with no commit (see D5).
   directions, the commits without an ordinal follow, in first-seen order in the
   same direction: oldest first under `ordinal`, most recently seen first under
   `-ordinal`. With `has_ordinal=false`, `ordinal` and `-ordinal` are therefore
-  the `first_seen` and `-first_seen` orders.
+  the `first_seen` and `-first_seen` orders. The branch is not part of this
+  order: without `branch=`, the commits of different branches are interleaved
+  by ordinal, each branch's in its own order, and those sharing an ordinal in
+  first-seen order, in the same direction.
 
 No sort leaves out the commits without an ordinal: only `has_ordinal=true` and
 the commit bounds do.
@@ -225,15 +238,15 @@ request are ignored: each commit appears at most once in the response.
 ```json
 {
   "results": {
-    "abc": {"value": "abc", "ordinal": 42, "tag": null, "delete_after_inactive_days": null, "fields": {"git_sha": "..."}},
-    "def": {"value": "def", "ordinal": null, "tag": null, "delete_after_inactive_days": 30, "fields": {}}
+    "abc": {"value": "abc", "ordinal": 42, "tag": null, "branch": "main", "delete_after_inactive_days": null, "fields": {"git_sha": "..."}},
+    "def": {"value": "def", "ordinal": null, "tag": null, "branch": null, "delete_after_inactive_days": 30, "fields": {}}
   },
   "not_found": ["unknown"]
 }
 ```
 
 `results` maps each commit string that was found to its commit object
-(`{value, ordinal, tag, delete_after_inactive_days, fields}`), without the
+(`{value, ordinal, tag, branch, delete_after_inactive_days, fields}`), without the
 `previous` and `next` the detail response adds. Strings that match no commit
 are listed in `not_found`, including ones no commit could ever have, such as a
 string longer than the column holds. A string containing a NUL character is the
@@ -288,7 +301,7 @@ with the submission (see O2). A profile that O7 refuses is rejected with 400.
 
 | Route | Success | Errors |
 |-------|---------|--------|
-| `POST /runs` | 201 with the created run in its detail form, and a `Location` header pointing at its detail route | 400 for an undeclared key in `machine.fields` or `commit.fields`, or an undeclared metric in a test's `samples`; 409 `duplicate` for a UUID a run already has (see O1); 409 `conflict` for metadata that contradicts what is stored, including a contradicted `ordinal` (see O2), or for an `ordinal` already held by another commit (see O6); 409 `retry` if the machine or the commit was deleted while the run was being stored (see O8) |
+| `POST /runs` | 201 with the created run in its detail form, and a `Location` header pointing at its detail route | 400 for an undeclared key in `machine.fields` or `commit.fields`, or an undeclared metric in a test's `samples`; 409 `duplicate` for a UUID a run already has (see O1); 409 `conflict` for metadata that contradicts what is stored, including a contradicted `ordinal` or `branch` (see O2), or for an `ordinal` already held by another commit of the same branch (see O6); 409 `retry` if the machine or the commit was deleted while the run was being stored (see O8) |
 | `DELETE /runs/{uuid}` | 204 | |
 
 **Filters:**
@@ -619,8 +632,9 @@ result comes in one response.
   an empty result. It cannot be combined with `after_commit` or
   `before_commit` (400).
 - `after_commit`, `before_commit`: only the samples at commits strictly after,
-  or strictly before, the named commit, by ordinal. Commits without an ordinal
-  are left out. An unknown commit is 404, and one that has no ordinal is 400.
+  or strictly before, the named commit, by ordinal, on the named commit's
+  branch, as on the commit list (see E3). Commits without an ordinal are left
+  out. An unknown commit is 404, and one that has no ordinal is 400.
 - `submitted_after`, `submitted_before`, `measured_after`, `measured_before`:
   exclusive bounds on the `submitted_at` and `measured_at` of the run a sample
   belongs to. Each is an ISO 8601 timestamp (see D3), read as UTC if it has no
@@ -630,6 +644,9 @@ result comes in one response.
   returned. As on the commit list (see E3), a commit bound leaves out the
   commits without an ordinal by itself, so combining one with
   `has_ordinal=false` returns nothing.
+- `branch`, `has_branch`: only the samples at commits on this branch, or at
+  commits with (`true`) or without (`false`) a branch, as on the commit list
+  (see E3). Without either, the samples of every branch are returned.
 
 **Response:** 200, with one line per sample (see I2). Each line is a JSON
 object with these keys:
@@ -640,12 +657,13 @@ object with these keys:
   (see D3). A requested metric that the sample has no value for is left out, as
   on E6's sample object (see I4).
 - `commit`: the commit of the sample's run, by value.
-- `ordinal`, `tag`: that commit's ordinal and tag, or null where it has none.
+- `ordinal`, `tag`, `branch`: that commit's ordinal, tag and branch, or null
+  where it has none.
 - `run_uuid`: the UUID of the sample's run.
 - `submitted_at`, `measured_at`: the run's timestamps (see D5).
 
 ```json
-{"test": "test.suite/benchmark", "machine": "linux", "metrics": {"execution_time": 1.23, "instructions": 2903114}, "commit": "a1b2c3", "ordinal": 1024, "tag": null, "run_uuid": "573af861-8303-4a5b-a643-b8321e0142c4", "submitted_at": "2026-08-25T14:22:41Z", "measured_at": "2026-08-25T14:02:17Z"}
+{"test": "test.suite/benchmark", "machine": "linux", "metrics": {"execution_time": 1.23, "instructions": 2903114}, "commit": "a1b2c3", "ordinal": 1024, "tag": null, "run_uuid": "573af861-8303-4a5b-a643-b8321e0142c4", "submitted_at": "2026-08-25T14:22:41Z", "measured_at": "2026-08-25T14:02:17Z", "branch": "main"}
 ```
 
 When a run measures a test several times, each repetition is a separate sample,
@@ -696,20 +714,29 @@ Returns one aggregated value per machine and commit.
   here is returned whether or not it is tracked.
 - `sample_agg`: `median` (the default), `mean`, `min` or `max`.
 - `last_n`: an integer from 1 to 10000, 500 by default. It limits the result to
-  the N most recent commits, by ordinal, at which any of the named machines has
-  a run geomean (see O9) for `metric` under `sample_agg`. All the named machines
-  share this window, so a machine that stopped reporting partway through it has
-  a trend line that stops early. Only commits with an ordinal are included.
+  the N most recent commits, by ordinal, among those the branch filters keep,
+  at which any of the named machines has a run geomean (see O9) for `metric`
+  under `sample_agg`. All the named machines share this window, so a machine
+  that stopped reporting partway through it has a trend line that stops early.
+  Without `branch=` or `has_branch=false`, the commits of different branches
+  share it too, by ordinal, those sharing an ordinal by commit value: a trend
+  is meant to be asked for one branch. Only commits with an ordinal are
+  included.
+- `branch`, `has_branch`: only the commits on this branch, or the commits with
+  (`true`) or without (`false`) a branch, as on the commit list (see E3).
+  Without either, the commits of every branch are included.
 
 **Response:** one item per (machine, commit), in I2's unpaginated envelope; the
 size is bounded by the number of machines times `last_n`. Items are ordered by
-machine name, then by ordinal. Each item contains:
+machine name, then by ordinal, then by commit value, by code point, since
+commits of different branches may share an ordinal. Each item contains:
 
 - `machine`: the machine's name
 - `commit`: the commit's identity string
 - `ordinal`: always present, never null
 - `measured_at`: the latest `measured_at` among the runs the value covers
 - `tag`: the commit's tag, or null if unset
+- `branch`: the commit's branch, or null if unset
 - `value`: the geomean of the run geomeans (see O9) of the runs at that machine
   and commit, for `metric` under `sample_agg`. It is a real number even for an
   `integer` metric.

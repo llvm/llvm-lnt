@@ -36,6 +36,7 @@ O2).
     "value": "abc123def456",
     "ordinal": 593922,
     "tag": "release-18.1",
+    "branch": "main",
     "fields": {
       "git_sha": "abc123def456789...",
       "author": "Jane Doe",
@@ -100,18 +101,26 @@ O2).
     `commit_fields`. See O2 for undeclared keys, and for how metadata is
     reconciled when the commit already exists.
   - `ordinal`: optional integer, a built-in attribute rather than a
-    `commit_field`. It places the commit in the suite's total order. It is set
-    if the commit has no ordinal yet. If the commit already has a different one,
-    the submission is rejected with 409 (see O2). Use
+    `commit_field`. It places the commit in the total order of its branch. It
+    is set if the commit has no ordinal yet. If the commit already has a
+    different one, the submission is rejected with 409 (see O2). Use
     `PATCH /api/projects/{project}/suites/{suite}/commits/{value}` to change an
-    ordinal once set. Ordinals are unique within a suite, so a value already
-    held by another commit is also rejected with 409 (see O6).
+    ordinal once set. Ordinals are unique within a branch, so a value already
+    held by another commit of the commit's branch is also rejected with 409
+    (see O6).
   - `tag`: optional string, a built-in attribute rather than a `commit_field`: a
     human-readable label such as a release name. Several commits may share a tag
     (see D5). It is set if the commit has no tag yet. If the commit already has
     a different one, the submission is rejected with 409 (see O2). Use
     `PATCH /api/projects/{project}/suites/{suite}/commits/{value}` to change or
     clear a tag once set.
+  - `branch`: optional string, a built-in attribute rather than a
+    `commit_field`: the line of history the commit is on (see D1). It is set if
+    the commit has no branch yet. If the commit already has a different one,
+    the submission is rejected with 409 (see O2). Use
+    `PATCH /api/projects/{project}/suites/{suite}/commits/{value}` to change or
+    clear a branch once set. Setting it is also rejected with 409 if another
+    commit of that branch has the commit's ordinal (see O6).
   - `delete_after_inactive_days`: optional, as for the machine (see O10). It
     only applies when the commit is created, and is ignored for a commit that
     already exists. Use
@@ -143,11 +152,12 @@ O2).
 
 **Null values.** An explicit `null` means "omitted" on `uuid`, `measured_at`,
 `machine.display_name`, `machine.delete_after_inactive_days`, `commit.ordinal`,
-`commit.tag`, `commit.delete_after_inactive_days`, a test entry's `profile`, and
-each entry of `machine.fields` and `commit.fields`. Anywhere else, `null` is
-rejected with 400. Unlike with `PATCH`, a `null` in `fields` never clears a
-stored value (see O2). This lets a client submit the `fields` dict a response
-returned, which has a `null` for every unset field (see I4).
+`commit.tag`, `commit.branch`, `commit.delete_after_inactive_days`, a test
+entry's `profile`, and each entry of `machine.fields` and `commit.fields`.
+Anywhere else, `null` is rejected with 400. Unlike with `PATCH`, a `null` in
+`fields` never clears a stored value (see O2). This lets a client submit the
+`fields` dict a response returned, which has a `null` for every unset field (see
+I4).
 
 
 ## O2: Machine and Commit Metadata Population
@@ -199,9 +209,9 @@ Per-entity specifics:
 |---|---|---|
 | Identity attribute | `name` | `value` |
 | Declared metadata | `fields`, per `machine_fields` | `fields`, per `commit_fields` |
-| Built-in mutable attributes | `display_name`, `tracked`, `delete_after_inactive_days` | `ordinal`, `tag`, `delete_after_inactive_days` |
-| Settable during run submission | `tracked` (first-write-wins); `display_name`, `delete_after_inactive_days` (creation-only) | `ordinal`, `tag` (must match if already set); `delete_after_inactive_days` (creation-only) |
-| Settable at explicit creation | `display_name`, `tracked`, `delete_after_inactive_days` | `ordinal`, `tag`, `delete_after_inactive_days` |
+| Built-in mutable attributes | `display_name`, `tracked`, `delete_after_inactive_days` | `ordinal`, `tag`, `branch`, `delete_after_inactive_days` |
+| Settable during run submission | `tracked` (first-write-wins); `display_name`, `delete_after_inactive_days` (creation-only) | `ordinal`, `tag`, `branch` (must match if already set); `delete_after_inactive_days` (creation-only) |
+| Settable at explicit creation | `display_name`, `tracked`, `delete_after_inactive_days` | `ordinal`, `tag`, `branch`, `delete_after_inactive_days` |
 | Renameable via PATCH | yes | no |
 
 Built-in mutable attributes sit beside the identity attribute rather than
@@ -222,10 +232,10 @@ inside `fields`:
   whoever creates the entity, and afterwards only through `PATCH`, which
   requires the scope that deleting the entity does: run submission only
   requires `submit`.
-- `ordinal` and `tag` are nullable and describe the commit, so they are matched
-  like `fields`: set when unset, rejected when they contradict the stored
-  value. As with `fields`, once `ordinal` or `tag` is changed through `PATCH`, a
-  submitter still sending the old value is rejected until it is updated.
+- `ordinal`, `tag` and `branch` are nullable and describe the commit, so they
+  are matched like `fields`: set when unset, rejected when they contradict the
+  stored value. As with `fields`, once one of them is changed through `PATCH`,
+  a submitter still sending the old value is rejected until it is updated.
 
 See D5 for their columns and O6 for ordinal assignment.
 
@@ -255,7 +265,7 @@ instead. An empty term matches every row.
 
 | Endpoint | Matches against |
 |----------|-----------------|
-| `GET /api/projects/{project}/suites/{suite}/commits?search=abc` | The `commit` column, the `tag` column, and any `searchable` commit field |
+| `GET /api/projects/{project}/suites/{suite}/commits?search=abc` | The `commit` column, the `tag` column, the `branch` column, and any `searchable` commit field |
 | `GET /api/projects/{project}/suites/{suite}/machines?search=x86` | The `name` column, the `display_name` column, and any `searchable` machine field |
 | `GET /api/projects/{project}/suites/{suite}/tests?search=bench` | The `name` column |
 | `GET /api/projects/{project}/suites/{suite}/runs?search=x86` | The run's machine, as the Machines `search=` above matches it; the run's commit, as the Commits `search=` above matches it; and the run's `uuid`, by prefix |
@@ -305,12 +315,18 @@ commit list sorted by ordinal does either, depending on `has_ordinal` (see E3).
 - The server never assigns an ordinal from the commit string, even a numeric
   one (e.g. `"311066"`): an ordinal must be provided explicitly in one of the
   three ways above.
-- The unique constraint on ordinal is a regular (non-deferred) constraint.
-  Ordinals are assigned once and are not expected to be reassigned often. A
-  write that would give two different commits the same ordinal is rejected with
-  409, including one that arrives inline in a run submission.
+- Ordinals are unique within a branch (see D1): two commits on different
+  branches may have the same ordinal, and the commits without a branch count as
+  one branch. The uniqueness is regular (non-deferred). Ordinals are assigned
+  once and are not expected to be reassigned often. A write that would give two
+  different commits of a branch the same ordinal is rejected with 409, whether
+  it sets the ordinal, the branch or both, including one that arrives inline in
+  a run submission.
 - `previous` and `next` navigation on a commit is computed by querying for the
-  nearest lower and higher ordinal (not with a linked list).
+  nearest lower and higher ordinal on the commit's branch (not with a linked
+  list). The `after_commit` and `before_commit` bounds of the commit list and
+  of the series (see E3 and E9) likewise only keep the commits of the named
+  commit's branch.
 - An ordinal is typed like a declared `integer` (D3): `"5"` and `true` are
   rejected, and `8.0` is read as 8. An ordinal outside the range of its
   `INTEGER` column (D5) is rejected with 400 rather than failing in the

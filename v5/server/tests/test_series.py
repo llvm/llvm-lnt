@@ -64,10 +64,12 @@ def submit(
 
 @pytest.fixture
 def place(api_client: TestClient, manage: dict[str, str]) -> Callable[..., None]:
-    """Give a commit an ordinal (O6), and optionally a tag."""
+    """Give a commit an ordinal (O6), and optionally a tag and a branch."""
 
-    def patch(commit: str, ordinal: int, tag: str | None = None) -> None:
+    def patch(commit: str, ordinal: int, tag: str | None = None, branch: str | None = None) -> None:
         body: dict[str, Any] = {"ordinal": ordinal} | ({} if tag is None else {"tag": tag})
+        if branch is not None:
+            body["branch"] = branch
         response = api_client.patch(f"{COMMITS}/{commit}", json=body, headers=manage)
         assert response.status_code == 200, response.text
 
@@ -119,7 +121,7 @@ class TestSeriesResponse:
         place: Callable[..., None],
     ) -> None:
         run = submit("linux", "abc", entry("suite/one", {"execution_time": 1.25}))
-        place("abc", 42, tag="release-18.1")
+        place("abc", 42, tag="release-18.1", branch="main")
 
         response = get(api_client)
 
@@ -135,11 +137,12 @@ class TestSeriesResponse:
             "submitted_at": run["submitted_at"],
             "measured_at": run["measured_at"],
             "tag": "release-18.1",
+            "branch": "main",
         }
         # Key for key, in the order of `DataPoint`'s schema.
         assert response.text == json.dumps(point, separators=(",", ":")) + "\n"
 
-    def test_has_a_null_ordinal_and_tag_where_the_commit_has_none(
+    def test_has_a_null_ordinal_tag_and_branch_where_the_commit_has_none(
         self, api_client: TestClient, submit: Callable[..., dict[str, Any]]
     ) -> None:
         # I4: a documented key is present, and null when it has no value.
@@ -149,6 +152,7 @@ class TestSeriesResponse:
 
         assert point["ordinal"] is None
         assert point["tag"] is None
+        assert point["branch"] is None
 
     @pytest.mark.parametrize(
         ("metric", "value"),
@@ -480,6 +484,58 @@ class TestSeriesFilters:
         assert commits(submitted_before=bound) == []
         assert commits(submitted_after=bound) == ["abc"]
         assert commits(measured_after=bound) == []
+
+
+class TestSeriesBranches:
+    @pytest.fixture(autouse=True)
+    def branches(self, submit: Callable[..., dict[str, Any]], place: Callable[..., None]) -> None:
+        """Two branches and the commits without one, sharing ordinals, on one machine."""
+        for commit, ordinal, branch in [
+            ("m2", 20, "main"),
+            ("r1", 10, "release"),
+            ("n1", 20, None),
+            ("m1", 10, "main"),
+            ("r2", 30, "release"),
+        ]:
+            submit("linux", commit, entry("t", {"execution_time": float(ordinal)}))
+            place(commit, ordinal, branch=branch)
+
+    def commits(self, api_client: TestClient, **params: Any) -> list[tuple[str, Any]]:
+        return [(line["commit"], line["branch"]) for line in lines(api_client, **params)]
+
+    def test_interleaves_the_branches_by_ordinal_then_by_commit_value(
+        self, api_client: TestClient
+    ) -> None:
+        # E9: the order does not group by branch; each line says which it is on.
+        assert self.commits(api_client) == [
+            ("m1", "main"),
+            ("r1", "release"),
+            ("m2", "main"),
+            ("n1", None),
+            ("r2", "release"),
+        ]
+
+    @pytest.mark.parametrize(
+        ("params", "expected"),
+        [
+            ({"branch": "main"}, ["m1", "m2"]),
+            ({"has_branch": "false"}, ["n1"]),
+            ({"has_branch": "true"}, ["m1", "r1", "m2", "r2"]),
+            ({"branch": "nope"}, []),
+            ({"branch": ""}, []),
+            ({"branch": "main", "has_branch": "false"}, []),
+            # A bound keeps only the commits of its own commit's branch.
+            ({"after_commit": "m1"}, ["m2"]),
+            ({"before_commit": "r2"}, ["r1"]),
+            ({"before_commit": "n1"}, []),
+            ({"after_commit": "m1", "before_commit": "r2"}, []),
+            ({"after_commit": "r1", "branch": "main"}, []),
+        ],
+    )
+    def test_keeps_the_commits_of_a_branch(
+        self, api_client: TestClient, params: dict[str, Any], expected: list[str]
+    ) -> None:
+        assert [commit for commit, _ in self.commits(api_client, **params)] == expected
 
 
 class TestSeriesErrors:

@@ -163,6 +163,7 @@ class Series:
             self._run.c.submitted_at,
             self._run.c.measured_at,
             self._commit.c.tag,
+            self._commit.c.branch,
             *self._values,
         )
         return (
@@ -195,18 +196,29 @@ class Series:
         rows = connection.execute(query.execution_options(yield_per=FETCH_ROWS))
         if len(names) == 1:
             (name,) = names
-            for test, commit, ordinal, run, submitted, measured, tag, value in rows:
+            for test, commit, ordinal, run, submitted, measured, tag, branch, value in rows:
                 line = _Line(
-                    test, machine, {name: value}, commit, ordinal, run, submitted, measured, tag
+                    test,
+                    machine,
+                    {name: value},
+                    commit,
+                    ordinal,
+                    run,
+                    submitted,
+                    measured,
+                    tag,
+                    branch,
                 )
                 _ENCODER.encode_into(line, out, -1)
                 out += b"\n"
             return
-        for test, commit, ordinal, run, submitted, measured, tag, *values in rows:
+        for test, commit, ordinal, run, submitted, measured, tag, branch, *values in rows:
             metrics = {
                 name: value for name, value in zip(names, values, strict=True) if value is not None
             }
-            line = _Line(test, machine, metrics, commit, ordinal, run, submitted, measured, tag)
+            line = _Line(
+                test, machine, metrics, commit, ordinal, run, submitted, measured, tag, branch
+            )
             _ENCODER.encode_into(line, out, -1)
             out += b"\n"
 
@@ -323,9 +335,9 @@ def get_series(
         str | None,
         Query(
             description=(
-                "Only return samples from commits after this one (exclusive), by ordinal. Commits "
-                "without an ordinal are left out. Returns 404 if the commit doesn't exist, and 400 "
-                "if it has no ordinal."
+                "Only return samples from commits after this one (exclusive), by ordinal, on the "
+                "same branch. Commits without an ordinal are left out. Returns 404 if the commit "
+                "doesn't exist, and 400 if it has no ordinal."
             )
         ),
     ] = None,
@@ -333,9 +345,9 @@ def get_series(
         str | None,
         Query(
             description=(
-                "Only return samples from commits before this one (exclusive), by ordinal. Commits "
-                "without an ordinal are left out. Returns 404 if the commit doesn't exist, and 400 "
-                "if it has no ordinal."
+                "Only return samples from commits before this one (exclusive), by ordinal, on the "
+                "same branch. Commits without an ordinal are left out. Returns 404 if the commit "
+                "doesn't exist, and 400 if it has no ordinal."
             )
         ),
     ] = None,
@@ -380,6 +392,24 @@ def get_series(
             )
         ),
     ] = None,
+    branch: Annotated[
+        str | None,
+        Query(
+            description=(
+                "Only return samples from commits on this branch. If no commit is on it, the "
+                "result is empty. Use `has_branch=false` for the commits without a branch."
+            )
+        ),
+    ] = None,
+    has_branch: Annotated[
+        bool | None,
+        Query(
+            description=(
+                "Only return samples from commits that have (`true`) or don't have (`false`) a "
+                "branch. Leave out to return both."
+            )
+        ),
+    ] = None,
 ) -> StreamingResponse:
     """One machine's samples, with their values of the requested metrics, in a single response of
     newline-delimited JSON (one sample per line): all of them, for tools that analyse a whole
@@ -387,7 +417,9 @@ def get_series(
     A test measured several times in a run has one sample per repetition, so the values on a line
     were measured together. Samples come grouped by test, in order of test name (by code point),
     then by commit ordinal, with the commits that have none last; then by commit and run, so that
-    the same data always comes in the same order.
+    the same data always comes in the same order. Without `branch` or `has_branch=false`, the
+    commits of different branches are interleaved by ordinal: tell them apart by each line's
+    `branch`.
 
     The response is streamed as it is read, so it can be large and long: ask for it compressed
     (`Accept-Encoding: gzip`, or `curl --compressed`). Each test's samples are read at one point in
@@ -428,6 +460,8 @@ def get_series(
                 commit=commit,
                 after_commit=after_commit,
                 before_commit=before_commit,
+                branch=branch,
+                has_branch=has_branch,
                 submitted_after=submitted_after,
                 submitted_before=submitted_before,
                 measured_after=measured_after,

@@ -93,7 +93,7 @@ TAGS: list[dict[str, str]] = [
         "name": "Commits",
         "description": (
             "The versions that were benchmarked: a Git SHA, a version number or any other label. "
-            "A commit's ordinal sets its position in the suite's history, which is how time "
+            "A commit's ordinal sets its position in the history of its branch, which is how time "
             "series are ordered. A commit is created when a run is first submitted for it, or "
             "explicitly."
         ),

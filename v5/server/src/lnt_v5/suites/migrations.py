@@ -362,6 +362,33 @@ def _machine_display_name(op: Operations, suite: StoredSuite) -> None:
     )
 
 
+def _commit_branch(op: Operations, suite: StoredSuite) -> None:
+    """Version 10: `{suite}.commit.branch`, with ordinals unique within each branch (D5, O6).
+
+    Existing commits have no branch, so they are all on the same one, and their ordinals, unique
+    until now across the suite, satisfy the new index as they are. The unique constraint on
+    `ordinal` gives way to a plain index, which lists the commits of every branch by ordinal. A
+    suite whose schema declares a commit field named `branch` cannot be migrated: like any entry
+    named after a built-in column, it is refused before any suite is migrated (D6).
+    """
+    op.add_column(
+        "commit",
+        sa.Column("branch", sa.String(256), nullable=True),
+        schema=suite.namespace,
+    )
+    op.drop_constraint("uq_commit_ordinal", "commit", type_="unique", schema=suite.namespace)
+    op.create_index("ix_commit_ordinal", "commit", ["ordinal"], schema=suite.namespace)
+    op.create_index(
+        "uq_commit_branch_ordinal",
+        "commit",
+        ["branch", "ordinal"],
+        unique=True,
+        schema=suite.namespace,
+        postgresql_nulls_not_distinct=True,
+        postgresql_where=sa.text("ordinal IS NOT NULL"),
+    )
+
+
 STEPS: Sequence[Step] = (
     _run_uuid_collation,
     _regression_commit_set_null,
@@ -372,6 +399,7 @@ STEPS: Sequence[Step] = (
     _generated_namespace,
     _cleared_comment,
     _machine_display_name,
+    _commit_branch,
 )
 
 

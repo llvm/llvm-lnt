@@ -488,6 +488,48 @@ class TestSteps:
                 assert recent(first_seen_at), table
                 assert days is None, table
 
+    def test_existing_ordinals_are_kept_and_become_unique_per_branch(
+        self, db_engine: Engine
+    ) -> None:
+        # Version 10 (D5, O6): existing commits have no branch and keep their ordinals, which are
+        # then unique within each branch rather than across the suite, and never among the commits
+        # without one.
+        with db_engine.begin() as connection:
+            replay_reference(connection, 9)
+            connection.execute(
+                text(
+                    "INSERT INTO reference.commit (commit, ordinal) "
+                    "VALUES ('a', 1), ('b', 2), ('c', NULL), ('d', NULL)"
+                )
+            )
+
+        upgrade_to_head(db_engine)
+
+        namespace = namespace_of(db_engine, "reference")
+        with db_engine.begin() as connection:
+            rows = connection.execute(
+                text(f"SELECT commit, branch, ordinal FROM {namespace}.commit ORDER BY commit")
+            ).all()
+            assert [tuple(row) for row in rows] == [
+                ("a", None, 1),
+                ("b", None, 2),
+                ("c", None, None),
+                ("d", None, None),
+            ]
+            connection.execute(
+                text(
+                    f"INSERT INTO {namespace}.commit (commit, branch, ordinal) "
+                    "VALUES ('e', 'release', 1), ('f', 'release', NULL), ('g', 'release', NULL)"
+                )
+            )
+        with (
+            pytest.raises(sa.exc.IntegrityError, match="uq_commit_branch_ordinal"),
+            db_engine.begin() as connection,
+        ):
+            connection.execute(
+                text(f"INSERT INTO {namespace}.commit (commit, ordinal) VALUES ('h', 2)")
+            )
+
     def test_samples_are_numbered_in_id_order_within_each_run_and_test(
         self, db_engine: Engine
     ) -> None:
@@ -604,22 +646,23 @@ class TestSteps:
         assert "after" in suite_column_names(db_engine, "reference", "machine")
 
     @pytest.mark.parametrize(
-        ("version", "field"),
+        ("version", "fields", "field"),
         [
             # Version 5 reserves `first_seen_at` and `delete_after_inactive_days` on machines and
-            # commits, and version 9 `display_name` on machines.
-            (4, "first_seen_at"),
-            (8, "display_name"),
+            # commits, version 9 `display_name` on machines, and version 10 `branch` on commits.
+            (4, "machine_fields", "first_seen_at"),
+            (8, "machine_fields", "display_name"),
+            (9, "commit_fields", "branch"),
         ],
     )
     def test_a_suite_declaring_a_field_named_like_a_new_built_in_is_refused(
-        self, db_engine: Engine, version: int, field: str
+        self, db_engine: Engine, version: int, fields: str, field: str
     ) -> None:
         # D6: a suite that already declares a field named after a built-in column a step adds
         # cannot be migrated, and no suite is.
         store_suite(db_engine, suite_named("a"), version=version)
         clashing = reference_schema().model_dump(mode="json") | {"name": "clash"}
-        clashing["machine_fields"] = [{"name": field, "type": "text"}]
+        clashing[fields] = [{"name": field, "type": "text"}]
         with db_engine.begin() as connection:
             connection.execute(
                 insert(schema).values(

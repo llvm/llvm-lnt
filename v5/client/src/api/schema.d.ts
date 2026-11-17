@@ -423,7 +423,7 @@ export interface paths {
          *
          *     You don't need to do this before submitting runs: submitting a run creates its commit if it
          *     doesn't exist yet. Creating a commit yourself is useful to give it an ordinal or a tag before
-         *     any run arrives.
+         *     any run arrives. Two commits of the same branch can't have the same ordinal.
          *
          *     **Authorization:** requires an API key with the `submit` scope, unrestricted or covering this test suite.
          */
@@ -486,11 +486,12 @@ export interface paths {
         head?: never;
         /**
          * Update a commit
-         * @description Set or clear a commit's ordinal, tag, `delete_after_inactive_days` and fields.
+         * @description Set or clear a commit's ordinal, tag, branch, `delete_after_inactive_days` and fields.
          *
-         *     This is the only way to change an ordinal or a tag once it is set. Only include what you want
-         *     to change. If you change the ordinal, the tag or a field here, later run submissions that still
-         *     send the old value are rejected with a 409 `conflict` until they are updated.
+         *     This is the only way to change an ordinal, a tag or a branch once it is set. Only include what
+         *     you want to change. Two commits of the same branch can't have the same ordinal. If you change
+         *     the ordinal, the tag, the branch or a field here, later run submissions that still send the old
+         *     value are rejected with a 409 `conflict` until they are updated.
          *
          *     **Authorization:** requires an API key with the `manage` scope, unrestricted or covering this test suite.
          */
@@ -858,7 +859,9 @@ export interface paths {
         /**
          * Get a metric's trend across machines
          * @description A summary of one metric over time, for a few machines: one value per machine and commit,
-         *     sorted by machine name and then by ordinal. Only commits with an ordinal are included.
+         *     sorted by machine name, then by ordinal, then by commit. Only commits with an ordinal are
+         *     included. Ordinals only order the commits of a branch, so a trend is usually asked for one
+         *     branch (`branch`, or `has_branch=false`).
          *
          *     Each value is computed in three steps:
          *
@@ -896,7 +899,9 @@ export interface paths {
          *     A test measured several times in a run has one sample per repetition, so the values on a line
          *     were measured together. Samples come grouped by test, in order of test name (by code point),
          *     then by commit ordinal, with the commits that have none last; then by commit and run, so that
-         *     the same data always comes in the same order.
+         *     the same data always comes in the same order. Without `branch` or `has_branch=false`, the
+         *     commits of different branches are interleaved by ordinal: tell them apart by each line's
+         *     `branch`.
          *
          *     The response is streamed as it is read, so it can be large and long: ask for it compressed
          *     (`Accept-Encoding: gzip`, or `curl --compressed`). Each test's samples are read at one point in
@@ -1155,7 +1160,7 @@ export interface components {
             value: string;
             /**
              * Ordinal
-             * @description The commit's position in the suite's history, used to order time series. Each commit must have a different ordinal, and it is never derived from the commit's value. Null if the commit has none; such commits come last when listing commits by ordinal and in a machine's series, and are left out of ranges of commits.
+             * @description The commit's position in the history of its branch, used to order time series. Each commit of a branch must have a different ordinal, and it is never derived from the commit's value. Null if the commit has none; such commits come last when listing commits by ordinal and in a machine's series, and are left out of ranges of commits.
              * @example 554973
              */
             ordinal: number | null;
@@ -1165,6 +1170,12 @@ export interface components {
              * @example llvmorg-22.1.0
              */
             tag: string | null;
+            /**
+             * Branch
+             * @description The line of history the commit is on, such as `main` or a release branch. Ordinals only order the commits of the same branch, and commits without a branch are a branch of their own. Null if the commit has none.
+             * @example main
+             */
+            branch: string | null;
             /**
              * Delete After Inactive Days
              * @description Delete it automatically once this many days (from 1 to 36500) have passed since it was created or since a run was last submitted for it, whichever is later, for example to clean up after an experiment. It is deleted along with everything its DELETE route deletes, shortly after it is due. A commit is never deleted this way while it has an ordinal. Null to keep it however long it is inactive. A run submission only sets this when it creates the machine or the commit; use PATCH to change it afterwards.
@@ -1186,7 +1197,7 @@ export interface components {
         };
         /**
          * CommitDetail
-         * @description A commit, with the commits just before and after it in the suite's history.
+         * @description A commit, with the commits just before and after it in the history of its branch.
          */
         CommitDetail: {
             /**
@@ -1208,7 +1219,7 @@ export interface components {
             value: string;
             /**
              * Ordinal
-             * @description The commit's position in the suite's history, used to order time series. Each commit must have a different ordinal, and it is never derived from the commit's value. Null if the commit has none; such commits come last when listing commits by ordinal and in a machine's series, and are left out of ranges of commits.
+             * @description The commit's position in the history of its branch, used to order time series. Each commit of a branch must have a different ordinal, and it is never derived from the commit's value. Null if the commit has none; such commits come last when listing commits by ordinal and in a machine's series, and are left out of ranges of commits.
              * @example 554973
              */
             ordinal: number | null;
@@ -1219,21 +1230,27 @@ export interface components {
              */
             tag: string | null;
             /**
+             * Branch
+             * @description The line of history the commit is on, such as `main` or a release branch. Ordinals only order the commits of the same branch, and commits without a branch are a branch of their own. Null if the commit has none.
+             * @example main
+             */
+            branch: string | null;
+            /**
              * Delete After Inactive Days
              * @description Delete it automatically once this many days (from 1 to 36500) have passed since it was created or since a run was last submitted for it, whichever is later, for example to clean up after an experiment. It is deleted along with everything its DELETE route deletes, shortly after it is due. A commit is never deleted this way while it has an ordinal. Null to keep it however long it is inactive. A run submission only sets this when it creates the machine or the commit; use PATCH to change it afterwards.
              * @example 30
              */
             delete_after_inactive_days: number | null;
-            /** @description The commit with the next lower ordinal, skipping commits without one. Null if there is none, or if this commit has no ordinal. */
+            /** @description The commit of the same branch with the next lower ordinal, skipping commits without one. Null if there is none, or if this commit has no ordinal. */
             previous: components["schemas"]["Commit"] | null;
-            /** @description The commit with the next higher ordinal, skipping commits without one. Null if there is none, or if this commit has no ordinal. */
+            /** @description The commit of the same branch with the next higher ordinal, skipping commits without one. Null if there is none, or if this commit has no ordinal. */
             next: components["schemas"]["Commit"] | null;
         };
         /**
          * CommitField
          * @description A piece of information a commit can have in its `fields`, such as its author.
          *
-         *     The name can't be `id`, `commit`, `ordinal`, `tag`, `first_seen_at` or
+         *     The name can't be `id`, `commit`, `ordinal`, `tag`, `branch`, `first_seen_at` or
          *     `delete_after_inactive_days`.
          * @example {
          *       "display": true,
@@ -1305,7 +1322,7 @@ export interface components {
          * CommitFieldInput
          * @description A piece of information a commit can have in its `fields`, such as its author.
          *
-         *     The name can't be `id`, `commit`, `ordinal`, `tag`, `first_seen_at` or
+         *     The name can't be `id`, `commit`, `ordinal`, `tag`, `branch`, `first_seen_at` or
          *     `delete_after_inactive_days`.
          * @example {
          *       "display": true,
@@ -1381,7 +1398,7 @@ export interface components {
         };
         /**
          * CommitObject
-         * @description A commit: its value, its ordinal and tag if it has them, when it is deleted, and its
+         * @description A commit: its value, its ordinal, tag and branch if it has them, when it is deleted, and its
          *     fields.
          */
         CommitObject: {
@@ -1400,7 +1417,7 @@ export interface components {
             value: string;
             /**
              * Ordinal
-             * @description The commit's position in the suite's history, used to order time series. Each commit must have a different ordinal, and it is never derived from the commit's value. Null if the commit has none; such commits come last when listing commits by ordinal and in a machine's series, and are left out of ranges of commits.
+             * @description The commit's position in the history of its branch, used to order time series. Each commit of a branch must have a different ordinal, and it is never derived from the commit's value. Null if the commit has none; such commits come last when listing commits by ordinal and in a machine's series, and are left out of ranges of commits.
              * @example 554973
              */
             ordinal?: number | null;
@@ -1411,6 +1428,12 @@ export interface components {
              */
             tag?: string | null;
             /**
+             * Branch
+             * @description The line of history the commit is on, such as `main` or a release branch. Ordinals only order the commits of the same branch, and commits without a branch are a branch of their own. Null if the commit has none.
+             * @example main
+             */
+            branch?: string | null;
+            /**
              * Delete After Inactive Days
              * @description Delete it automatically once this many days (from 1 to 36500) have passed since it was created or since a run was last submitted for it, whichever is later, for example to clean up after an experiment. It is deleted along with everything its DELETE route deletes, shortly after it is due. A commit is never deleted this way while it has an ordinal. Null to keep it however long it is inactive. A run submission only sets this when it creates the machine or the commit; use PATCH to change it afterwards.
              * @example 30
@@ -1420,8 +1443,8 @@ export interface components {
         /**
          * CommitUpdate
          * @description Changes to a commit. Only include what you want to change; this also applies to the keys
-         *     of `fields`. Set the ordinal, the tag, `delete_after_inactive_days` or a field to null to clear
-         *     it. A commit's value can't be changed.
+         *     of `fields`. Set the ordinal, the tag, the branch, `delete_after_inactive_days` or a field to
+         *     null to clear it. A commit's value can't be changed.
          */
         CommitUpdate: {
             /**
@@ -1433,7 +1456,7 @@ export interface components {
             };
             /**
              * Ordinal
-             * @description The commit's position in the suite's history, used to order time series. Each commit must have a different ordinal, and it is never derived from the commit's value. Null if the commit has none; such commits come last when listing commits by ordinal and in a machine's series, and are left out of ranges of commits.
+             * @description The commit's position in the history of its branch, used to order time series. Each commit of a branch must have a different ordinal, and it is never derived from the commit's value. Null if the commit has none; such commits come last when listing commits by ordinal and in a machine's series, and are left out of ranges of commits.
              * @example 554973
              */
             ordinal?: number | null;
@@ -1443,6 +1466,12 @@ export interface components {
              * @example llvmorg-22.1.0
              */
             tag?: string | null;
+            /**
+             * Branch
+             * @description The line of history the commit is on, such as `main` or a release branch. Ordinals only order the commits of the same branch, and commits without a branch are a branch of their own. Null if the commit has none.
+             * @example main
+             */
+            branch?: string | null;
             /**
              * Delete After Inactive Days
              * @description Delete it automatically once this many days (from 1 to 36500) have passed since it was created or since a run was last submitted for it, whichever is later, for example to clean up after an experiment. It is deleted along with everything its DELETE route deletes, shortly after it is due. A commit is never deleted this way while it has an ordinal. Null to keep it however long it is inactive. A run submission only sets this when it creates the machine or the commit; use PATCH to change it afterwards.
@@ -1517,6 +1546,12 @@ export interface components {
              * @example llvmorg-22.1.0
              */
             tag: string | null;
+            /**
+             * Branch
+             * @description The commit's branch. Null if it has none.
+             * @example main
+             */
+            branch: string | null;
         };
         /**
          * DocumentFunction
@@ -2877,6 +2912,7 @@ export interface components {
              * @description The commits that were found, keyed by value.
              * @example {
              *       "45c41247f82e5691425542de829d568cdc2fb580": {
+             *         "branch": "main",
              *         "delete_after_inactive_days": null,
              *         "fields": {
              *           "commit_info": "[libc++] Vectorize std::find_if",
@@ -3068,12 +3104,12 @@ export interface components {
          * @description A run: the results for one machine at one commit, with one entry per test.
          *
          *     If the machine or the commit doesn't exist yet, it is created. If it does exist, the submission
-         *     must agree with what is stored: fields, ordinal and tag that have no value yet are filled in,
-         *     but a value that differs from the stored one is rejected with a 409 `conflict`. Use `PATCH` to
-         *     change stored values. Keys you leave out, or set to null, aren't checked. The exceptions are
-         *     the machine's `display_name` and `tracked`, and the `delete_after_inactive_days` of the machine
-         *     and the commit, which are only used when the machine or the commit is created, and ignored
-         *     otherwise.
+         *     must agree with what is stored: fields, ordinal, tag and branch that have no value yet are
+         *     filled in, but a value that differs from the stored one is rejected with a 409 `conflict`. Use
+         *     `PATCH` to change stored values. Keys you leave out, or set to null, aren't checked. The
+         *     exceptions are the machine's `display_name` and `tracked`, and the `delete_after_inactive_days`
+         *     of the machine and the commit, which are only used when the machine or the commit is created,
+         *     and ignored otherwise.
          */
         RunSubmission: {
             /**
@@ -3605,6 +3641,12 @@ export interface components {
              * @example llvmorg-22.1.0
              */
             tag: string | null;
+            /**
+             * Branch
+             * @description The commit's branch. Null if it has none.
+             * @example main
+             */
+            branch: string | null;
             /**
              * Value
              * @description The trend value: the geometric mean of the machine's runs at this commit (see the operation's description). Always a floating-point number, even for an `integer` metric.
@@ -5113,7 +5155,7 @@ export interface operations {
             query?: {
                 /** @description To get the next page, set this to `cursor.next` from the previous response, and keep the other parameters the same (except `limit`). Omit it to get the first page. If it is rejected with `invalid_cursor`, start again from the first page. */
                 cursor?: string | null;
-                /** @description Only return commits whose value, tag or any searchable field contains this text. Not case-sensitive. */
+                /** @description Only return commits whose value, tag, branch or any searchable field contains this text. Not case-sensitive. */
                 search?: string | null;
                 /** @description Only return the commit with exactly this value, if it also matches the other filters. If no commit has this value, the result is empty. Use it to check whether a commit is among those a list with the other filters returns. */
                 commit?: string | null;
@@ -5123,11 +5165,15 @@ export interface operations {
                 has_profiles?: boolean | null;
                 /** @description Only return commits that have (`true`) or don't have (`false`) an ordinal. Leave out to return both. */
                 has_ordinal?: boolean | null;
-                /** @description Only return commits after this one (exclusive), by ordinal. Commits without an ordinal are left out. Returns 404 if the commit doesn't exist, and 400 if it has no ordinal. */
+                /** @description Only return commits on this branch. If no commit is on it, the result is empty. Use `has_branch=false` for the commits without a branch. */
+                branch?: string | null;
+                /** @description Only return commits that have (`true`) or don't have (`false`) a branch. Leave out to return both. */
+                has_branch?: boolean | null;
+                /** @description Only return commits after this one (exclusive), by ordinal, on the same branch. Commits without an ordinal are left out. Returns 404 if the commit doesn't exist, and 400 if it has no ordinal. */
                 after_commit?: string | null;
-                /** @description Only return commits before this one (exclusive), by ordinal. Commits without an ordinal are left out. Returns 404 if the commit doesn't exist, and 400 if it has no ordinal. To find the commit before a given one at which a machine has runs, combine it with `machine`, `sort=-ordinal` and `limit=1`. */
+                /** @description Only return commits before this one (exclusive), by ordinal, on the same branch. Commits without an ordinal are left out. Returns 404 if the commit doesn't exist, and 400 if it has no ordinal. To find the commit before a given one at which a machine has runs, combine it with `machine`, `sort=-ordinal` and `limit=1`. */
                 before_commit?: string | null;
-                /** @description `first_seen`: in the order the commits were added, oldest first (`-first_seen`: newest first). `ordinal`: by ordinal, lowest first (`-ordinal`: highest first), followed by the commits without an ordinal, in the order they were added (`-ordinal`: newest first). */
+                /** @description `first_seen`: in the order the commits were added, oldest first (`-first_seen`: newest first). `ordinal`: by ordinal, lowest first (`-ordinal`: highest first), followed by the commits without an ordinal, in the order they were added (`-ordinal`: newest first). Without `branch`, the commits of different branches are interleaved by ordinal. */
                 sort?: "first_seen" | "-first_seen" | "ordinal" | "-ordinal";
                 /** @description The maximum number of results to return. */
                 limit?: number;
@@ -5253,7 +5299,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description `duplicate`: a commit with this value already exists. `conflict`: another commit already has this ordinal. `retry`: the suite's schema changed while the request was being handled. Send it again. */
+            /** @description `duplicate`: a commit with this value already exists. `conflict`: another commit on the same branch already has this ordinal. `retry`: the suite's schema changed while the request was being handled. Send it again. */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -5527,7 +5573,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description `conflict`: another commit already has this ordinal. `retry`: the suite's schema changed while the request was being handled. Send it again. */
+            /** @description `conflict`: another commit on the same branch already has this ordinal. `retry`: the suite's schema changed while the request was being handled. Send it again. */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -5543,7 +5589,7 @@ export interface operations {
             query?: {
                 /** @description To get the next page, set this to `cursor.next` from the previous response, and keep the other parameters the same (except `limit`). Omit it to get the first page. If it is rejected with `invalid_cursor`, start again from the first page. */
                 cursor?: string | null;
-                /** @description Only return runs whose machine (its name, its display name or any searchable field) or commit (its value, its tag or any searchable field) contains this text, or whose UUID starts with it. Not case-sensitive. */
+                /** @description Only return runs whose machine (its name, its display name or any searchable field) or commit (its value, its tag, its branch or any searchable field) contains this text, or whose UUID starts with it. Not case-sensitive. */
                 search?: string | null;
                 /** @description Only return runs on this machine. Returns 404 if the machine doesn't exist. */
                 machine?: string | null;
@@ -5685,7 +5731,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description `duplicate`: a run with this UUID already exists. `conflict`: the submission contradicts what is stored for its machine or commit, or another commit already has its ordinal. `retry`: the suite's schema changed while the request was being handled. Send it again. The same `retry` is returned if the run's machine or commit was deleted while the run was being stored; sending it again creates them. */
+            /** @description `duplicate`: a run with this UUID already exists. `conflict`: the submission contradicts what is stored for its machine or commit, or another commit on the same branch already has its ordinal. `retry`: the suite's schema changed while the request was being handled. Send it again. The same `retry` is returned if the run's machine or commit was deleted while the run was being stored; sending it again creates them. */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -6880,8 +6926,12 @@ export interface operations {
                 machine: string[];
                 /** @description How to combine a test's samples in a run into a single value. */
                 sample_agg?: components["schemas"]["SampleAggregation"];
-                /** @description Only include the N most recent commits (by ordinal) that have data on any of the machines. All machines share this window, so a machine that stopped reporting has no values for the latest commits. */
+                /** @description Only include the N most recent commits (by ordinal) that have data on any of the machines. All machines share this window, so a machine that stopped reporting has no values for the latest commits. Without `branch` or `has_branch=false`, the commits of different branches share it too, by ordinal. */
                 last_n?: number;
+                /** @description Only include commits on this branch. If no commit is on it, the result is empty. Use `has_branch=false` for the commits without a branch. */
+                branch?: string | null;
+                /** @description Only include commits that have (`true`) or don't have (`false`) a branch. Leave out to include both. */
+                has_branch?: boolean | null;
             };
             header?: never;
             path: {
@@ -6952,9 +7002,9 @@ export interface operations {
                 test?: string[] | null;
                 /** @description Only return samples from runs of this commit. If the commit doesn't exist, the result is empty. Can't be combined with `after_commit` or `before_commit`. */
                 commit?: string | null;
-                /** @description Only return samples from commits after this one (exclusive), by ordinal. Commits without an ordinal are left out. Returns 404 if the commit doesn't exist, and 400 if it has no ordinal. */
+                /** @description Only return samples from commits after this one (exclusive), by ordinal, on the same branch. Commits without an ordinal are left out. Returns 404 if the commit doesn't exist, and 400 if it has no ordinal. */
                 after_commit?: string | null;
-                /** @description Only return samples from commits before this one (exclusive), by ordinal. Commits without an ordinal are left out. Returns 404 if the commit doesn't exist, and 400 if it has no ordinal. */
+                /** @description Only return samples from commits before this one (exclusive), by ordinal, on the same branch. Commits without an ordinal are left out. Returns 404 if the commit doesn't exist, and 400 if it has no ordinal. */
                 before_commit?: string | null;
                 /** @description Only return samples from runs submitted after this time (exclusive). An ISO 8601 timestamp, treated as UTC if it has no time zone. Encode a '+' in the time zone as `%2B`, otherwise it is read as a space. */
                 submitted_after?: string | null;
@@ -6966,6 +7016,10 @@ export interface operations {
                 measured_before?: string | null;
                 /** @description Only return samples from commits that have (`true`) or don't have (`false`) an ordinal. Leave out to return both. `after_commit` and `before_commit` imply `true`. */
                 has_ordinal?: boolean | null;
+                /** @description Only return samples from commits on this branch. If no commit is on it, the result is empty. Use `has_branch=false` for the commits without a branch. */
+                branch?: string | null;
+                /** @description Only return samples from commits that have (`true`) or don't have (`false`) a branch. Leave out to return both. */
+                has_branch?: boolean | null;
             };
             header?: never;
             path: {

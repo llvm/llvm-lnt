@@ -18,6 +18,7 @@ const pointAt = (commit: string, ordinal: number, value: number): Schemas['DataP
   submitted_at: '2026-08-25T14:22:41Z',
   measured_at: '2026-08-25T14:22:41Z',
   tag: null,
+  branch: null,
 })
 
 describe('fetchSeries', () => {

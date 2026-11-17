@@ -128,10 +128,20 @@ def submitted_machine(
 
 
 def submitted_commit(
-    value: str = "abc", *, ordinal: int | None = None, tag: str | None = None, **fields: Any
+    value: str = "abc",
+    *,
+    ordinal: int | None = None,
+    tag: str | None = None,
+    branch: str | None = None,
+    **fields: Any,
 ) -> SubmittedCommit:
     return SubmittedCommit(
-        value=value, ordinal=ordinal, tag=tag, delete_after_inactive_days=None, fields=fields
+        value=value,
+        ordinal=ordinal,
+        tag=tag,
+        branch=branch,
+        delete_after_inactive_days=None,
+        fields=fields,
     )
 
 
@@ -730,6 +740,31 @@ class TestConcurrentFill:
 
         assert filling.result(timeout=BLOCK_TIMEOUT) == commit
         assert stored(db_engine, suite, "machine", "name", "linux").hardware == "x86_64"
+
+    def test_filling_an_ordinal_and_a_branch_does_not_wait_on_a_run_in_flight(
+        self,
+        db_engine: Engine,
+        machines: Machines,
+        commits: Commits,
+        suite: Suite,
+        background: Callable[..., Future[Any]],
+    ) -> None:
+        # Their unique index is partial, so PostgreSQL does not count them as a key, and the fill's
+        # `FOR NO KEY UPDATE` and UPDATE leave alone the key-share lock A's run holds on the commit.
+        with db_engine.begin() as connection:
+            machine = machines.get_or_create(connection, submitted_machine())
+            commit = commits.get_or_create(connection, submitted_commit())
+
+        def fill() -> int:
+            with db_engine.connect() as b, b.begin():
+                return commits.get_or_create(b, submitted_commit(ordinal=3, branch="main"))
+
+        with db_engine.connect() as a, a.begin():
+            Runs(suite).create(a, str(uuid4()), machine, commit, {})
+            assert background(fill).result(timeout=BLOCK_TIMEOUT) == commit
+
+        row = stored(db_engine, suite, "commit", "commit", "abc")
+        assert (row.ordinal, row.branch) == (3, "main")
 
     @pytest.mark.usefixtures("existing_machine")
     def test_a_submission_with_nothing_to_fill_takes_no_lock(

@@ -108,6 +108,7 @@ _SUBMIT_EXAMPLES = {
             "commit": {
                 "value": examples.COMMIT,
                 "ordinal": examples.ORDINAL,
+                "branch": examples.BRANCH,
                 "fields": examples.COMMIT_VALUES,
             },
             "run_parameters": examples.RUN_PARAMETERS,
@@ -243,7 +244,10 @@ class Runs:
 
         A term that matches more than `_MAX_RESOLVED` machines or commits (a character or two, as
         typed) is executed as it stands instead, rather than with an array of most of the table's
-        ids: so many runs then match that walking them in order fills a page at once.
+        ids: so many runs then match that walking them in order fills a page at once. A branch's
+        name, which many commits share, can match that many too, and then few runs may match, as
+        with `machine=X&search=main` for a machine that only runs a release branch. That walks X's
+        range of the `(machine_id, measured_at)` index, which is bounded, rather than the table.
         """
         machines = select(self._machine.c.id).where(machine_search(self.suite, term))
         commits = select(self._commit.c.id).where(commit_search(self.suite, term))
@@ -502,8 +506,8 @@ def list_runs(
         Query(
             description=(
                 "Only return runs whose machine (its name, its display name or any searchable "
-                "field) or commit (its value, its tag or any searchable field) contains this text, "
-                "or whose UUID starts with it. Not case-sensitive."
+                "field) or commit (its value, its tag, its branch or any searchable field) "
+                "contains this text, or whose UUID starts with it. Not case-sensitive."
             )
         ),
     ] = None,
@@ -618,10 +622,10 @@ def list_runs(
     responses=suite_responses(
         conflict=(
             "`duplicate`: a run with this UUID already exists. `conflict`: the submission "
-            "contradicts what is stored for its machine or commit, or another commit already has "
-            f"its ordinal. {SUITE_SCHEMA_CHANGED} The same `retry` is returned if the run's "
-            "machine or commit was deleted while the run was being stored; sending it again "
-            "creates them."
+            "contradicts what is stored for its machine or commit, or another commit on the same "
+            f"branch already has its ordinal. {SUITE_SCHEMA_CHANGED} The same `retry` is "
+            "returned if the run's machine or commit was deleted while the run was being stored; "
+            "sending it again creates them."
         )
     ),
 )
