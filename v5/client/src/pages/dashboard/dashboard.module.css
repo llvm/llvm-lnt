@@ -57,7 +57,10 @@
   gap: var(--lnt-space-3);
 }
 
+/* The chart at the bottom, so that the charts of a row are in line, however long their titles. */
 .card {
+  display: flex;
+  flex-direction: column;
   min-width: 0;
   padding: var(--lnt-space-2) var(--lnt-space-3);
   border: 1px solid var(--lnt-border);
@@ -69,7 +72,8 @@
   display: flex;
   align-items: flex-start;
   gap: var(--lnt-space-2);
-  margin-bottom: var(--lnt-space-1);
+  margin-bottom: auto;
+  padding-bottom: var(--lnt-space-1);
 }
 
 /* A long title wraps, rather than be cut short. */
@@ -80,35 +84,18 @@
   font-size: 0.95rem;
 }
 
-/* Compact, and at most a little under half the card, a long branch name cut short. */
+/* The branch selector: at most a little under half the card, a long branch name cut short. */
 .branch {
   display: flex;
   min-width: 0;
   max-width: 45%;
 }
 
-/* The dropdown's root, within it. */
-.branch div {
-  min-width: 0;
-  max-width: 100%;
-}
-
-.branch button {
-  min-width: 0;
-  max-width: 100%;
-  padding: 0 var(--lnt-space-1);
-  font-size: 0.8rem;
-}
-
-.branch button > :first-child {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
+/* Kept on one line, with its dash. */
 .unit {
   color: var(--lnt-muted);
   font-weight: normal;
+  white-space: nowrap;
 }
 
 .chartLink {

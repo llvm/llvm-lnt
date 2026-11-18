@@ -1,7 +1,7 @@
 /**
  * The branches the Dashboard's cards show, as the URL keeps them (DA1): one `branch` per card that
  * shows another branch than its default, spelled `{project}/{suite}/{metric}/{branch}`. Names have
- * no `/` (I1), whereas a branch may, so the branch is everything after the third one.
+ * no `/` (see D4, D7 and I1), whereas a branch may, so the branch is everything after the third.
  */
 
 import { fullName, suiteRef, type SuiteRef } from '../../api/suite-ref'
@@ -23,7 +23,7 @@ function parse(entry: string): CardBranch | null {
 }
 
 /** Whether `entry` is the branch of the card of `suite`'s `metric`. */
-export function isOfCard(entry: CardBranch, suite: SuiteRef, metric: string): boolean {
+function isOfCard(entry: CardBranch, suite: SuiteRef, metric: string): boolean {
   return entry.suite === suite && entry.metric === metric
 }
 

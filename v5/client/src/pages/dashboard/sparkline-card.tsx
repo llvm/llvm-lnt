@@ -33,7 +33,7 @@ interface Props {
   /** The options of the card's branch selector, or null for none, without named branches. */
   options: Option<string>[] | null
   /** Why listing the branches again failed, if it did, which leaves `branch` unknown. */
-  listingError: unknown
+  listingError: Error | null
   onRetryListing(): void
   onBranch(branch: BranchName): void
 }
@@ -101,7 +101,7 @@ export function SparklineCard({
       </div>
     )
   } else if (traced.length === 0) {
-    unlinked = options
+    unlinked = branch
       ? 'No machine has a trend for this metric on this branch.'
       : 'No machine has a trend for this metric.'
     body = <p className={clsx(styles.placeholder, styles.note)}>{unlinked}</p>
@@ -131,11 +131,17 @@ export function SparklineCard({
           ) : (
             <DisabledLink title={unlinked}>{title}</DisabledLink>
           )}
-          {unit !== null && <span className={styles.unit}> — {unit}</span>}
+          {/* The line may break before the dash, but not after it. */}
+          {unit !== null && (
+            <>
+              {' '}
+              <span className={styles.unit}>— {unit}</span>
+            </>
+          )}
         </h4>
         {options && (
           // Beside the title rather than in its link. A long name is cut short, and shown whole on
-          // hover; its accessible name is whole.
+          // hover, but not to assistive technology, which reads the whole name already.
           <span
             className={styles.branch}
             title={branch === undefined ? named : (branch ?? undefined)}
@@ -143,6 +149,7 @@ export function SparklineCard({
             <Select
               label={`Branch of ${title}`}
               hideLabel
+              compact
               options={options}
               value={branch === undefined ? null : branchKey(branch)}
               placeholder={named}

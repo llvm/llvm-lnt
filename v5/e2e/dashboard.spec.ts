@@ -1,7 +1,7 @@
 /**
  * The Dashboard (DA1-DA2), against the seeded history of `libcxx/benchmarks`: tracked machines
  * with a trend on every metric but `peak_memory`, which no run reports, and an untracked one left
- * out, mostly on no branch, and on `release/22.x` for two of them.
+ * out. Its commits are on no branch, but for those of `release/22.x`, which two machines measure.
  *
  * Other tests create projects of their own, which the Dashboard lists too, so every check is scoped
  * to the section of the project or the suite it is about, which their labels name (AR22).
@@ -81,9 +81,8 @@ test('draws a trace per tracked machine on each card of libcxx/benchmarks', asyn
 test('says that no machine has a trend for peak_memory', async ({ page }) => {
   await page.goto('/')
 
-  // On the branch it shows, since the suite has named branches (DA2).
   await expect(card(page, 'Peak Memory Footprint')).toContainText(
-    'No machine has a trend for this metric on this branch.',
+    'No machine has a trend for this metric.',
   )
 })
 
@@ -311,9 +310,11 @@ test('shows a card on the branch picked, and opens the Graph on it', async ({ pa
 })
 
 test("does not follow the chart's link when an option over it is picked", async ({ page }) => {
-  await page.goto('/')
+  // libc++ alone, the card at the top of the page, so that the list opens below the selector.
+  await page.goto('/?project=libcxx')
   const cycles = card(page, 'Cycles Elapsed')
   await expect(tracesOf(cycles)).toHaveCount(5)
+  await cycles.evaluate((element) => element.scrollIntoView({ block: 'start' }))
   const option = page.getByRole('option', { name: RELEASE_BRANCH, exact: true })
   await openSelect(cycles, 'Branch of Cycles Elapsed', option)
   // The option is drawn over the chart.
@@ -328,6 +329,7 @@ test("does not follow the chart's link when an option over it is picked", async 
 
   await expect(tracesOf(cycles)).toHaveCount(2)
   expect(new URL(page.url()).pathname).toBe('/')
+  await expect(page).toHaveURL(/[?&]branch=/)
 })
 
 test('shows no branch selector on the cards of a suite without branches', async ({ page }) => {

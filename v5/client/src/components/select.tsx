@@ -125,6 +125,11 @@ interface Props<Value extends string> {
   /** Keep the label for assistive technology only, where the page already says what it is. */
   hideLabel?: boolean
   /**
+   * Smaller, and no wider than its container lets it be, a long value cut short, such as beside a
+   * title rather than among other controls.
+   */
+  compact?: boolean
+  /**
    * Change the value only when an option is picked from the open list. Otherwise ArrowLeft,
    * ArrowRight and typing on the closed dropdown step through the options, which a dropdown that
    * saves every change would save one after the other.
@@ -150,6 +155,7 @@ export function Select<Value extends string>({
   title,
   isPending,
   hideLabel,
+  compact,
   listPicksOnly,
   ref,
 }: Props<Value>) {
@@ -172,7 +178,7 @@ export function Select<Value extends string>({
     // there, so that the dropdown is not mounted again, losing the focus, when the title goes.
     <span className={styles.titled} title={title}>
       <AriaSelect
-        className={shared.root}
+        className={clsx(shared.root, compact && styles.compact)}
         value={value}
         placeholder={placeholder}
         // A single selection that cannot be cleared: React Aria reports a null only for no
@@ -199,7 +205,7 @@ export function Select<Value extends string>({
           aria-describedby={title === undefined ? undefined : titleId}
         >
           {/* An option picked under a heading shows what names it without the heading. */}
-          <SelectValue<Option<Value>>>
+          <SelectValue<Option<Value>> className={styles.value}>
             {({ selectedItems, defaultChildren }) =>
               selectedItems[0]?.selectedLabel ?? defaultChildren
             }
@@ -260,6 +266,11 @@ interface TreeProps<Value extends string> {
   isDisabled?: boolean
   /** Keep the label for assistive technology only, where the page already says what it is. */
   hideLabel?: boolean
+  /**
+   * Smaller, and no wider than its container lets it be, a long value cut short, such as beside a
+   * title rather than among other controls.
+   */
+  compact?: boolean
   /** The most options the button names; beyond that it counts them. */
   named?: number
   /** What to say on hover over the dropdown, and to assistive technology. */

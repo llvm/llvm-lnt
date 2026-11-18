@@ -21,8 +21,8 @@ performance trends across all test suites, grouped by project (see D7).
   first entry: `{project}/{suite}/{metric}/{branch}`, e.g.
   `?branch=libcxx/benchmarks/cycles/release/22.x`. The branch is everything
   after the third `/`, since a branch name may hold one. An entry with fewer
-  than four parts, or an empty one, is dropped as the URL is read, and of a
-  card named twice, the first entry is kept. An entry is dropped once it is
+  than four parts, or with an empty part, is dropped as the URL is read, and of
+  a card named twice, the first entry is kept. An entry is dropped once it is
   found unusable (AR2 "State"): when no suite shows a card for its suite and
   metric, once the projects are listed, and when its suite's branches do not
   hold its branch, or hold it as their first entry, once they are current
@@ -65,16 +65,17 @@ performance trends across all test suites, grouped by project (see D7).
   the chart's. It is labelled `Branch of {metric label}` for assistive
   technology only, and a long branch name is cut short in it, shown whole on
   hover. A suite whose list holds no named branch shows no selector on its
-  cards.
+  cards. The selectors sit on the cards rather than in a controls panel, an
+  exception to AR5.
 - The cards are drawn from the suite's branches as soon as some list of them is
-  at hand, even one fetched before the page was opened, which the page lists
-  again each time it is opened. A card whose URL entry such a list does not
-  hold shows its loading state until the list is current, listed since the
-  page was opened, which may hold it. Until the suite's branches are listed at
-  all, the section shows that they are loading in place of its cards, and if
-  they cannot be listed, it says so, with a way to try again (see AR7). If
-  listing them again fails, the cards stay as they are, and a card waiting for
-  a current list says why it has none, with a way to try again.
+  at hand, even one fetched before the page was opened: the page lists the
+  branches again each time it is opened. A card whose URL entry such a list
+  does not hold shows its loading state until the list is current, listed
+  since the page was opened, which may hold it. Until the suite's branches are
+  listed at all, the section shows that they are loading in place of its
+  cards, and if they cannot be listed, it says so, with a way to try again (see
+  AR7). If listing them again fails, the cards stay as they are, and a card
+  waiting for a current list says why it has none, with a way to try again.
 - Up to 5 traces per chart, one per most-recently-active machine. The set is chosen
   once per suite rather than per metric: the first 5 machines of
   `GET /api/projects/{p}/suites/{s}/machines?tracked=true&sort=-last_run_at` that
@@ -88,7 +89,7 @@ performance trends across all test suites, grouped by project (see D7).
   retired configurations not tracked in the overview. A suite with no tracked machine
   that has runs says so in place of its cards. A machine with no data for a given
   metric simply has no trace on that card, and a card on which no machine has a trend
-  says so in place of its chart, on its branch when the suite has named branches.
+  says so in place of its chart, on its branch when that is a named branch.
 - Each trace is a colored line. A machine has the same color on every card of
   its suite.
 - X-axis: sequential position (evenly spaced, no axis labels) among the

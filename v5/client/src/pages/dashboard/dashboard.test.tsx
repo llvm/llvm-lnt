@@ -507,6 +507,25 @@ describe('the Dashboard', () => {
       await pickOption('Project', 'All projects')
       await waitFor(() => expect(currentUrl()).toBe('/?range=1000'))
     })
+
+    it('keeps the branches of the cards it hides, for when they are shown again', async () => {
+      mockProjects()
+      mockBranches([null, 'release/22.x'])
+      const entry = 'libcxx/benchmarks/cycles/release/22.x'
+      renderPage(`/?project=llvm&branch=${encodeURIComponent(entry)}`)
+
+      await chartOf('Cycles', 'nts')
+      expect(query()).toEqual({ project: ['llvm'], branch: [entry] })
+
+      await pickOption('Project', 'All projects')
+      await waitFor(() => expect(query()).toEqual({ branch: [entry] }))
+      const benchmarks = await main().findByRole('region', { name: 'benchmarks' })
+      await waitFor(() =>
+        expect(selectButton('Branch of Cycles', benchmarks)).toHaveTextContent('release/22.x'),
+      )
+      const nts = main().getByRole('region', { name: 'nts' })
+      expect(selectButton('Branch of Cycles', nts)).toHaveTextContent('No branch')
+    })
   })
 
   describe('the commit range', () => {
@@ -1000,17 +1019,23 @@ describe("the cards' branches", () => {
     await waitFor(() => expect(selectButton('Branch of Cycles')).toHaveTextContent(RELEASE))
   })
 
-  it("says that no machine has a trend on the card's branch", async () => {
+  it("says that no machine has a trend on the card's branch, when it is named", async () => {
     mockBranches([null, RELEASE])
     mockSuites([DASH_SUITE])
     mockMachineNames(['m1', 'm2'])
-    mockTrends((query) => (query.get('metric') === 'cycles' ? [] : POINTS))
+    mockTrends((query) => (query.get('branch') === null ? [] : POINTS))
     mockResolve()
-    renderPage('/')
+    renderPage(`/?branch=${encodeURIComponent(`llvm/libcxx/cycles/${RELEASE}`)}`)
 
-    const cycles = await card('Cycles')
     expect(
-      await cycles.findByText('No machine has a trend for this metric on this branch.'),
+      await (await card('Execution Time')).findByText('No machine has a trend for this metric.'),
+    ).toBeInTheDocument()
+    mockTrends(() => [])
+    await pickOption('Branch of Execution Time', RELEASE)
+    expect(
+      await (
+        await card('Execution Time')
+      ).findByText('No machine has a trend for this metric on this branch.'),
     ).toBeInTheDocument()
   })
 
