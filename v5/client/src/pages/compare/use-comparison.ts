@@ -13,6 +13,7 @@ import {
   changes,
   compareRows,
   joinSides,
+  MIN_RUNS,
   runValues,
   sideSamples,
   sideValues,
@@ -77,6 +78,11 @@ export interface Comparison {
   tests: ComparedTest[] | undefined
   /** Their rows, or none until then. */
   rows: ComparisonRow[]
+  /**
+   * Whether both sides have at least 2 selected runs, which a p-value needs: otherwise no test has
+   * one, and the P-value filter does not apply (CP1).
+   */
+  pValues: boolean
   /** Side A's value of each test, which the shadows are compared with too (CP8). */
   valuesA: ReadonlyMap<string, number> | undefined
   biggerIsBetter: boolean
@@ -111,5 +117,6 @@ export function useComparison(
         : NO_ROWS,
     [tests, valuesA, valuesB, changed, biggerIsBetter, margin],
   )
-  return { tests, rows, valuesA, biggerIsBetter }
+  const pValues = chosenRuns(a).length >= MIN_RUNS && chosenRuns(b).length >= MIN_RUNS
+  return { tests, rows, pValues, valuesA, biggerIsBetter }
 }

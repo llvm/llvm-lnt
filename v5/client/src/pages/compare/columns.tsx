@@ -156,8 +156,8 @@ function statusLabel(status: Status, detail?: string): ReactNode {
   )
 }
 
-/** The columns every comparison table shows. */
-const COLUMNS: CompareColumn[] = [
+/** The columns every comparison table shows, whichever optional ones it does too. */
+export const BASE_COLUMNS: CompareColumn[] = [
   {
     id: 'test',
     header: 'Test',
@@ -267,6 +267,9 @@ function shownInterval(row: Row): Interval | null {
   return row.test === null || row.change.kind !== 'interval' ? null : row.change
 }
 
+/** What the CI column is sorted by: the estimate, whatever the confidence. */
+const intervalSortKey = (row: ComparisonRow) => shownInterval(row)?.estimate ?? null
+
 /**
  * The CI column, at `confidence`, a percentage (CP2 "Optional columns"), which Copy as CSV writes
  * as three columns: the estimate and the bounds, each a percentage change.
@@ -285,7 +288,7 @@ function intervalColumn(confidence: number): CompareColumn {
       const interval = shownInterval(row)
       return interval === null ? NA : formatInterval(interval)
     },
-    sortKey: (row) => shownInterval(row)?.estimate ?? null,
+    sortKey: intervalSortKey,
     csv: [
       { header: 'CI estimate %', value: percent('estimate') },
       { header: `${confidence}% CI low %`, value: percent('low') },
@@ -294,12 +297,8 @@ function intervalColumn(confidence: number): CompareColumn {
   }
 }
 
-/**
- * The columns of the optional column `key`: one per side, A before B, or one for the test, at
- * `confidence` for the CI.
- */
-function optionalColumns(key: OptionalKey, confidence: number): CompareColumn[] {
-  if (key === 'ci') return [intervalColumn(confidence)]
+/** The columns of the optional statistic `key`: one per side, A before B, or one for the test. */
+function statisticColumns(key: StatisticKey): CompareColumn[] {
   const statistic = STATISTICS[key]
   const { label, format } = statistic
   if (!statistic.perSide) {
@@ -311,6 +310,11 @@ function optionalColumns(key: OptionalKey, confidence: number): CompareColumn[] 
   ]
 }
 
+/** The columns of the optional column `key`, at `confidence` for the CI. */
+function optionalColumns(key: OptionalKey, confidence: number): CompareColumn[] {
+  return key === 'ci' ? [intervalColumn(confidence)] : statisticColumns(key)
+}
+
 /**
  * The table's columns with the optional ones `shown`, in the order of `OPTIONAL_KEYS`, between Ratio
  * and Status, the CI at `confidence`, a percentage, if it is shown.
@@ -319,14 +323,25 @@ export function tableColumns(shown: readonly OptionalKey[], confidence: number):
   const optional = OPTIONAL_KEYS.filter((key) => shown.includes(key)).flatMap((key) =>
     optionalColumns(key, confidence),
   )
-  return [...COLUMNS.slice(0, -1), ...optional, ...COLUMNS.slice(-1)]
+  return [...BASE_COLUMNS.slice(0, -1), ...optional, ...BASE_COLUMNS.slice(-1)]
 }
 
-/** Every column of the table, whichever optional ones are shown, at any confidence. */
-const ALL_COLUMNS = tableColumns(OPTIONAL_KEYS, NaN)
+/**
+ * What each column the table can show is sorted by, by how `sort` names it (CP7), in the table's
+ * order, whatever the confidence, which only names the CI's header.
+ */
+const SORT_KEYS = new Map<string, CompareColumn['sortKey']>([
+  ...BASE_COLUMNS.slice(0, -1).map((column) => [column.id, column.sortKey] as const),
+  ...OPTIONAL_KEYS.flatMap((key) =>
+    key === 'ci'
+      ? [['ci', intervalSortKey] as const]
+      : statisticColumns(key).map((column) => [column.id, column.sortKey] as const),
+  ),
+  ...BASE_COLUMNS.slice(-1).map((column) => [column.id, column.sortKey] as const),
+])
 
 /** Every column the table can sort by, as `sort` names them (CP7). */
-export const SORTABLE = ALL_COLUMNS.map((column) => column.id)
+export const SORTABLE = [...SORT_KEYS.keys()]
 
 /** `rows`, sorted by the column `id` in `direction` (see `sortRows`). */
 export function sortComparison(
@@ -334,8 +349,8 @@ export function sortComparison(
   id: string,
   direction: SortDirection,
 ): ComparisonRow[] {
-  const column = ALL_COLUMNS.find((entry) => entry.id === id)
-  return column === undefined ? rows : sortRows(rows, column.sortKey, direction)
+  const sortKey = SORT_KEYS.get(id)
+  return sortKey === undefined ? rows : sortRows(rows, sortKey, direction)
 }
 
 /** The compared rows as CSV (CP2 "Copy as CSV"): the columns' headers, the geomean, the rows. */

@@ -12,7 +12,14 @@ import { compareStrings } from '../../format'
 import { comparisonCsv, sortComparison, tableColumns } from './columns'
 import type { TableView } from './compare-table'
 import { geomeanRow, passesFilters, summaryCounts, type ComparisonRow } from './comparison'
-import { confidenceOf, filterSettings, HIDDEN_IN_URL, PARAMS, type Settings } from './settings'
+import {
+  appliedFilters,
+  confidenceOf,
+  filterSettings,
+  HIDDEN_IN_URL,
+  PARAMS,
+  type Settings,
+} from './settings'
 import type { Comparison } from './use-comparison'
 
 const NO_TESTS: string[] = []
@@ -24,7 +31,7 @@ const testOf = (row: ComparisonRow) => row.test
  * page of each test that has a profile on both sides, `links`.
  */
 export function useComparisonTable(
-  { tests, rows, biggerIsBetter }: Comparison,
+  { tests, rows, pValues, biggerIsBetter }: Comparison,
   settings: Settings,
   update: (changes: Partial<Settings>) => void,
   links: ReadonlyMap<string, string>,
@@ -39,7 +46,7 @@ export function useComparisonTable(
   // The rows the test filter keeps, then those of them that pass the filters (CP1): the rows the
   // summary bar counts.
   const named = filter.rows
-  const { deltaPct, pValue, abs } = filterSettings(settings)
+  const { deltaPct, pValue, abs } = appliedFilters(filterSettings(settings), pValues)
   const filtering = deltaPct !== null || pValue !== null || abs !== null
   const matching = useMemo(
     () =>

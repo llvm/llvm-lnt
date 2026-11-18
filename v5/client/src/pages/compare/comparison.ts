@@ -201,6 +201,9 @@ export function criticalT(confidence: number, df: number): number {
   return Math.sqrt((df * (1 - x)) / x)
 }
 
+/** How many runs with a value each side needs for a test's change to have an interval. */
+export const MIN_RUNS = 2
+
 /**
  * Why a test's change has no confidence interval (CP2 "Status classification"): a run's value that
  * is not positive, which has no logarithm, or fewer than 2 runs on side A, on side B or on both.
@@ -235,8 +238,9 @@ export function logWelch(a: readonly number[], b: readonly number[]): LogSpread 
   if (a.some((value) => !(value > 0)) || b.some((value) => !(value > 0))) {
     return { kind: 'nonPositive' }
   }
-  if (a.length < 2 || b.length < 2) {
-    return { kind: 'runs', sides: a.length < 2 ? (b.length < 2 ? 'both' : 'A') : 'B' }
+  if (a.length < MIN_RUNS || b.length < MIN_RUNS) {
+    const sides = a.length < MIN_RUNS ? (b.length < MIN_RUNS ? 'both' : 'A') : 'B'
+    return { kind: 'runs', sides }
   }
   const logA = a.map(Math.log)
   const logB = b.map(Math.log)

@@ -113,6 +113,14 @@ export const FILTER_PARAMS = {
   abs: 'min_abs',
 } as const satisfies Record<FilterKey, keyof Settings>
 
+/**
+ * The filters that apply (CP1): those `filters` enables, but for P-value at most unless `pValues`,
+ * which says whether both sides have the selected runs a p-value needs.
+ */
+export function appliedFilters(filters: Filters, pValues: boolean): Filters {
+  return pValues ? filters : { ...filters, pValue: null }
+}
+
 /** Each filter's threshold, as `settings` holds it, or null while it is disabled (CP7). */
 export function filterSettings(
   settings: Pick<Settings, (typeof FILTER_PARAMS)[FilterKey]>,

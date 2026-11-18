@@ -141,7 +141,11 @@ function ComparePage() {
             regex={settings.test_filter_regex}
             onRegexChange={(regex) => update({ test_filter_regex: regex })}
           />
-          <ClassificationControls settings={settings} update={update} />
+          <ClassificationControls
+            settings={settings}
+            update={update}
+            pValues={comparison.pValues}
+          />
         </div>
       </ControlsPanel>
       <ControlsPanel>

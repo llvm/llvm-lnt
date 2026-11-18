@@ -13,7 +13,13 @@ import { Select } from '../../components/select'
 import { SEARCH_DELAY_MS } from '../../components/suggestions'
 import { parseNumber } from '../../format'
 import type { FilterKey } from './comparison'
-import { CONFIDENCES, FILTER_PARAMS, filterSettings, type Settings } from './settings'
+import {
+  appliedFilters,
+  CONFIDENCES,
+  FILTER_PARAMS,
+  filterSettings,
+  type Settings,
+} from './settings'
 import shared from '../../components/dropdown.module.css'
 import styles from './compare.module.css'
 
@@ -70,6 +76,9 @@ const CONFIDENCE_HELP =
   "The confidence level of the interval of each test's change, which the margin classifies the " +
   'test by. A higher one leaves more tests inconclusive.'
 
+/** Why the P-value filter is disabled while a side has fewer than 2 selected runs (CP1). */
+const NO_P_VALUES = 'Disabled: a p-value needs at least 2 selected runs on each side.'
+
 const CONFIDENCE_OPTIONS = CONFIDENCES.map((value) => ({ value, label: `${value}%` }))
 
 type Classification = Pick<
@@ -85,6 +94,11 @@ interface Props {
   settings: Classification
   /** Memoize it. */
   update(changes: Partial<Classification>): void
+  /**
+   * Whether both sides have the 2 selected runs a p-value needs, without which the P-value filter
+   * is disabled.
+   */
+  pValues: boolean
 }
 
 /**
@@ -92,12 +106,13 @@ interface Props {
  * "Hide unchanged" and "Hide inconclusive", and the "Filters" button, which opens the filters in a
  * panel below it, each enabled with its checkbox, and its value typed.
  */
-export function ClassificationControls({ settings, update }: Props) {
+export function ClassificationControls({ settings, update, pValues }: Props) {
   // The value of each filter as the panel last closed, which a disabled filter opens on again: the
   // URL holds only those of the enabled filters.
   const kept = useRef<KeptValues>({})
   const filters = filterSettings(settings)
-  const enabled = FILTERS.filter((filter) => filters[filter.key] !== null).length
+  const applied = appliedFilters(filters, pValues)
+  const applying = FILTERS.filter((filter) => applied[filter.key] !== null).length
   return (
     <div className={styles.classification}>
       <MarginInput value={settings.margin} onChange={(margin) => update({ margin })} />
@@ -126,7 +141,7 @@ export function ClassificationControls({ settings, update }: Props) {
       </label>
       <DialogTrigger>
         <Button>
-          Filters{enabled > 0 ? ` (${enabled})` : ''} <span aria-hidden="true">▾</span>
+          Filters{applying > 0 ? ` (${applying})` : ''} <span aria-hidden="true">▾</span>
         </Button>
         <Popover placement="bottom start">
           <Dialog className={styles.filters} aria-label="Filters">
@@ -135,6 +150,7 @@ export function ClassificationControls({ settings, update }: Props) {
                 key={filter.key}
                 filter={filter}
                 value={filters[filter.key]}
+                reason={filter.key === 'pValue' && !pValues ? NO_P_VALUES : undefined}
                 kept={kept}
                 onChange={(key, value) => update({ [FILTER_PARAMS[key]]: value })}
               />
@@ -164,11 +180,12 @@ function useNumberText(start: number, min: number, max: number) {
   return { text, valid, invalid: parse(text) === undefined, onText, why: `A number ${range}.` }
 }
 
-/** The input of a number typed (see `useNumberText`). */
+/** The input of a number typed (see `useNumberText`), saying on hover why it is disabled. */
 function NumberInput({
   typed: { text, invalid, onText, why },
+  reason,
   ...attributes
-}: { typed: ReturnType<typeof useNumberText> } & Pick<
+}: { typed: ReturnType<typeof useNumberText>; reason?: string } & Pick<
   InputHTMLAttributes<HTMLInputElement>,
   'aria-label' | 'aria-labelledby' | 'aria-describedby' | 'disabled'
 >) {
@@ -179,7 +196,7 @@ function NumberInput({
       className={styles.numberInput}
       value={text}
       aria-invalid={invalid || undefined}
-      title={invalid ? why : undefined}
+      title={reason ?? (invalid ? why : undefined)}
       onChange={(event) => onText(event.target.value)}
       {...attributes}
     />
@@ -232,6 +249,11 @@ interface FilterProps {
   filter: Filter
   /** The filter's value, or null while it is disabled. */
   value: number | null
+  /**
+   * Why the filter cannot be used for now, if it cannot: its checkbox and its value are then
+   * disabled, saying why on hover and to assistive technology, but keep their setting.
+   */
+  reason?: string
   /** Each filter's value as the panel last closed (see `ClassificationControls`). */
   kept: RefObject<KeptValues>
   onChange(key: FilterKey, value: number | null): void
@@ -241,7 +263,7 @@ interface FilterProps {
  * A filter: its checkbox, and its value, typed in an input, which is disabled while the filter is.
  * A valid value is applied once typing pauses, or as the panel closes, if that is sooner.
  */
-function FilterInput({ filter, value, kept, onChange }: FilterProps) {
+function FilterInput({ filter, value, reason, kept, onChange }: FilterProps) {
   const start = value ?? kept.current[filter.key] ?? filter.initial
   const typed = useNumberText(start, filter.min, filter.max)
   const { valid } = typed
@@ -260,14 +282,17 @@ function FilterInput({ filter, value, kept, onChange }: FilterProps) {
   })
   useEffect(() => () => close.current(), [])
 
+  const reasonId = useId()
+  const why = reason === undefined ? undefined : reasonId
   return (
     <>
-      <span className={styles.filterLabel}>
+      <span className={styles.filterLabel} title={reason}>
         <input
           type="checkbox"
           checked={enabled}
+          disabled={reason !== undefined}
           aria-labelledby={labelId}
-          aria-describedby={helpId}
+          aria-describedby={why === undefined ? helpId : `${why} ${helpId}`}
           onChange={(event) => onChange(filter.key, event.target.checked ? valid : null)}
         />
         <HelpLabel id={labelId} help={filter.help}>
@@ -276,8 +301,19 @@ function FilterInput({ filter, value, kept, onChange }: FilterProps) {
         <VisuallyHidden elementType="span" id={helpId}>
           {filter.help}
         </VisuallyHidden>
+        {reason !== undefined && (
+          <VisuallyHidden elementType="span" id={reasonId}>
+            {reason}
+          </VisuallyHidden>
+        )}
       </span>
-      <NumberInput typed={typed} aria-label={`${filter.label} threshold`} disabled={!enabled} />
+      <NumberInput
+        typed={typed}
+        aria-label={`${filter.label} threshold`}
+        aria-describedby={why}
+        disabled={!enabled || reason !== undefined}
+        reason={reason}
+      />
     </>
   )
 }

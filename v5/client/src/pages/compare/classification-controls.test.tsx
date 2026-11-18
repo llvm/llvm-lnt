@@ -4,7 +4,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { currentUrl, query, renderPage } from '../../test/page'
 import { pickOption } from '../../test/select'
 import { SEARCH_DELAY_MS } from '../../components/suggestions'
-import { SUITE } from '../../test/fixtures'
+import { SUITE, uuidOf } from '../../test/fixtures'
 import {
   CLASSIFIED,
   COMPARED,
@@ -12,6 +12,7 @@ import {
   listedTests,
   mockWorld,
   CHANGES,
+  runBox,
   showBox,
   statusOf,
 } from './compare-world'
@@ -242,6 +243,33 @@ describe('the filters (CP1)', () => {
     expect(await listedTests()).toEqual(['up', 'wild', 'flat', 'down', 'only'])
   })
 
+  it('disable P-value at most while a side has fewer than 2 selected runs, keeping it', async () => {
+    mockWorld(CLASSIFIED)
+    renderPage(`${COMPARED}&max_pvalue=0.05&runs_b=${uuidOf('3')}`)
+    // Not applied: it would leave out every test that can be compared.
+    expect(await listedTests()).toHaveLength(7)
+    expect(screen.getByRole('button', { name: /^Filters/ })).toHaveTextContent(/^Filters ▾$/)
+    await open()
+    const filter = screen.getByRole('checkbox', { name: 'P-value at most' })
+    const threshold = screen.getByRole('textbox', { name: 'P-value at most threshold' })
+    for (const control of [filter, threshold]) {
+      expect(control).toBeDisabled()
+      expect(control).toHaveAccessibleDescription(
+        /^Disabled: a p-value needs at least 2 selected runs on each side\./,
+      )
+    }
+    expect(filter).toBeChecked()
+    expect(threshold).toHaveValue('0.05')
+    await userEvent.setup().keyboard('{Escape}')
+
+    await userEvent.setup().click(runBox('5', 'B'))
+
+    // With 2 runs on each side, it applies again: one, neg and only have no p-value.
+    await waitFor(async () => expect(await listedTests()).toEqual(['up', 'down', 'only']))
+    expect(query().max_pvalue).toEqual(['0.05'])
+    expect(screen.getByRole('button', { name: /^Filters/ })).toHaveTextContent('Filters (1)')
+  })
+
   it('apply Absolute at least to the larger absolute value, the threshold included', async () => {
     mockWorld(CLASSIFIED)
     renderPage(`${COMPARED}&min_abs=151`)
@@ -417,7 +445,7 @@ describe('the filters (CP1)', () => {
   })
 
   it('keep applying the last valid value while the text is not one', async () => {
-    mockWorld(CHANGES)
+    mockWorld(CLASSIFIED)
     renderPage(`${COMPARED}&max_pvalue=0.05`)
     await comparison()
     const user = userEvent.setup()
@@ -433,7 +461,7 @@ describe('the filters (CP1)', () => {
   })
 
   it('leave a filter disabled when the URL gives it a value it does not accept', async () => {
-    mockWorld(CHANGES)
+    mockWorld(CLASSIFIED)
     renderPage(`${COMPARED}&max_pvalue=2&min_abs=abc&min_delta_pct=-1`)
     await comparison()
 
@@ -444,5 +472,6 @@ describe('the filters (CP1)', () => {
     const threshold = screen.getByRole('textbox', { name: 'P-value at most threshold' })
     expect(threshold).toBeDisabled()
     expect(threshold).toHaveValue('0.05')
+    expect(screen.getByRole('checkbox', { name: 'P-value at most' })).toBeEnabled()
   })
 })

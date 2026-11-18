@@ -122,7 +122,7 @@ Global controls, shared by both sides:
   whose status is Unchanged, or Inconclusive, from the table and the chart.
 - **Filters**: a button opening a panel below it, over the page, which holds
   three filters, one per row, and closes on Escape or a click outside it. The
-  button says how many filters are enabled, as in `Filters (2)`, while any is.
+  button says how many filters apply, as in `Filters (2)`, while any does.
   Each filter has a checkbox to enable it (off by default) and a value. While a
   filter is disabled, so is its value's input: a value can only be typed once
   the filter is enabled. Closing the panel keeps the values typed in it, and a
@@ -133,12 +133,17 @@ Global controls, shared by both sides:
   - **P-value at most** (0.05 by default, between 0 and 1): the test's p-value
     (see CP2 "Computation Reference") is at most the value. A test without a
     p-value, with fewer than 2 runs on a side or a run's value of 0 or less,
-    fails it, which its help tooltip says.
+    fails it, which its help tooltip says. While a side has fewer than 2
+    selected runs, no test can have a p-value: the filter's checkbox and value
+    are then disabled, saying why on hover and to assistive technology, and the
+    filter does not apply. It keeps its setting, in the URL too, and applies
+    again once both sides have 2 selected runs or more.
   - **Absolute at least** (0 by default, at least 0): max(|Value A|,
     |Value B|), in the metric's unit, is at least the value. For measurements
     too small to be meaningful, which more runs would not make conclusive.
 
-  A test passes the filters when it passes every enabled one. A test whose
+  A test passes the filters when it passes every one that applies: every
+  enabled one, but for P-value at most while it is disabled. A test whose
   status is N/A passes every filter. The filters never change a test's status:
   they only narrow the tests looked at (see CP2 "Rows" and CP4).
 
@@ -217,7 +222,7 @@ all use these rows.
   and the geomean summary row, have no tooltip.
 - **Summary message**: above the rows, a message says how many of the table's
   rows are shown, as the Graph's test table does (see GR6): "120 of 150 tests
-  shown", or while the test filter is set or a filter is enabled, "30 of 42
+  shown", or while the test filter is set or a filter applies, "30 of 42
   matching tests shown · 150 tests in total". Rows removed by "Hide unchanged"
   and "Hide inconclusive" are not counted. When too many
   tests are hidden for the URL to record them (see CP7), the message then says
