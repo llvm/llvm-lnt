@@ -217,7 +217,7 @@ function GraphPage() {
   let unpickable: string | undefined
   if (branches?.every((name) => name === null)) {
     unpickable = "This suite's commits with an ordinal are on no branch."
-  } else if (branches === undefined && branchList.isError) {
+  } else if (branches === undefined && branchList.isError && !branchList.isFetching) {
     unpickable = 'The branches could not be listed.'
   }
   const branchOptions = useMemo(
@@ -315,6 +315,14 @@ function GraphPage() {
   // Whether the branch plotted is still being found, which the chart's panels cannot be said to be
   // empty until, unlike the test table, whose tests are those of every branch.
   const branchPending = schema !== undefined && branch === undefined
+  // What the branch selector shows while it shows no branch (GR1).
+  let branchPlaceholder = 'No branch'
+  if (schema === undefined) {
+    const loading = suites.isPending && named !== NO_SUITE
+    branchPlaceholder = loading ? 'Loading branches...' : '-- Select branch --'
+  } else if (branchPending && unpickable === undefined) {
+    branchPlaceholder = 'Loading branches...'
+  }
   const listing = !tests.complete && tests.error === null
   // The metrics whose tests some machine has not listed yet, or could not: their panels are not
   // empty yet (GR12).
@@ -400,7 +408,7 @@ function GraphPage() {
             options={branchOptions}
             // The branch plotted, once known, and until then, what stands for it.
             value={branch === undefined ? null : branchKey(branch)}
-            placeholder={branchPending && !branchList.isError ? 'Loading branches...' : 'No branch'}
+            placeholder={branchPlaceholder}
             onChange={(key) => update({ branch: branchOfKey(key) })}
             isDisabled={!branches?.some((name) => name !== null)}
             title={unpickable}

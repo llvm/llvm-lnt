@@ -50,10 +50,9 @@ interface CommonProps {
    */
   inherited?: { text: string; description: string }
   /**
-   * Show the note of the value picked, if it has one, in muted text after the value's text in the
-   * input, while the input shows that text: no part of the text, which can be edited, but of the
-   * value, which assistive technology reads as the combobox's description, as this words it. A
-   * commit's branch, say (AR15).
+   * Shows the picked value's note, muted, after its text in the input while the input holds that
+   * text unchanged: a commit's branch, say (AR15). It is not part of the editable text, and
+   * assistive technology reads `describePickedNote(note)` as the input's description.
    */
   describePickedNote?: (note: string) => string
   /**
@@ -269,7 +268,7 @@ export function Combobox({
           {picked && (
             <span className={styles.pickedNote} aria-hidden="true">
               {/* One line of text, in which the space before the note is kept. */}
-              <span>
+              <span className={styles.pickedLine}>
                 <span className={styles.pickedText}>{text}</span>
                 <Note>{picked.note}</Note>
               </span>

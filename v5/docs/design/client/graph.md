@@ -28,18 +28,18 @@ several metrics at once, each in a panel of its own.
   of them have an ordinal, then the branch names. The chart plots one branch at
   a time, since the ordinals of different branches are unrelated (see D1): the
   x-axis (GR3) and the traces (GR2) hold the commits of that branch alone. The
-  selector is always there, after the suite selector, so that nothing moves
-  when a suite is selected. It is disabled while the suite's branches are being
-  listed, and says so; once they are, it shows the branch plotted. For a suite
-  whose list holds no named branch, it shows "No branch", disabled, and says
-  why on hover and to assistive technology, as it does when the branches could
-  not be listed. Without a branch in the URL (GR14), or once one that the list does
-  not hold is dropped (see AR2 "State"), the page plots the list's first entry,
-  and writes it to the URL if it is a named branch. Nothing is plotted until
-  the branches are listed, which the page does anew each time it is opened,
-  rather than trusting a list fetched before. Changing the branch keeps everything else: the
-  machines, the metrics, the selected tests, the baselines and the highlighted
-  commits.
+  selector is always there. Until a suite is selected, it says to select a
+  branch; while the suite's branches are being listed, it says so; once they
+  are, it shows the branch plotted. For a suite whose list holds no named
+  branch, it shows "No branch", disabled, and says why on hover and to
+  assistive technology, as it does when the branches could not be listed.
+  Without a branch in the URL (GR14), or once one that the list does not hold
+  is dropped (see AR2 "State"), the page plots the list's first entry, and
+  writes it to the URL if it is a named branch. Nothing is plotted until the
+  branches are listed, which the page does anew each time it is opened, rather
+  than trusting a list fetched before. Changing the branch keeps everything
+  else: the machines, the metrics, the selected tests, the baselines and the
+  highlighted commits.
 
 - **Machine chip input**: The machine selector is a chip-based multi-select
   input: the user adds a machine by picking it from a combobox (see AR14), and
@@ -197,9 +197,9 @@ incremental updates. The x-axis range is always preserved (it was established by
 the scaffold or by user zoom), until the scaffold itself changes, because the
 branch changed, a machine was removed or a machine's scaffold has arrived, which
 resets the zoom of every panel. A branch change resets the zoom even if its
-scaffold is cached. Each panel's y-axis range is preserved only when the user has
-explicitly zoomed it, and only until the metric at the panel's place changes,
-since another metric has another scale; otherwise, it auto-ranges to
+scaffold is cached. Each panel's y-axis range is preserved only when the user
+has explicitly zoomed it, and only until the metric at the panel's place
+changes, since another metric has another scale; otherwise, it auto-ranges to
 accommodate new data as it arrives. Adding a metric therefore keeps every
 panel's zoom, whereas removing one resets the zoom of the panels below it,
 which move up to places that showed other metrics. Double-clicking the chart

@@ -22,10 +22,10 @@
 }
 
 /*
- * The note of the value picked, after its text (see `describePickedNote`): over the input, laid out
- * as the input lays its text out -- with the padding, border and font size that index.css gives
- * every input -- which an unseen copy of it takes the place of, and cut short before the clear
- * button.
+ * The note of the value picked (see `describePickedNote`), over the input. It has the padding,
+ * border and font size that index.css gives every input, so that an unseen copy of the input's text
+ * before it puts it right after that text. Its line is clipped at the end of the input's text area,
+ * before the clear button.
  */
 .pickedNote {
   position: absolute;
@@ -36,8 +36,12 @@
   border: 1px solid transparent;
   font-size: 0.9rem;
   white-space: pre;
-  overflow: hidden;
   pointer-events: none;
+}
+
+.pickedLine {
+  min-width: 0;
+  overflow: hidden;
 }
 
 .pickedText {

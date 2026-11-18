@@ -93,6 +93,7 @@ describe('the Graph page (GR1)', () => {
     expect(await main().findByText('Select a suite first.')).toBeInTheDocument()
     expect(selectButton('Suite')).toHaveTextContent('-- Select suite --')
     expect(selectButton('Branch')).toBeDisabled()
+    expect(selectButton('Branch')).toHaveTextContent('-- Select branch --')
     expect(screen.getByRole('combobox', { name: 'Machines' })).toBeDisabled()
     expect(selectButton('Metrics')).toBeDisabled()
     expect(screen.getByRole('searchbox', { name: 'Filter tests' })).toBeDisabled()
@@ -223,6 +224,7 @@ describe('the Graph page (GR1)', () => {
 
     expect(await main().findByText('Loading...')).toBeInTheDocument()
     expect(layout().annotations).toEqual([])
+    expect(selectButton('Branch')).toHaveTextContent('Loading branches...')
     act(() => suites.open())
     await waitFor(() => expect(traces()).toEqual(['a - m1: c10=1 c20=2']))
   })
@@ -516,12 +518,18 @@ describe('the branch (GR1, GR3, GR14)', () => {
     expect(layout().annotations).toEqual([])
     expect(selectButton('Branch')).toBeDisabled()
     expect(selectButton('Branch')).toHaveAccessibleDescription('The branches could not be listed.')
+    const listed = gate()
     server.use(
-      mockApi('get', '/api/projects/{project}/suites/{suite}/branches', () =>
-        HttpResponse.json({ items: [{ name: null }] }),
-      ),
+      mockApi('get', '/api/projects/{project}/suites/{suite}/branches', async () => {
+        await listed.promise
+        return HttpResponse.json({ items: [{ name: null }] })
+      }),
     )
     await userEvent.setup().click(main().getByRole('button', { name: 'Retry' }))
+    // Loading again, rather than failed.
+    await waitFor(() => expect(selectButton('Branch')).toHaveTextContent('Loading branches...'))
+    expect(selectButton('Branch')).not.toHaveAccessibleDescription()
+    act(() => listed.open())
     await waitFor(() => expect(traces()).toEqual(['a - m1: c10=1 c20=2']))
   })
 })
