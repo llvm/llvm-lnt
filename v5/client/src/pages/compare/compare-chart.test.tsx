@@ -11,7 +11,17 @@ import { gate, main, query, renderPage, search } from '../../test/page'
 import { pickOption } from '../../test/select'
 import { server } from '../../test/server'
 import type { PlotGeometry } from '../../components/chart'
-import { barsOf, chart, COMPARED, comparison, mockWorld, NOISY, runBox, showBox } from './compare-world'
+import {
+  barsOf,
+  chart,
+  CLASSIFIED,
+  COMPARED,
+  comparison,
+  mockWorld,
+  NOISY,
+  runBox,
+  showBox,
+} from './compare-world'
 
 // The tests check what the page hands Plotly to draw (see test/chart.tsx).
 vi.mock('../../components/chart', () => import('../../test/chart'))
@@ -29,15 +39,21 @@ describe('the chart (CP3)', () => {
     await waitFor(() => expect(barsOf()).toEqual([Math.log2(1.005)]))
   })
 
-  it("draws the Delta % knob's noise band", async () => {
+  it('draws no band, whatever the margin and the filters', async () => {
     mockWorld(NOISY)
-    renderPage(`${COMPARED}&noise_pct=5`)
+    renderPage(`${COMPARED}&margin=50&min_delta_pct=0`)
     await comparison()
 
-    expect(chart().layout.shapes?.map((shape) => shape.y0)).toEqual([
-      Math.log2(1.05),
-      Math.log2(0.95),
-    ])
+    expect(chart().layout.shapes).toBeUndefined()
+  })
+
+  it('plots only the tests the filters and the hide checkboxes keep', async () => {
+    mockWorld(CLASSIFIED)
+    renderPage(`${COMPARED}&min_delta_pct=40&hide_inconclusive=true`)
+    await comparison()
+
+    // down and up: neg is inconclusive, and only has a value on side A only.
+    expect(barsOf()).toEqual([Math.log2(0.5), Math.log2(151 / 101)])
   })
 
   it('says when there is nothing to plot', async () => {
@@ -88,8 +104,15 @@ describe('the chart (CP3)', () => {
     const revision = chart().layout.uirevision
     await pickOption('Sample aggregation', 'max')
     search('Filter tests', 'a')
-    await user.click(screen.getByRole('checkbox', { name: 'Hide noise' }))
-    await waitFor(() => expect(query()).toMatchObject({ hide_noise: ['true'], test_filter: ['a'] }))
+    await user.click(screen.getByRole('checkbox', { name: 'Hide unchanged' }))
+    await pickOption('Confidence', '95%')
+    await waitFor(() =>
+      expect(query()).toMatchObject({
+        hide_unchanged: ['true'],
+        confidence: ['95'],
+        test_filter: ['a'],
+      }),
+    )
     expect(ticks()).toEqual(zoomed)
     expect(chart().layout.uirevision).toBe(revision)
 
@@ -263,7 +286,7 @@ describe('the details of a bar (CP3)', () => {
       'Ratio',
       'Status',
     ])
-    expect(values).toEqual(['2', '3', '1', '+50.00%', '1.5000', 'Regressed'])
+    expect(values).toEqual(['2', '3', '1', '+50.00%', '1.5000', 'Inconclusive'])
     // As the table's cells, with their tooltips.
     const valueA = details().getAllByRole('definition')[0]
     expect(within(valueA).getByText('2')).toHaveAttribute('title', '3 samples across 2 runs')
@@ -489,6 +512,24 @@ describe('the details of a bar (CP3)', () => {
     showBox('a').focus()
     await user.keyboard(' ')
     await waitFor(() => expect(barsOf()).toHaveLength(1))
+    expect(dialog()).not.toBeInTheDocument()
+  })
+
+  it('closes on a change of the margin or the confidence', async () => {
+    mockWorld(WORLD)
+    await shown()
+    const user = userEvent.setup()
+
+    click(0)
+    screen.getByRole('textbox', { name: 'Margin' }).focus()
+    await user.keyboard('0')
+    await waitFor(() => expect(query().margin).toEqual(['50']))
+    expect(dialog()).not.toBeInTheDocument()
+
+    click(0)
+    screen.getByRole('button', { name: /Confidence/ }).focus()
+    await user.keyboard('{ArrowRight}')
+    await waitFor(() => expect(query().confidence).toEqual(['95']))
     expect(dialog()).not.toBeInTheDocument()
   })
 

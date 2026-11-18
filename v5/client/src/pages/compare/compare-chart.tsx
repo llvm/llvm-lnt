@@ -10,7 +10,6 @@ import {
   chartBars,
   chartExtent,
   compareLayout,
-  noiseBand,
   ratioTicks,
   shadowTrace,
   type Bar,
@@ -24,8 +23,6 @@ interface Props {
   rows: ComparisonRow[]
   /** The shadows' lines, each a shadow's points, sorted by their ratios (CP8). */
   shadows: readonly ShadowLine[]
-  /** The Delta % knob's threshold, while it is enabled, whose noise band the chart draws. */
-  noisePct: number | null
   /** What the comparison is: a change resets the zoom (CP3 "Zoom"). */
   revision: string
   /** The test whose row is hovered in the table, whose bar the chart outlines (CP5). */
@@ -75,7 +72,7 @@ function Outline({ geometry, bar, index }: { geometry: PlotGeometry; bar: Bar; i
 
 /**
  * The comparison's chart (CP3): a bar per compared test, by ratio, on a log2 axis labelled with the
- * percentage changes, the Delta % knob's noise band, and the lines of the shadows pinned (CP8).
+ * percentage changes, and the lines of the shadows pinned (CP8).
  * Its ticks follow a zoom of the y-axis.
  * Hovering a bar highlights its test's row, and hovering a row outlines its bar (CP5). Clicking a
  * bar shows its test's details (CP3).
@@ -83,7 +80,6 @@ function Outline({ geometry, bar, index }: { geometry: PlotGeometry; bar: Bar; i
 export function CompareChart({
   rows,
   shadows,
-  noisePct,
   revision,
   emphasis,
   hovered,
@@ -105,7 +101,6 @@ export function CompareChart({
     [trace, lines, bars],
   )
 
-  const band = useMemo(() => (noisePct === null ? null : noiseBand(noisePct)), [noisePct])
   // The y-axis range zoomed to, forgotten once the comparison is replaced, as Plotly forgets it.
   const [zoom, setZoom] = useState<[number, number] | null>(null)
   const [zoomedOn, setZoomedOn] = useState(revision)
@@ -117,16 +112,15 @@ export function CompareChart({
     () =>
       chartExtent(
         bars,
-        band,
         shadows.map((line) => line.points ?? []),
       ),
-    [bars, band, shadows],
+    [bars, shadows],
   )
   const [low, high] = (zoomedOn === revision ? zoom : null) ?? extent
   const empty = bars.length === 0 && lines.length === 0
   const layout = useMemo(
-    () => compareLayout({ ticks: ratioTicks(low, high), band, revision, empty }),
-    [low, high, band, revision, empty],
+    () => compareLayout({ ticks: ratioTicks(low, high), revision, empty }),
+    [low, high, revision, empty],
   )
 
   // Where the plot draws, to outline a bar over it. Nothing drawn depends on it, so that a draw

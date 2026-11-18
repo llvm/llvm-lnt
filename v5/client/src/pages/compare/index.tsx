@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from 'react'
+import { useRef, useState } from 'react'
 import { AGGREGATION_OPTIONS, type Aggregation } from '../../aggregation'
 import { useSuites } from '../../api/suites'
 import { ActionButton } from '../../components/action-button'
@@ -9,17 +9,16 @@ import { Select } from '../../components/select'
 import { labelOf } from '../../schema'
 import { useUrlState, useVisitKey } from '../../url-state'
 import { ValueStore } from '../../value-store'
-import type { NoiseKnob } from './comparison'
 import { AddToRegression } from './add-to-regression'
+import { ClassificationControls } from './classification-controls'
 import { BarDetails } from './bar-details'
 import { ColumnsMenu } from './columns-menu'
 import { chosenRuns, failedRuns, runCount, waiting } from './loading'
 import { useMetric } from './metrics'
 import { CompareChart } from './compare-chart'
 import { CompareTable } from './compare-table'
-import { NoiseControls } from './noise-controls'
 import { RangeLink } from './repository-links'
-import { NOISE_PARAMS, noiseSettings, PARAMS } from './settings'
+import { PARAMS } from './settings'
 import { useShadowLines, useShadows } from './shadows'
 import { ShadowStatus } from './shadow-status'
 import { SidePanel } from './side-panel'
@@ -63,15 +62,9 @@ function ComparePage() {
     table.plotted,
   )
 
-  const onNoise = useCallback(
-    (knob: NoiseKnob, value: number | null) => update({ [NOISE_PARAMS[knob]]: value }),
-    [update],
-  )
-
   // Neither side has a suite whose schema is known: none is picked, or the suites the URL names
   // have not loaded.
   const noSchema = a.schema === undefined && b.schema === undefined
-  const noise = noiseSettings(settings)
   const failed = failedRuns(a, b, sides.states)
   const wait = waiting(a, b, sides.states, {
     suitesPending: suites.isPending,
@@ -148,12 +141,7 @@ function ComparePage() {
             regex={settings.test_filter_regex}
             onRegexChange={(regex) => update({ test_filter_regex: regex })}
           />
-          <NoiseControls
-            noise={noise}
-            onNoise={onNoise}
-            hideNoise={settings.hide_noise}
-            onHideNoise={(hide) => update({ hide_noise: hide })}
-          />
+          <ClassificationControls settings={settings} update={update} />
         </div>
       </ControlsPanel>
       <ControlsPanel>
@@ -192,7 +180,6 @@ function ComparePage() {
           <CompareChart
             rows={table.plotted}
             shadows={lines}
-            noisePct={noise.pct}
             revision={[...chosenRuns(a), '|', ...chosenRuns(b), '|', metric?.name].join('\n')}
             emphasis={emphasis}
             hovered={hovered}

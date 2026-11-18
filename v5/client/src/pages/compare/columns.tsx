@@ -10,9 +10,11 @@ import { sortRows, type SortDirection, type SortKey } from '../../components/tab
 import { formatNumber, NA, plural } from '../../format'
 import {
   LABELS,
+  pValueOf,
   STATUSES,
+  type Change,
   type ComparisonRow,
-  type NoiseReason,
+  type Interval,
   type SideStatistics,
   type Status,
   type Values,
@@ -33,8 +35,17 @@ export interface CompareColumn {
   cell(row: Row): ReactNode
   /** What a test's row is sorted by: null for N/A, which sorts last in both directions. */
   sortKey(row: ComparisonRow): SortKey
-  /** What Copy as CSV writes of the row: a number at full precision, null for N/A. */
-  csv(row: Row): CsvCell
+  /**
+   * The columns Copy as CSV writes for it: one with its header, but for the CI. Each writes a
+   * number at full precision, null for N/A.
+   */
+  csv: CsvColumn[]
+}
+
+/** A column Copy as CSV writes: its header, and what it writes of a row. */
+interface CsvColumn {
+  header: string
+  value(row: Row): CsvCell
 }
 
 /** A side's value, or a difference between them, as AR6 shows a measured value. */
@@ -42,10 +53,26 @@ function formatValue(value: number | null): string {
   return value === null ? NA : formatNumber(value)
 }
 
-/** Delta %, with its sign, to 2 decimal places. */
+/**
+ * Delta %, with its sign, to 2 decimal places. An infinite one, which only the bound of a
+ * confidence interval can be, is `+∞%`.
+ */
 export function formatDeltaPct(value: number | null): string {
   if (value === null) return NA
-  return `${value > 0 ? '+' : value < 0 ? '-' : ''}${Math.abs(value).toFixed(2)}%`
+  const magnitude = Number.isFinite(value) ? Math.abs(value).toFixed(2) : '∞'
+  return `${value > 0 ? '+' : value < 0 ? '-' : ''}${magnitude}%`
+}
+
+/** The percentage change of a logarithm of a ratio. */
+const percentOf = (log: number) => Math.expm1(log) * 100
+
+/**
+ * A confidence interval, as its estimate and its bounds in brackets, each a percentage change as
+ * Delta % is shown: `+58.12% [-16.03%, +197.40%]` (CP2 "Optional columns").
+ */
+export function formatInterval({ estimate, low, high }: Interval): string {
+  const [e, l, h] = [estimate, low, high].map((log) => formatDeltaPct(percentOf(log)))
+  return `${e} [${l}, ${h}]`
 }
 
 /** A ratio, to 4 decimal places. */
@@ -87,35 +114,43 @@ function numberColumn(
     looks: ['numeric', 'nowrap'],
     cell: (row) => <span title={title(row)}>{format(value(row))}</span>,
     sortKey: value,
-    csv: value,
+    csv: [{ header, value }],
+  }
+}
+
+/** The words saying where a confidence interval lies against the margin, by the status it gives. */
+const AGAINST_MARGIN: Partial<Record<Status, string>> = {
+  improved: 'beyond the margin',
+  regressed: 'beyond the margin',
+  unchanged: 'within the margin',
+  inconclusive: 'straddles an edge of the margin',
+}
+
+/**
+ * What a test's status says of its change (CP2 "Status colors"): its confidence interval and where
+ * it lies against the margin, or why it has none. Nothing for a test that cannot be compared.
+ */
+export function describeStatus(status: Status, change: Change): string | undefined {
+  if (status === 'na') return undefined
+  switch (change.kind) {
+    case 'interval':
+      return `${change.confidence}% CI: ${formatInterval(change)}, ${AGAINST_MARGIN[status]}`
+    case 'runs': {
+      const where = change.sides === 'both' ? 'each side' : `side ${change.sides}`
+      return `Only 1 run on ${where}: a CI needs at least 2 runs on each side`
+    }
+    case 'nonPositive':
+      return "A run's value is 0 or negative: the change has no CI"
   }
 }
 
 /**
- * Why a knob classified a test as noise, e.g. `Delta 0.31% below 1% threshold` (CP2): |Delta %| to
- * 2 decimal places, as the Delta % column shows it, and the other values as measured values are.
+ * A row's status, in its colour: green for improved, red for regressed, amber for inconclusive,
+ * grey otherwise, and `detail` on hover (CP2).
  */
-function describeNoise({ knob, value, threshold }: NoiseReason): string {
-  switch (knob) {
-    case 'pct':
-      return `Delta ${value.toFixed(2)}% below ${threshold}% threshold`
-    case 'pval':
-      return `p-value ${formatNumber(value)} above ${threshold}`
-    case 'floor':
-      return `max(|A|, |B|) = ${formatNumber(value)} below floor of ${threshold}`
-  }
-}
-
-/**
- * A row's status, in its colour: green for improved, red for regressed, grey otherwise, and for
- * noise, the knobs that classified it so on hover (CP2).
- */
-function statusLabel(status: Status, noise: NoiseReason[] = []): ReactNode {
+function statusLabel(status: Status, detail?: string): ReactNode {
   return (
-    <span
-      className={clsx(styles.status, styles[status])}
-      title={noise.length > 0 ? noise.map(describeNoise).join('\n') : undefined}
-    >
+    <span className={clsx(styles.status, styles[status])} title={detail}>
       {LABELS[status]}
     </span>
   )
@@ -128,7 +163,7 @@ const COLUMNS: CompareColumn[] = [
     header: 'Test',
     cell: (row) => (row.test === null ? <strong>Geomean</strong> : row.test),
     sortKey: (row) => row.test,
-    csv: (row) => row.test ?? 'Geomean',
+    csv: [{ header: 'Test', value: (row) => row.test ?? 'Geomean' }],
   },
   numberColumn('value_a', 'Value A', (row) => row.a, formatValue, titleA),
   numberColumn('value_b', 'Value B', (row) => row.b, formatValue, titleB),
@@ -139,10 +174,16 @@ const COLUMNS: CompareColumn[] = [
     id: 'status',
     header: 'Status',
     looks: ['nowrap'],
-    cell: (row) => statusLabel(row.status, row.test === null ? undefined : row.noise),
+    cell: (row) =>
+      statusLabel(
+        row.status,
+        row.test === null ? undefined : describeStatus(row.status, row.change),
+      ),
     // N/A after every other status, in both directions, as a row without a value is.
     sortKey: (row) => (row.status === 'na' ? null : STATUSES.indexOf(row.status)),
-    csv: (row) => (row.status === 'na' ? null : LABELS[row.status]),
+    csv: [
+      { header: 'Status', value: (row) => (row.status === 'na' ? null : LABELS[row.status]) },
+    ],
   },
 ]
 
@@ -155,10 +196,14 @@ export const OPTIONAL_KEYS = [
   'max',
   'stddev',
   'cv',
+  'ci',
   'pvalue',
 ] as const
 
 export type OptionalKey = (typeof OPTIONAL_KEYS)[number]
+
+/** The optional columns that are statistics of the samples, or the p-value: all but `ci`. */
+type StatisticKey = Exclude<OptionalKey, 'ci'>
 
 /** An optional statistic: what it is called, how it is shown, and its value, per side or not. */
 type Statistic = { label: string; format: (value: number) => string } & (
@@ -168,8 +213,8 @@ type Statistic = { label: string; format: (value: number) => string } & (
 
 const toFixed2 = (value: number) => value.toFixed(2)
 
-/** The optional statistics (CP2 "Optional columns"), each over a side's samples for a test. */
-const STATISTICS: Record<OptionalKey, Statistic> = {
+/** The optional statistics (CP2 "Optional columns"). */
+const STATISTICS: Record<StatisticKey, Statistic> = {
   samples: { label: 'Samples', format: String, perSide: true, of: (side) => side.count },
   mean: { label: 'Mean', format: formatNumber, perSide: true, of: (side) => side.mean },
   median: { label: 'Median', format: formatNumber, perSide: true, of: (side) => side.median },
@@ -177,16 +222,23 @@ const STATISTICS: Record<OptionalKey, Statistic> = {
   max: { label: 'Max', format: formatNumber, perSide: true, of: (side) => side.max },
   stddev: { label: 'Std dev', format: formatNumber, perSide: true, of: (side) => side.stddev },
   cv: { label: 'CV %', format: toFixed2, perSide: true, of: (side) => side.cv },
-  pvalue: { label: 'P-value', format: formatNumber, perSide: false, of: (row) => row.pValue },
+  pvalue: {
+    label: 'P-value',
+    format: formatNumber,
+    perSide: false,
+    of: (row) => pValueOf(row.change),
+  },
 }
 
-/** How the Columns menu names the optional statistic `key`. */
+/** How the Columns menu names the optional column `key`. */
 export function optionalLabel(key: OptionalKey): string {
-  return STATISTICS[key].label
+  return key === 'ci' ? 'CI' : STATISTICS[key].label
 }
 
-/** What the Columns menu says the statistics are computed over (CP2 "Optional columns"). */
-export const STATISTICS_OVER = 'Computed over all samples without aggregation.'
+/** What the Columns menu says the optional columns are computed over (CP2 "Optional columns"). */
+export const STATISTICS_OVER =
+  'Samples to CV % are computed over all samples, without aggregation; ' +
+  "CI and P-value over the runs' values."
 
 /** A statistic of each test, as a column, empty on the geomean row. */
 function statisticColumn(
@@ -206,12 +258,48 @@ function statisticColumn(
       return statistic === null ? NA : format(statistic)
     },
     sortKey: value,
-    csv: valueOf,
+    csv: [{ header, value: valueOf }],
   }
 }
 
-/** The columns of the optional statistic `key`: one per side, A before B, or one for the test. */
-function optionalColumns(key: OptionalKey): CompareColumn[] {
+/** A test's confidence interval, or null where it has none, as on the geomean row. */
+function shownInterval(row: Row): Interval | null {
+  return row.test === null || row.change.kind !== 'interval' ? null : row.change
+}
+
+/**
+ * The CI column, at `confidence`, a percentage (CP2 "Optional columns"), which Copy as CSV writes
+ * as three columns: the estimate and the bounds, each a percentage change.
+ */
+function intervalColumn(confidence: number): CompareColumn {
+  const percent = (part: 'estimate' | 'low' | 'high') => (row: Row) => {
+    const interval = shownInterval(row)
+    return interval === null ? null : percentOf(interval[part])
+  }
+  return {
+    id: 'ci',
+    header: `${confidence}% CI`,
+    looks: ['numeric', 'nowrap'],
+    cell: (row) => {
+      if (row.test === null) return null
+      const interval = shownInterval(row)
+      return interval === null ? NA : formatInterval(interval)
+    },
+    sortKey: (row) => shownInterval(row)?.estimate ?? null,
+    csv: [
+      { header: 'CI estimate %', value: percent('estimate') },
+      { header: `${confidence}% CI low %`, value: percent('low') },
+      { header: `${confidence}% CI high %`, value: percent('high') },
+    ],
+  }
+}
+
+/**
+ * The columns of the optional column `key`: one per side, A before B, or one for the test, at
+ * `confidence` for the CI.
+ */
+function optionalColumns(key: OptionalKey, confidence: number): CompareColumn[] {
+  if (key === 'ci') return [intervalColumn(confidence)]
   const statistic = STATISTICS[key]
   const { label, format } = statistic
   if (!statistic.perSide) {
@@ -225,10 +313,12 @@ function optionalColumns(key: OptionalKey): CompareColumn[] {
 
 /**
  * The table's columns with the optional ones `shown`, in the order of `OPTIONAL_KEYS`, between Ratio
- * and Status.
+ * and Status, the CI at `confidence`, a percentage, if it is shown.
  */
-export function tableColumns(shown: readonly OptionalKey[]): CompareColumn[] {
-  const optional = OPTIONAL_KEYS.filter((key) => shown.includes(key)).flatMap(optionalColumns)
+export function tableColumns(shown: readonly OptionalKey[], confidence = 90): CompareColumn[] {
+  const optional = OPTIONAL_KEYS.filter((key) => shown.includes(key)).flatMap((key) =>
+    optionalColumns(key, confidence),
+  )
   return [...COLUMNS.slice(0, -1), ...optional, ...COLUMNS.slice(-1)]
 }
 
@@ -255,9 +345,10 @@ export function comparisonCsv(
   rows: readonly ComparisonRow[],
 ): string {
   const geomeanRow: GeomeanRow = { ...geomean, test: null }
+  const written = columns.flatMap((column) => column.csv)
   return toCsv([
-    columns.map((column) => column.header),
-    columns.map((column) => column.csv(geomeanRow)),
-    ...rows.map((row) => columns.map((column) => column.csv(row))),
+    written.map((column) => column.header),
+    written.map((column) => column.value(geomeanRow)),
+    ...rows.map((row) => written.map((column) => column.value(row))),
   ])
 }

@@ -166,7 +166,7 @@ describe('Add to Regression (CP9)', () => {
   })
 
   it('makes indicators of the rows the table compares, on side B as the sides are now', async () => {
-    // Run 3 is m1's at c2, and run 4 m2's: c is noise, and e is on run 3 only.
+    // Run 3 is m1's at c2, and run 4 m2's: c changes by 0.2%, and e is on run 3 only.
     mockWorld({
       samples: {
         '3': [
@@ -184,8 +184,8 @@ describe('Add to Regression (CP9)', () => {
     })
     const requests = mockCreateRegression(regressionDetail('d', { title: 'Slow' }))
     mockRegressions(() => cursorPage(REGRESSIONS))
-    // The filter leaves out d, "Hide noise" c, and a is hidden: once swapped, side B is other's m1
-    // at c2, and only e makes an indicator.
+    // The test filter leaves out d, the |Delta %| filter c, and a is hidden: once swapped, side B
+    // is other's m1 at c2, and only e makes an indicator.
     const query = new URLSearchParams({
       project_a: 'llvm',
       suite_a: 'other',
@@ -196,8 +196,7 @@ describe('Add to Regression (CP9)', () => {
       machine_b: 'm2',
       commit_b: 'c2',
       metric: 'execution_time',
-      noise_pct: '1',
-      hide_noise: 'true',
+      min_delta_pct: '1',
       hidden_test: 'a',
       test_filter: '^[ace]$',
       test_filter_regex: 'true',

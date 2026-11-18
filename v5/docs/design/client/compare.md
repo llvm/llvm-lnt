@@ -24,8 +24,8 @@ suite-agnostic: each side selects its own suite. Layout:
 Diff on GitHub: 0f985af790f8 → 014621ede7c1
 
 Metric [Execution Time v]  Run aggregation [median v]  Sample aggregation [median v]
-[ ] Hide noise  [Noise filtering v]
 [Filter tests...] [ ] Regex
+Margin [5] %  Confidence [90% v]  [ ] Hide unchanged  [ ] Hide inconclusive  [Filters v]
 
 > Add to regression
 
@@ -34,12 +34,12 @@ Metric [Execution Time v]  Run aggregation [median v]  Sample aggregation [media
 [▲ Shadow: libc++ › Benchmarks › linux-x86_64 › 014621ede7c1 (llvmorg-21.1.0) · 1 of 2 runs · 301 tests  x]
 <chart>
 
-o Improved 120 (40%)  o Regressed 30 (10%)  o Noise 0 (0%)  o Unchanged 150 (50%)  o Only in A 2  o Only in B 0  o Zero baseline 1
+o Improved 120 (40%)  o Regressed 30 (10%)  o Unchanged 100 (33.3%)  o Inconclusive 50 (16.7%)  o Only in A 2  o Only in B 0  o Zero baseline 1
 
 301 of 303 tests shown                                                [Columns] [Copy as CSV]
 [-]  Test                 Value A    Value B    Delta     Delta %   Ratio     Status
      Geomean              ...
-[x]  BM_find_if/1024      1.264      1.31       0.04575   +3.62%    1.0362    Regressed
+[x]  BM_find_if/1024      1.264      1.31       0.04575   +3.62%    1.0362    Inconclusive
 [ ]  BM_sort/4096         ...
 ```
 
@@ -109,34 +109,40 @@ Global controls, shared by both sides:
   thing.
 - **Sample aggregation**: how a test's samples within one run are combined (see
   CP2 "Aggregation pipeline"): median, mean, min or max, median by default.
-- **Hide noise**: a checkbox that removes the rows classified as noise from the
-  table and the chart.
-- **Noise filtering**: a button opening a panel below it, over the page, which
-  holds three independent knobs, one per row, and closes on Escape or a click
-  outside it. Each knob has a checkbox to enable it (off by default) and a
-  value. While a knob is disabled, so is its value's input: a value can only be
-  typed once the knob is enabled. Closing the panel keeps the values typed in
-  it, and a disabled knob keeps its value for when it is enabled again. A test
-  is classified as **noise** if any enabled knob triggers for it. When every
-  knob is disabled, no test is noise. Each knob's label has a help tooltip
-  saying what the knob does.
-  - **Delta % below** (1 by default, at least 0): triggers when |Delta %| is
-    below the value.
-  - **P-value above** (0.05 by default, between 0 and 1): triggers when the
-    p-value of Welch's t-test between the two sides' samples for the test (see
-    CP2 "Computation Reference") exceeds the value, i.e. the difference is not
-    statistically significant. Skipped when either side has fewer than 2
-    samples. If both sides have zero variance, the knob is skipped when their
-    means are equal. When they differ, the change is deterministic, so the knob
-    does not trigger (its p-value is taken as 0).
-  - **Absolute below** (0 by default, at least 0): triggers when
-    max(|Value A|, |Value B|) is below the value, which is in the metric's raw
-    unit. For measurements too small to be meaningful.
-
-  If the user enters a value that is not a number, or is out of range, the
-  input shows the red halo (see AR11), and the knob keeps using its last valid
-  value.
 - **Test filter**: a text filter on test names, with regex mode (see AR9).
+- **Margin**: a percentage, at least 0, 5 by default: how large a change has to
+  be to matter, either way. Its label has a help tooltip saying how it
+  classifies the tests (see CP2 "Status classification").
+- **Confidence**: a dropdown of the confidence levels of the intervals that
+  classify the tests: 80%, 90%, 95% or 99%, 90% by default.
+- **Hide unchanged**, **Hide inconclusive**: checkboxes that remove the rows
+  whose status is Unchanged, or Inconclusive, from the table and the chart.
+- **Filters**: a button opening a panel below it, over the page, which holds
+  three filters, one per row, and closes on Escape or a click outside it. The
+  button says how many filters are enabled, as in `Filters (2)`, while any is.
+  Each filter has a checkbox to enable it (off by default) and a value. While a
+  filter is disabled, so is its value's input: a value can only be typed once
+  the filter is enabled. Closing the panel keeps the values typed in it, and a
+  disabled filter keeps its value for when it is enabled again. Each filter's
+  label has a help tooltip saying what the filter does.
+  - **|Delta %| at least** (1 by default, at least 0): |Delta %| is at least
+    the value.
+  - **P-value at most** (0.05 by default, between 0 and 1): the test's p-value
+    (see CP2 "Computation Reference") is at most the value. A test without a
+    p-value, such as one with fewer than 2 runs on a side, fails it, which its
+    help tooltip says.
+  - **Absolute at least** (0 by default, at least 0): max(|Value A|,
+    |Value B|), in the metric's unit, is at least the value. For measurements
+    too small to be meaningful, which more runs would not make conclusive.
+
+  A test passes the filters when it passes every enabled one. A test whose
+  status is N/A passes every filter. The filters never change a test's status:
+  they only narrow the tests looked at (see CP2 "Rows" and CP4).
+
+The margin and the filters' values are typed. A value is applied once typing
+pauses, or as the Filters panel closes, if that is sooner. If the text is not a
+number, is out of range, or is empty, the input shows the red halo (see AR11),
+and the last valid value stays in use.
 
 There is no Compare button. The comparison is computed automatically once both
 sides have at least one run selected, a metric is selected, and the samples of
@@ -149,9 +155,10 @@ controls change.
 **Rows.** The comparison has one row for each test that has a value for the
 selected metric on at least one side. Tests are matched by name, even when the
 two sides use different suites. The table shows the rows that match the test
-filter. When "Hide noise" is checked, it also leaves out the rows classified as
-noise. The geomean summary row is always first, whatever the sort, and is left
-out when the table has no other row.
+filter and pass the filters (see CP1). When "Hide unchanged" or "Hide
+inconclusive" is checked, it also leaves out the rows with that status. The
+geomean summary row is always first, whatever the sort, and is left out when
+the table has no other row.
 
 | Column   | Description                                              |
 |----------|----------------------------------------------------------|
@@ -161,7 +168,7 @@ out when the table has no other row.
 | Delta    | `vB - vA`                                                |
 | Delta %  | `(vB - vA) / \|vA\| * 100`; see Computation Reference for sign convention and edge cases |
 | Ratio    | `vB / vA`; same quantity plotted on the chart as `log2(Ratio)` |
-| Status   | Improved / Regressed / Unchanged / Noise / N/A; see Computation Reference for classification rules |
+| Status   | Improved / Regressed / Unchanged / Inconclusive / N/A; see Computation Reference for classification rules |
 
 **Hidden tests.** Each row has a checkbox, checked by default. Unchecking it
 hides the test: the row stays in the table, greyed out and in the same
@@ -171,10 +178,11 @@ Clicking a row, Shift-clicking (see AR10) and the header checkbox work as in
 the Graph's test table (see GR7), on the rows currently in the table.
 Double-clicking a row hides all the other rows in the table. Double-clicking it
 again, when it is the only row shown, shows all of them again. Tests that are
-not in the table, because of the filter or "Hide noise", are never affected.
+not in the table, because of the test filter, the filters, "Hide unchanged" or
+"Hide inconclusive", are never affected.
 
-The test filter and "Hide noise" don't change which tests are hidden: when the
-filter is cleared, the rows it removed come back with the checkboxes they had.
+None of those change which tests are hidden: when the test filter is cleared,
+say, the rows it removed come back with the checkboxes they had.
 When the comparison changes (another commit, other runs, another metric), a
 hidden test that is still in the comparison stays hidden, and new tests are
 shown. Hidden tests that are no longer in the comparison are forgotten, but
@@ -187,11 +195,18 @@ all use these rows.
 - **Geomean summary row**: no checkbox; see Computation Reference.
 - **Sorting**: by any column but the checkboxes and Profile, by clicking its
   header. The default is Delta % descending. N/A sorts last in both
-  directions. Status sorts improved, regressed, noise, unchanged, then N/A.
-  Ties are broken by test name, ascending.
-- **Status colors**: green for improved, red for regressed. Noise rows show a
-  grey "noise" label, whose tooltip lists each knob that triggered, with the
-  test's value and the knob's threshold.
+  directions. Status sorts improved, regressed, unchanged, inconclusive, then
+  N/A. Ties are broken by test name, ascending.
+- **Status colors**: green for improved, red for regressed, amber for
+  inconclusive, and grey otherwise. The four colors differ from each other, and
+  amber has a contrast of at least 3:1 against the page's background. The
+  status of a test whose status is not N/A has a tooltip saying what its status
+  says of its change: its confidence interval, formatted as the CI column
+  shows it, and whether it lies beyond, within or across an edge of the margin,
+  as in `90% CI: +3.10% [-1.20%, +7.60%], straddles an edge of the margin`, or
+  why it has none, as in `Only 1 run on side A: a CI needs at least 2 runs on
+  each side`, or that a run's value is 0 or negative. The geomean summary
+  row's status has no tooltip.
 - **Sample count tooltips**: Value A and Value B have a tooltip saying how many
   samples and runs the value was computed from, e.g. "6 samples across 2
   runs". Delta, Delta % and Ratio show both sides: "A:
@@ -199,17 +214,21 @@ all use these rows.
   and the geomean summary row, have no tooltip.
 - **Summary message**: above the rows, a message says how many of the table's
   rows are shown, as the Graph's test table does (see GR6): "120 of 150 tests
-  shown", or with the test filter set, "30 of 42 matching tests shown · 150
-  tests in total". Rows removed by "Hide noise" are not counted. When too many
+  shown", or while the test filter is set or a filter is enabled, "30 of 42
+  matching tests shown · 150 tests in total". Rows removed by "Hide unchanged"
+  and "Hide inconclusive" are not counted. When too many
   tests are hidden for the URL to record them (see CP7), the message then says
   so, and why on hover and to assistive technology: "30 of 42 matching tests
   shown · 150 tests in total · too many hidden to reflect in the URL".
 - **Copy as CSV**: a clipboard button at the end of the summary message row
   copies the compared rows as CSV, in the current sort order, with the geomean
   summary row first. The columns are the table's: Test, Value A, Value B,
-  Delta, Delta %, Ratio, the optional columns shown, and Status. Numbers are
-  written at full precision, and an N/A cell is left empty. The button briefly
-  shows whether the copy succeeded. It is hidden when there is no compared row.
+  Delta, Delta %, Ratio, the optional columns shown, and Status, except that
+  the CI column is written as three: `CI estimate %`, then `{c}% CI low %` and
+  `{c}% CI high %`, where `{c}` is the confidence level, each a percentage
+  change. Numbers are written at full precision, and an N/A cell is left empty.
+  The button briefly shows whether the copy succeeded. It is hidden when there
+  is no compared row.
 - **Optional columns**: a "Columns" button on the summary message row opens a
   menu of checkboxes, one per key below, adding statistics columns to the
   table, all off by default:
@@ -222,14 +241,20 @@ all use these rows.
   | Min, Max | `min`, `max`   | yes      | The smallest and largest sample              | The side has no samples           |
   | Std dev  | `stddev`       | yes      | The sample standard deviation (`n - 1`)      | Fewer than 2 samples              |
   | CV %     | `cv`           | yes      | `Std dev / \|Mean\| * 100`                   | Std dev is N/A, or Mean is 0      |
-  | P-value  | `pvalue`       | no       | Welch's t-test p-value, as for the P-value knob, whether or not the knob is enabled; 0 where the knob treats the change as deterministic | The knob would be skipped |
+  | CI       | `ci`           | no       | The confidence interval of the change (see Computation Reference), at the confidence level chosen, which the header names, as in `90% CI` | The test has no interval |
+  | P-value  | `pvalue`       | no       | The p-value of the change (see Computation Reference) | The test has no interval |
 
-  Statistics are computed over the side's samples for the test (see
-  Computation Reference), from all its selected runs together, before any
-  aggregation: the sample and run aggregation settings do not affect them. A
-  line above the Columns menu's items says that they are computed over all
-  samples without aggregation. A p-value is shown as AR6 shows a measured
-  `real` value, so a tiny one in exponent notation (`2.012e-29`).
+  The statistics from Samples to CV % are computed over the side's samples for
+  the test (see Computation Reference), from all its selected runs together,
+  before any aggregation: the sample and run aggregation settings do not affect
+  them. The CI and the p-value are computed from each run's value of the test,
+  which the sample aggregation gives, and the run aggregation does not affect
+  them. A line above the Columns menu's items says so. A CI is shown as its
+  estimate followed by its bounds in brackets, each a percentage change shown as
+  Delta % is, as in `+58.12% [-16.03%, +197.40%]`. A bound too large to be
+  represented is shown as `+∞%`. A CI sorts by its estimate. A p-value is shown
+  as AR6 shows a measured `real` value, so a tiny one in exponent notation
+  (`2.012e-29`).
 
   A per-side statistic adds an A and a B column. Optional columns sit between
   Ratio and Status, in the order above, A before B. They are empty on the
@@ -238,8 +263,8 @@ all use these rows.
 - **Profile column**: when both sides have a profile of a test in their
   selected runs, a "Profile" link leads to the Profiles page, comparing the two
   as PF1 describes. The column comes last, and cannot be sorted by. It is shown
-  while any test of the comparison has a link, whatever the test filter, "Hide
-  noise" and the hidden tests.
+  while any test of the comparison has a link, whatever the test filter, the
+  filters, "Hide unchanged", "Hide inconclusive" and the hidden tests.
 - **Width**: when the columns don't fit in the page's width, the table scrolls
   horizontally in a box of its own rather than squeezing the Test column. The
   rest of the page, the summary message row included, stays in place. The
@@ -250,15 +275,15 @@ all use these rows.
 
 **A side's samples for a test** are all the samples of that test, across the
 side's selected runs, that have a value for the selected metric. A run with N
-such samples contributes N values. The P-value knob, the optional statistics
-columns and the sample count tooltips all use these samples, before any
+such samples contributes N values. The optional statistics columns from Samples
+to CV %, and the sample count tooltips, use these samples, before any
 aggregation.
 
 **Aggregation pipeline.** The values `vA` and `vB` shown in the table are
 produced by a two-stage aggregation pipeline:
 1. **Sample aggregation** (within each run): when a test appears multiple times
    in a run's samples, the sample aggregation function (median/mean/min/max)
-   reduces them to one value per test per run.
+   reduces them to one value per test per run: the run's value of the test.
 2. **Run aggregation** (across selected runs): each side's per-run values are
    reduced by the run aggregation function (median/mean/min/max) to produce the
    final `vA` and `vB`.
@@ -283,18 +308,47 @@ Notes:
 
 **N/A.** When a side has no value for a test, Delta, Delta %, Ratio and Status
 are N/A. When `vA = 0` (a zero baseline), Delta is computed, but Delta %, Ratio
-and Status are N/A. Noise knobs are not evaluated for these tests.
+and Status are N/A.
 
-**Status classification** (for tests whose status is not N/A, checked in this
-order):
-1. If any enabled noise knob triggers -> `noise`
-2. If `Delta = 0` -> `unchanged`
-3. If `bigger_is_better` and `Delta > 0` -> `improved`
-4. If `bigger_is_better` and `Delta < 0` -> `regressed`
-5. If not `bigger_is_better` and `Delta < 0` -> `improved`
-6. If not `bigger_is_better` and `Delta > 0` -> `regressed`
+**Confidence interval of the change.** The run is the independent unit: each
+side contributes its runs' values of the test (see "Aggregation pipeline"),
+`a_1..a_n` and `b_1..b_m`, rather than its samples. When `n >= 2`, `m >= 2` and
+every one of these values is positive, the change has a confidence interval,
+computed in log space with Welch's method:
 
-Status uses the sign of Delta (not Ratio) combined with `bigger_is_better`.
+| Quantity | Formula |
+|----------|---------|
+| `d`      | `mean(ln b_j) - mean(ln a_i)` |
+| `s_A²`, `s_B²` | The sample variances (`n - 1`) of the `ln a_i` and of the `ln b_j` |
+| `se`     | `sqrt(s_A² / n + s_B² / m)` |
+| `df`     | `se⁴ / ((s_A² / n)² / (n - 1) + (s_B² / m)² / (m - 1))` (Welch-Satterthwaite) |
+| `t`      | The two-sided critical value of Student's t-distribution with `df` degrees of freedom at the confidence level `c`: the `t` for which `P(\|T\| > t) = 1 - c` |
+| Interval | `[exp(d - t * se), exp(d + t * se)]`, an interval of the ratio B / A |
+| Estimate | `exp(d)`, the ratio of the geometric means of the runs' values, which may differ from Ratio |
+| P-value  | The two-tailed p-value of `d / se` in Student's t-distribution with `df` degrees of freedom |
+
+When `se = 0`, neither side varies: the interval is the estimate alone, and the
+p-value is 0 when `d` is not 0, and 1 when it is. The p-value is that of
+Welch's t-test on the logs of the runs' values, and does not depend on the
+confidence level: a p-value below `1 - c` means that the interval at `c` does not
+hold 1.
+
+**Status classification** (for tests whose status is not N/A). The margin `m`,
+as a fraction, gives the band `[1 / (1 + m), 1 + m]` of ratios, symmetric in
+log space, edges included:
+
+| Status       | Rule |
+|--------------|------|
+| `improved`   | The interval lies entirely beyond an edge of the band, without touching it, on the side that is better given `bigger_is_better`: above `1 + m` if bigger is better, below `1 / (1 + m)` otherwise |
+| `regressed`  | Likewise, on the other side |
+| `unchanged`  | The interval lies entirely within the band |
+| `inconclusive` | The interval holds an edge of the band and reaches beyond it, or the change has no interval: a side has fewer than 2 runs with a value, or a run's value is 0 or negative |
+
+A margin of 0 makes this a plain significance test: a test is improved or
+regressed when its interval does not hold 1, and unchanged only when neither
+side varies and the two are equal. When a test has both fewer than 2 runs on a
+side and a run's value that is 0 or negative, its status's tooltip (see "Status
+colors") gives the latter, which more runs would not remedy.
 
 **Geomean summary row.** Computed over the N compared rows where both sides
 have a value and both values are non-zero:
@@ -312,8 +366,10 @@ metric values do not produce undefined logarithms. Since all three are taken
 over the same N tests, the geometric mean of the ratios equals
 `Geomean B / Geomean A`.
 
-The row's Status is classified from its Delta by steps 2 to 6 above: it is
-never `noise`. When N is 0, the row shows N/A throughout.
+The row has no interval. Its Status comes from the sign of its Delta combined
+with `bigger_is_better`: `unchanged` when Delta is 0, `improved` when Delta is
+positive and bigger is better, or negative and bigger is not, and `regressed`
+otherwise. When N is 0, the row shows N/A throughout.
 
 **Chart Y-axis.** The chart plots `log2(Ratio)` = `log2(vB / vA)`. The log2
 scale makes equal multiplicative changes symmetric: a 2x speedup (ratio = 0.5)
@@ -326,17 +382,6 @@ A compared row is left off the chart when any of these conditions hold:
 - Ratio <= 0 (log2 undefined -- occurs when `vA` and `vB` have opposite signs,
   or when `vB = 0`)
 
-**Noise band on chart.** When the Delta % knob is enabled, horizontal dashed
-lines are drawn at the log2-space equivalents of the threshold:
-- Upper line: `log2(1 + threshold/100)`
-- Lower line: `log2(1 - threshold/100)` when threshold < 100%; otherwise
-  `-log2(1 + threshold/100)` (forced symmetric, because `log2(1 - t/100)` is
-  undefined when `t >= 100%`)
-
-For small thresholds these lines are approximately symmetric (e.g. 5% maps to
-+0.070 / -0.074). The asymmetry grows with larger thresholds. A test whose bar
-falls inside the band has `|Delta %| < threshold`.
-
 
 ### CP3: Chart
 
@@ -347,11 +392,14 @@ plotted are left out (see Computation Reference).
   equivalent percentage change at "nice" values (+/-1%, +/-5%, +/-10%,
   +/-50%, +/-100%, etc.), adapted to the range shown, so that zooming into a
   narrow range shows finer ticks
-- Rendered as bars, one per test, colored by status (see CP2)
+- Rendered as bars, one per test, colored by status (see CP2). The chart draws
+  no band for the margin: a bar is the change's Ratio, not its interval, and
+  may reach beyond the margin while its test is inconclusive.
 
 Interactivity:
 - **Hover**: tooltip showing test name, exact ratio, the values of both sides,
-  Delta %, and a last line saying that clicking the bar shows its details. It
+  Delta %, the status, what the status's tooltip says (see CP2 "Status
+  colors"), and a last line saying that clicking the bar shows its details. It
   also highlights the bar's table row (see CP5).
 - **Details**: clicking a bar opens a popover beside it, which behaves as a
   Graph point's does (GR11), and whose accessible name is the test name. Where
@@ -380,19 +428,16 @@ Interactivity:
 
   It closes on Escape, on its close button, on a click anywhere but on it, on
   a zoom or pan, and on any change to the compared rows, such as another
-  comparison, metric or aggregation, a noise setting, the test filter, "Hide
-  noise" or a hidden test. Changes to the shadows do not close it. A click on
-  another bar opens that bar's popover instead. A shadow's point (CP8) has no
-  details: clicking it opens nothing.
+  comparison, metric or aggregation, margin or confidence, the test filter, a
+  filter, "Hide unchanged", "Hide inconclusive" or a hidden test. Changes to
+  the shadows do not close it. A click on another bar opens that bar's popover
+  instead. A shadow's point (CP8) has no details: clicking it opens nothing.
 - **Zoom**: dragging zooms into part of the chart, and double-clicking resets
   the zoom. The user's zoom is kept when settings change, but is reset when the
   comparison is replaced: a different suite, machine, commit or runs on either
   side, swapping the sides, or a different metric. When the user hasn't
-  zoomed, both axes fit everything plotted: the bars, the shadows' lines and the
-  noise band. Zooming does not filter the table.
-- **Noise band**: see Computation Reference for how the Delta % threshold is
-  converted to log2 space. The p-value and absolute floor knobs do not have
-  chart-level visualization.
+  zoomed, both axes fit everything plotted: the bars and the shadows' lines.
+  Zooming does not filter the table.
 - **Empty state**: when there is a comparison but neither the bars nor any
   shadow's line (see CP8) have anything to plot, the chart area displays "No
   data to plot", as on the Graph page (see GR12). CP6 says what is shown while
@@ -409,25 +454,25 @@ counts in exactly one category:
 |---------------|--------------------------------------------------|
 | Improved      | have Status Improved (see CP2)                   |
 | Regressed     | have Status Regressed                            |
-| Noise         | have Status Noise                                |
 | Unchanged     | have Status Unchanged                            |
+| Inconclusive  | have Status Inconclusive                         |
 | Only in A     | have a value on side A only                      |
 | Only in B     | have a value on side B only                      |
 | Zero baseline | have a value on both sides, with a zero baseline |
 
 Each category shows a colored dot, its label and its count. The dot is green
-for Improved and red for Regressed (the status colors of CP2), and grey for the
-others.
+for Improved, red for Regressed and amber for Inconclusive (the status colors
+of CP2), and grey for the others.
 
-**Comparable categories** (Improved, Regressed, Noise, Unchanged) also show a
-percentage, whose denominator is the sum of comparable categories only.
+**Comparable categories** (Improved, Regressed, Unchanged, Inconclusive) also
+show a percentage, whose denominator is the sum of comparable categories only.
 Percentages use one decimal place, except whole numbers drop the trailing `.0`
 (e.g. `25%` not `25.0%`). When there are no comparable tests, they show just
 the count. A tooltip on each percentage explains its denominator.
 
 **What is counted**: every test in the comparison that matches the test
-filter, including hidden tests and noise tests, even when "Hide noise" is
-checked.
+filter and passes the filters (see CP1), including hidden tests, and the tests
+"Hide unchanged" and "Hide inconclusive" remove from the table.
 
 Categories with a count of zero are shown muted rather than hidden, so that the
 bar's layout stays stable. When there is no comparison, the bar renders nothing.
@@ -435,8 +480,9 @@ bar's layout stays stable. When there is no comparison, the bar renders nothing.
 
 ### CP5: Chart-Table Sync
 
-The chart shows the compared rows (see CP2), so the test filter, "Hide noise"
-and the hidden tests affect the chart and the table in the same way. Hovering a chart bar highlights its table
+The chart shows the compared rows (see CP2), so the test filter, the filters,
+"Hide unchanged", "Hide inconclusive" and the hidden tests affect the chart and
+the table in the same way. Hovering a chart bar highlights its table
 row, and hovering a table row highlights its chart bar. Neither scrolls the
 page or the table.
 
@@ -453,9 +499,10 @@ page or the table.
 - The samples of each selected run come from `GET runs/{uuid}/samples`, every
   page of it, in as few requests as the API allows. Once fetched, a run's
   samples are kept for as long as the run belongs to one of the sides' or the
-  shadows' commits. This way, changing the metric, an aggregation, the noise
-  settings, the run selection or the hidden tests, swapping the sides,
-  pinning a shadow, or opening a bar's details (CP3) never fetches them again.
+  shadows' commits. This way, changing the metric, an aggregation, the margin,
+  the confidence, the filters, the run selection or the hidden tests, swapping
+  the sides, pinning a shadow, or opening a bar's details (CP3) never fetches
+  them again.
   If a run stops belonging to any of those commits while its samples are
   loading, its loading stops, without affecting the other runs.
 - The Profile column needs to know which tests of each side have a profile. For
@@ -496,11 +543,15 @@ fewer runs. If profiles cannot be fetched, only the Profile links are missing.
 
 **Empty states.** Until the comparison can be computed, the page says in its
 place what is still missing: a suite, a machine, a commit, a selected run on a
-side, or the metric. Once there is a comparison, the table says
-`No test has a value for this metric.` when it holds no row,
-`No tests match the filter.` when the filter keeps none, and
-`Every matching test is classified as noise.` when "Hide noise" removes every
-row the filter keeps.
+side, or the metric. Once there is a comparison, a table without rows says
+why, checking in this order:
+- `No test has a value for this metric.` when the comparison has no row;
+- `No tests match the filter.` when the test filter keeps none;
+- `No test passes the filters.`, or `No matching test passes the filters.`
+  while the test filter is set, when the filters keep none of those;
+- `Every matching test is unchanged.`, `Every matching test is inconclusive.`
+  or `Every matching test is unchanged or inconclusive.` when "Hide unchanged",
+  "Hide inconclusive" or both remove every row left.
 
 
 ### CP7: URL State
@@ -509,10 +560,11 @@ All selection state is encoded as query parameters for shareability:
 - `project_a`, `suite_a`, `machine_a`, `commit_a`, `runs_a`
 - `project_b`, `suite_b`, `machine_b`, `commit_b`, `runs_b`
 - `metric`, `run_agg`, `sample_agg`
-- `noise_pct`, `noise_pval`, `noise_floor`: present only while the knob is
-  enabled, holding the value the knob uses (see CP1). A disabled knob's value
-  is not saved in the URL.
-- `hide_noise=true`
+- `margin`, and `confidence` (`80`, `90`, `95` or `99`)
+- `min_delta_pct`, `max_pvalue`, `min_abs`: the filters (see CP1), each present
+  only while the filter is enabled, holding the value it uses. A disabled
+  filter's value is not saved in the URL.
+- `hide_unchanged=true`, `hide_inconclusive=true`
 - `test_filter`, and `test_filter_regex=true` when its regex mode is on (see
   AR9)
 - `hidden_test`: the hidden tests (see CP2), present only while at most 10 tests
@@ -539,7 +591,8 @@ A value the page cannot use is dropped (see AR2 "State"):
 - a run that is not in the side's run list; if this leaves no run, all of the
   side's runs are selected;
 - a metric the page does not offer;
-- a noise value that is not a number or is out of range; the knob is then
+- a margin or a filter's value that is not a number or is out of range, and a
+  confidence that is not offered; the default is then used, and the filter is
   disabled;
 - a `sort` on a column that is not shown; the default sort is used instead;
 - a hidden test that is not in the comparison.
@@ -599,8 +652,9 @@ be dismissed.
   lines apart for every reader, which the markers do. The chart has no legend:
   the chips serve as one.
 - Hovering a point of a line shows the same information as a main bar, with a
-  line naming its shadow as its chip does, without its test count, and without
-  the line about clicking: a point of a line has no details (see CP3).
+  line naming its shadow as its chip does, without its test count, but without
+  the status and what it says of the change, which a shadow does not have, and
+  without the line about clicking: a point of a line has no details (see CP3).
   Table-to-chart hover highlighting targets the main bars only, and hovering a
   point of a line highlights no row.
 - If side A's suite and a shadow's suite don't both offer the selected metric,

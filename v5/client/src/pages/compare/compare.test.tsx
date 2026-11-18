@@ -74,7 +74,7 @@ describe('the Compare page (CP1)', () => {
 
     // Side A's value of a is now run 1's alone.
     await waitFor(async () =>
-      expect((await comparison())[1]).toBe('a | 1 | 4 | 3 | +300.00% | 4.0000 | Regressed'),
+      expect((await comparison())[1]).toBe('a | 1 | 4 | 3 | +300.00% | 4.0000 | Inconclusive'),
     )
     expect(query().runs_a).toEqual([uuidOf('1')])
   })
@@ -83,7 +83,7 @@ describe('the Compare page (CP1)', () => {
     mockWorld()
     renderPage(`${COMPARED}&runs_a=${uuidOf('2')}&runs_b=${uuidOf('9')}`)
 
-    expect((await comparison())[1]).toBe('a | 3 | 4 | 1 | +33.33% | 1.3333 | Regressed')
+    expect((await comparison())[1]).toBe('a | 3 | 4 | 1 | +33.33% | 1.3333 | Inconclusive')
     expect(runBox('1', 'A')).not.toBeChecked()
     expect(runBox('3', 'B')).toBeChecked()
     await waitFor(() => expect(query().runs_b).toBeUndefined())
@@ -164,7 +164,7 @@ describe('the Compare page (CP1)', () => {
     mockWorld()
     renderPage(`${COMPARED}&run_agg=max`)
 
-    expect((await comparison())[1]).toBe('a | 3 | 4 | 1 | +33.33% | 1.3333 | Regressed')
+    expect((await comparison())[1]).toBe('a | 3 | 4 | 1 | +33.33% | 1.3333 | Inconclusive')
   })
 
   it('swaps the sides, with their runs selected', async () => {
@@ -175,7 +175,7 @@ describe('the Compare page (CP1)', () => {
     await userEvent.setup().click(screen.getByRole('button', { name: 'Swap sides' }))
 
     await waitFor(async () =>
-      expect((await comparison())[1]).toBe('a | 4 | 1 | -3 | -75.00% | 0.2500 | Improved'),
+      expect((await comparison())[1]).toBe('a | 4 | 1 | -3 | -75.00% | 0.2500 | Inconclusive'),
     )
     expect(query()).toMatchObject({ commit_a: ['c2'], commit_b: ['c1'], runs_b: [uuidOf('1')] })
     expect(query().runs_a).toBeUndefined()
@@ -188,12 +188,12 @@ describe('the Compare page (CP1)', () => {
     renderPage(
       `/compare?${commit}&metric=execution_time&runs_a=${uuidOf('1')}&runs_b=${uuidOf('2')}`,
     )
-    expect((await comparison())[1]).toBe('a | 1 | 3 | 2 | +200.00% | 3.0000 | Regressed')
+    expect((await comparison())[1]).toBe('a | 1 | 3 | 2 | +200.00% | 3.0000 | Inconclusive')
 
     await userEvent.setup().click(screen.getByRole('button', { name: 'Swap sides' }))
 
     await waitFor(async () =>
-      expect((await comparison())[1]).toBe('a | 3 | 1 | -2 | -66.67% | 0.3333 | Improved'),
+      expect((await comparison())[1]).toBe('a | 3 | 1 | -2 | -66.67% | 0.3333 | Inconclusive'),
     )
     expect(query()).toMatchObject({ runs_a: [uuidOf('2')], runs_b: [uuidOf('1')] })
   })
@@ -228,7 +228,7 @@ describe('the Compare page (CP1)', () => {
     expect(query().runs_a).toBeUndefined()
     // Side B is now c1, of which only run 2 is selected.
     await waitFor(async () =>
-      expect((await comparison())[1]).toBe('a | 4 | 3 | -1 | -25.00% | 0.7500 | Improved'),
+      expect((await comparison())[1]).toBe('a | 4 | 3 | -1 | -25.00% | 0.7500 | Inconclusive'),
     )
   })
 
@@ -533,7 +533,7 @@ describe('the sample aggregation (CP1)', () => {
     renderPage(`${COMPARED}&sample_agg=max`)
 
     // Per run, the largest are 5 and 3, whose median is 4.
-    expect((await comparison())[1]).toBe('a | 4 | 4 | 0 | 0.00% | 1.0000 | Unchanged')
+    expect((await comparison())[1]).toBe('a | 4 | 4 | 0 | 0.00% | 1.0000 | Inconclusive')
   })
 })
 
@@ -550,9 +550,9 @@ describe('the summary bar (CP4)', () => {
         .map((item) => item.textContent),
     ).toEqual([
       'Improved 0 (0%)',
-      'Regressed 1 (100%)',
-      'Noise 0 (0%)',
+      'Regressed 0 (0%)',
       'Unchanged 0 (0%)',
+      'Inconclusive 1 (100%)',
       'Only in A 1',
       'Only in B 1',
       'Zero baseline 0',

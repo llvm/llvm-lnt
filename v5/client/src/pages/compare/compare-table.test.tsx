@@ -9,13 +9,21 @@ import { mockClipboard } from '../../test/clipboard'
 import { fakeLayout } from '../../test/layout'
 import { resize } from '../../test/resize-observer'
 import { uuidOf } from '../../test/fixtures'
-import { COMPARED, comparison, mockWorld, NOISY, ROWS, runBox, showBox } from './compare-world'
+import { STATISTICS_OVER } from './columns'
+import {
+  CLASSIFIED,
+  COMPARED,
+  comparison,
+  listedTests,
+  mockWorld,
+  NOISY,
+  ROWS,
+  runBox,
+  showBox,
+} from './compare-world'
 
 // The page renders its chart, which Plotly cannot draw in jsdom (see test/chart.tsx).
 vi.mock('../../components/chart', () => import('../../test/chart'))
-
-/** The tests the comparison table lists, in order, without the geomean. */
-const listedTests = async () => (await comparison()).slice(1).map((row) => row.split(' | ')[0])
 
 describe('the comparison table (CP2)', () => {
   it('sorts by Delta % descending by default, N/A last, and by any column on request', async () => {
@@ -129,9 +137,10 @@ describe('hidden tests (CP2)', () => {
     )
   })
 
-  it('hides a test with a click on its row, and leaves it hidden whatever the filter', async () => {
+  it('hides a test with a click on its row, and leaves it hidden whatever the filters', async () => {
     mockWorld(NOISY)
-    renderPage(`${COMPARED}&noise_pct=1`)
+    // a changes by less than 1%.
+    renderPage(`${COMPARED}&min_delta_pct=1`)
     await comparison()
     const user = userEvent.setup()
 
@@ -140,8 +149,11 @@ describe('hidden tests (CP2)', () => {
     search('Filter tests', 'b')
     await waitFor(async () => expect(await listedTests()).toEqual(['b']))
     search('Filter tests', '')
-    await waitFor(async () => expect(await listedTests()).toHaveLength(4))
-    await user.click(screen.getByRole('checkbox', { name: 'Hide noise' }))
+    await waitFor(async () => expect(await listedTests()).toEqual(['d', 'b', 'c']))
+    const hide = screen.getByRole('checkbox', { name: 'Hide inconclusive' })
+    await user.click(hide)
+    await waitFor(async () => expect(await listedTests()).toEqual(['b', 'c']))
+    await user.click(hide)
     await waitFor(async () => expect(await listedTests()).toEqual(['d', 'b', 'c']))
 
     expect(showBox('d')).not.toBeChecked()
@@ -309,7 +321,7 @@ describe('optional columns (CP2)', () => {
     await userEvent.setup().click(screen.getByRole('button', { name: 'Columns' }))
     expect(
       within(screen.getByRole('menu')).getByRole('group', {
-        name: 'Computed over all samples without aggregation.',
+        name: STATISTICS_OVER,
       }),
     ).toBeInTheDocument()
   })
@@ -325,7 +337,7 @@ describe('optional columns (CP2)', () => {
       'b | 2 | N/A | N/A | N/A | N/A | 1 | 0 | 2 | N/A | N/A | N/A',
     )
     expect(rows.find((row) => row.startsWith('d |'))).toBe(
-      'd | 2 | 3 | 1 | +50.00% | 1.5000 | 2 | 1 | 2 | 3 | N/A | Regressed',
+      'd | 2 | 3 | 1 | +50.00% | 1.5000 | 2 | 1 | 2 | 3 | N/A | Inconclusive',
     )
   })
 
@@ -343,32 +355,47 @@ describe('optional columns (CP2)', () => {
     expect(await listedTests()).toEqual(['d', 'a', 'b', 'c'])
   })
 
-  it('shows the p-value whether or not its knob is enabled, 0 for a deterministic change', async () => {
-    const tight = (base: number) =>
-      [0, 1, 2, 1, 0].map((i): [string, number] => ['b', base + i / 100])
+  it("shows each test's CI and p-value, from its runs' values, N/A without an interval", async () => {
     mockWorld({
+      ...CLASSIFIED,
       samples: {
-        '1': [['a', 2], ['a', 2], ...tight(1)],
-        '2': [],
-        '3': [['a', 3], ['a', 3], ...tight(2)],
+        ...CLASSIFIED.samples,
+        '1': [...CLASSIFIED.samples!['1'], ['exact', 2]],
+        '2': [...CLASSIFIED.samples!['2'], ['exact', 2]],
+        '3': [...CLASSIFIED.samples!['3'], ['exact', 3]],
+        '5': [...CLASSIFIED.samples!['5'], ['exact', 3]],
       },
     })
-    renderPage(`${COMPARED}&columns=pvalue`)
+    renderPage(`${COMPARED}&columns=ci&columns=pvalue&confidence=95`)
 
     const rows = await comparison()
-    expect(
+    const cells = (test: string) =>
       rows
-        .find((row) => row.startsWith('a |'))
+        .find((row) => row.startsWith(`${test} |`))
         ?.split(' | ')
-        .at(-2),
-    ).toBe('0')
-    // A tiny p-value, in exponent notation.
-    expect(
-      rows
-        .find((row) => row.startsWith('b |'))
-        ?.split(' | ')
-        .at(-2),
-    ).toMatch(/^\d(\.\d+)?e-\d+$/)
+        .slice(-3, -1)
+    expect(headersOf(await table('Comparison')).slice(-3)).toEqual(['95% CI', 'P-value', 'Status'])
+    // Without variance, the interval is the change itself, whose p-value is 0.
+    expect(cells('exact')).toEqual(['+50.00% [+50.00%, +50.00%]', '0'])
+    // The estimate is the ratio of the geometric means of the runs' values: 0.5 for down.
+    expect(cells('down')?.[0]).toMatch(/^-50\.00% \[-\d+\.\d\d%, -\d+\.\d\d%\]$/)
+    expect(Number(cells('up')?.[1])).toBeLessThan(0.01)
+    expect(cells('one')).toEqual(['N/A', 'N/A'])
+    expect(cells('neg')).toEqual(['N/A', 'N/A'])
+    expect(cells('only')).toEqual(['N/A', 'N/A'])
+    // Empty on the geomean.
+    expect(rows[0].split(' | ').slice(-3, -1)).toEqual(['', ''])
+  })
+
+  it('shows an interval too wide to represent as infinite', async () => {
+    mockWorld({
+      runs: CLASSIFIED.runs,
+      samples: { '1': [['t', 1]], '2': [['t', 1]], '3': [['t', 1e-300]], '5': [['t', 1e300]] },
+    })
+    renderPage(`${COMPARED}&columns=ci&confidence=99`)
+
+    const row = (await comparison()).find((entry) => entry.startsWith('t |'))
+    expect(row?.split(' | ').at(-2)).toBe('0.00% [-100.00%, +∞%]')
   })
 
   it('sorts by a statistic from its header, and keeps the sort when another column goes', async () => {
@@ -425,11 +452,34 @@ describe('optional columns (CP2)', () => {
     expect(header).toBe('Test,Value A,Value B,Delta,Delta %,Ratio,Samples A,Samples B,Status')
     // Empty statistics on the geomean, whose values are d's, at full precision.
     expect(geomean).toMatch(/^Geomean,2,[\d.]+,[\d.]+,[\d.]+,[\d.]+,,,Regressed$/)
-    expect(lines).toEqual(['d,2,3,1,50,1.5,2,1,Regressed'])
+    expect(lines).toEqual(['d,2,3,1,50,1.5,2,1,Inconclusive'])
   })
 })
 
 describe('Copy as CSV (CP2)', () => {
+  it('copies the CI as its estimate and bounds, the confidence in their headers', async () => {
+    const writeText = mockClipboard()
+    mockWorld(CLASSIFIED)
+    renderPage(`${COMPARED}&columns=ci&test_filter=^(up|one)$&test_filter_regex=true`)
+    await comparison()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Copy as CSV' }))
+
+    await waitFor(() => expect(writeText).toHaveBeenCalled())
+    const [header, geomean, ...lines] = writeText.mock.calls[0][0].split('\r\n')
+    expect(header).toBe(
+      'Test,Value A,Value B,Delta,Delta %,Ratio,CI estimate %,90% CI low %,90% CI high %,Status',
+    )
+    expect(geomean).toMatch(/,,,,Regressed$/)
+    const [up, one] = lines.map((line) => line.split(','))
+    expect(up.slice(6, 9).map(Number)).toEqual([
+      expect.closeTo(49.51, 2),
+      expect.closeTo(43.86, 2),
+      expect.closeTo(55.38, 2),
+    ])
+    expect(one.slice(6)).toEqual(['', '', '', 'Inconclusive'])
+  })
+
   it('copies the compared rows, in the order they are sorted in, with the geomean first', async () => {
     const writeText = mockClipboard()
     mockWorld(NOISY)
@@ -446,8 +496,8 @@ describe('Copy as CSV (CP2)', () => {
       /^Geomean,14\.14213562373095\d*,17\.3637553541853\d*,[\d.]+,[\d.]+,[\d.]+,Regressed$/,
     )
     expect(lines).toEqual([
-      'd,2,3,1,50,1.5,Regressed',
-      'a,100,100.5,0.5,0.5,1.005,Regressed',
+      'd,2,3,1,50,1.5,Inconclusive',
+      'a,100,100.5,0.5,0.5,1.005,Inconclusive',
       'c,,5,,,,',
     ])
   })

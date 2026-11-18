@@ -5,17 +5,24 @@ import {
   chartBars,
   chartExtent,
   compareLayout,
-  noiseBand,
   ratioTicks,
   SHADOW_COLORS,
   shadowTrace,
-  type Bar,
 } from './chart'
-import { statisticsOf, type ComparisonRow, type Status } from './comparison'
+import { statisticsOf, type Change, type ComparisonRow, type Status } from './comparison'
 import { MAX_SHADOWS } from './shadow-specs'
 
+/** A change with only one run on side A. */
+const ONE_RUN: Change = { kind: 'runs', sides: 'A' }
+
 /** A compared row of `test`, valued `a` and `b`, with the ratio and Delta % they give. */
-function row(test: string, a: number | null, b: number | null, status: Status = 'regressed') {
+function row(
+  test: string,
+  a: number | null,
+  b: number | null,
+  status: Status = 'regressed',
+  change: Change = ONE_RUN,
+) {
   const statistics = { ...statisticsOf([]), runs: 0 }
   const ratio = a !== null && b !== null && a !== 0 ? b / a : null
   return {
@@ -26,10 +33,9 @@ function row(test: string, a: number | null, b: number | null, status: Status = 
     deltaPct: ratio === null ? null : ((b! - a!) / Math.abs(a!)) * 100,
     ratio,
     status,
-    noise: [],
+    change,
     statisticsA: statistics,
     statisticsB: statistics,
-    pValue: null,
   } satisfies ComparisonRow
 }
 
@@ -45,16 +51,6 @@ describe('chartBars', () => {
       row('opposite', -1, 1),
     ])
     expect(bars.map((bar) => bar.test)).toEqual(['b', 'a', 'c', 'd'])
-  })
-})
-
-describe('noiseBand', () => {
-  it('is the log2 ratios of the threshold above and below', () => {
-    expect(noiseBand(5)).toEqual({ upper: Math.log2(1.05), lower: Math.log2(0.95) })
-  })
-
-  it('is made symmetric from 100% on', () => {
-    expect(noiseBand(150)).toEqual({ upper: Math.log2(2.5), lower: -Math.log2(2.5) })
   })
 })
 
@@ -99,46 +95,62 @@ describe('ratioTicks', () => {
 })
 
 describe('chartExtent', () => {
-  it('spans the bars from 0, and the noise band', () => {
-    const bars = chartBars([row('a', 1, 2), row('b', 1, 1.5)])
-    expect(chartExtent(bars, null)).toEqual([0, 1])
-    expect(chartExtent(bars, noiseBand(10))).toEqual([Math.log2(0.9), 1])
+  it('spans the bars from 0', () => {
+    expect(chartExtent(chartBars([row('a', 1, 2), row('b', 1, 1.5)]))).toEqual([0, 1])
+    expect(chartExtent(chartBars([row('a', 2, 1)]))).toEqual([-1, 0])
   })
 
   it("spans every shadow's points too", () => {
     const bars = chartBars([row('a', 1, 2)])
     const shadows = [chartBars([row('a', 1, 4)]), chartBars([row('b', 2, 1)])]
-    expect(chartExtent(bars, null, shadows)).toEqual([-1, 2])
+    expect(chartExtent(bars, shadows)).toEqual([-1, 2])
   })
 })
 
 describe('barTrace', () => {
-  const bars: Bar[] = chartBars([
+  const bars = chartBars([
     row('<b>', 2, 1, 'improved'),
     row('slow', 1, 2, 'regressed'),
-    row('same', 1, 1.001, 'noise'),
+    row('same', 1, 1.001, 'inconclusive'),
+    row('flat', 1, 1.0001, 'unchanged', {
+      kind: 'interval',
+      confidence: 95,
+      estimate: 0,
+      low: Math.log(0.99),
+      high: Math.log(1.02),
+      pValue: 1,
+    }),
   ])
 
   it('draws a bar per test at its log2 ratio, coloured by status', () => {
     const trace = barTrace(bars)
-    expect(trace.x).toEqual([0, 1, 2])
-    expect(trace.y).toEqual([-1, Math.log2(1.001), 1])
-    expect((trace.marker as { color: string[] }).color).toEqual(['#15803d', '#9ca3af', '#b91c1c'])
+    expect(trace.x).toEqual([0, 1, 2, 3])
+    expect(trace.y).toEqual([-1, Math.log2(1.0001), Math.log2(1.001), 1])
+    expect((trace.marker as { color: string[] }).color).toEqual([
+      '#15803d',
+      '#9ca3af',
+      '#d97706',
+      '#b91c1c',
+    ])
   })
 
-  it('gives each bar its test, ratio, values and Delta %, the test escaped', () => {
+  it('gives each bar its test, ratio, values, Delta % and status, the test escaped', () => {
     expect((barTrace(bars).customdata as unknown as string[][])[0]).toEqual([
       '&lt;b&gt;',
       '0.5000',
       '2',
       '1',
       '-50.00%',
+      '',
+      '<br>Status: Improved<br>Only 1 run on side A: a CI needs at least 2 runs on each side' +
+        '<br><i>Click for details</i>',
     ])
   })
 
-  it('says last that a bar can be clicked for its details (CP3)', () => {
+  it("says what a bar's status says of its change, and last that it has details (CP3)", () => {
     expect(hoverText(barTrace(bars), 1)).toBe(
-      '<b>same</b><br>Ratio: 1.0010<br>A: 1<br>B: 1.001<br>Delta %: +0.10%<br>' +
+      '<b>flat</b><br>Ratio: 1.0001<br>A: 1<br>B: 1<br>Delta %: +0.01%<br>' +
+        'Status: Unchanged<br>95% CI: 0.00% [-1.00%, +2.00%], within the margin<br>' +
         '<i>Click for details</i><extra></extra>',
     )
   })
@@ -150,17 +162,19 @@ describe('shadowTrace', () => {
   it('draws a line through the points, with the tooltip of a bar naming the shadow', () => {
     const trace = shadowTrace(points, 0, 'Shadow: s › m › c')
     expect(trace).toMatchObject({ type: 'scatter', mode: 'lines+markers', x: [0, 1], y: [-1, 1] })
-    expect(trace.hovertemplate).toMatch(
-      /^<b>%\{customdata\[0\]\}<\/b><br>%\{customdata\[5\]\}<br>Ratio/,
+    expect(hoverText(trace, 0)).toBe(
+      '<b>b</b><br>Shadow: s › m › c<br>Ratio: 0.5000<br>A: 2<br>B: 1<br>Delta %: -50.00%' +
+        '<extra></extra>',
     )
-    expect((trace.customdata as unknown as string[][])[0][5]).toBe('Shadow: s › m › c')
-    // A point of a shadow has no details (CP8).
-    expect(trace.hovertemplate).not.toContain('Click')
+    // A point of a shadow has no details, and says nothing of a status or a change (CP8).
+    expect(hoverText(trace, 0)).not.toMatch(/Click|Status|CI/)
   })
 
   it('escapes the label, and keeps it out of the template', () => {
     const trace = shadowTrace(points, 0, 'Shadow: s › <m&> › %{x}')
-    expect((trace.customdata as unknown as string[][])[1][5]).toBe('Shadow: s › &lt;m&amp;&gt; › %{x}')
+    expect((trace.customdata as unknown as string[][])[1][5]).toBe(
+      '<br>Shadow: s › &lt;m&amp;&gt; › %{x}',
+    )
     expect(trace.hovertemplate).not.toContain('%{x}')
   })
 
@@ -172,18 +186,21 @@ describe('shadowTrace', () => {
     })
     expect(new Set(looks.map((look) => look.color)).size).toBe(MAX_SHADOWS)
     expect(new Set(looks.map((look) => look.symbol)).size).toBe(MAX_SHADOWS)
-    const everyStatus = [row('i', 2, 1, 'improved'), row('r', 1, 2), row('n', 1, 1, 'noise')]
+    const everyStatus = [
+      row('i', 2, 1, 'improved'),
+      row('r', 1, 2),
+      row('u', 1, 1, 'unchanged'),
+      row('n', 1, 1, 'inconclusive'),
+    ]
     const statuses = (barTrace(chartBars(everyStatus)).marker as { color: string[] }).color
     expect(looks.some((look) => statuses.includes(look.color))).toBe(false)
   })
 })
 
 describe('compareLayout', () => {
-  it('draws the noise band, and says when there is nothing to plot', () => {
-    const ticks = ratioTicks(-1, 1)
-    const band = noiseBand(5)
-    const layout = compareLayout({ ticks, band, revision: 'r', empty: true })
-    expect(layout.shapes?.map((shape) => shape.y0)).toEqual([band.upper, band.lower])
+  it('draws no band, and says when there is nothing to plot', () => {
+    const layout = compareLayout({ ticks: ratioTicks(-1, 1), revision: 'r', empty: true })
+    expect(layout.shapes).toBeUndefined()
     expect(layout.annotations?.[0].text).toBe('No data to plot')
     expect(layout.uirevision).toBe('r')
   })

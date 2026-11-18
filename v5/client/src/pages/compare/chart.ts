@@ -1,22 +1,25 @@
 /**
  * What the Compare page's chart draws (CP3): a bar per compared test, sorted by ratio, on a log2
- * axis labelled with percentage changes, the noise band, and the shadows' lines (CP8), computed
- * apart from the chart.
+ * axis labelled with percentage changes, and the shadows' lines (CP8), computed apart from the
+ * chart.
  */
 
-import type { Layout, PlotData, Shape } from 'plotly.js'
+import type { Layout, PlotData } from 'plotly.js'
 import { markerOf } from '../../chart-markers'
 import { noDataAnnotations } from '../../components/plot-annotations'
 import { compareStrings, escapeHtml, formatNumber } from '../../format'
-import { formatDeltaPct, formatRatio } from './columns'
-import type { ComparisonRow, Status } from './comparison'
+import { describeStatus, formatDeltaPct, formatRatio } from './columns'
+import { LABELS, type ComparisonRow, type Status, type Values } from './comparison'
 
-/** A compared test the chart can plot: one whose ratio is defined and positive (CP2). */
-export interface Bar {
-  test: string
-  /** Where the bar reaches on the chart's axis: the log2 of its ratio. */
+/** A test to plot: a compared row of the main comparison, or of a shadow's (CP8). */
+export type Plottable = Pick<Values, 'a' | 'b' | 'ratio' | 'deltaPct'> & { test: string }
+
+/**
+ * A compared row the chart can plot: one whose ratio is defined and positive (CP2), with where its
+ * bar reaches on the chart's axis, `y`: the log2 of its ratio.
+ */
+export type Bar<R extends Plottable = Plottable> = R & {
   y: number
-  status: Status
   a: number
   b: number
   ratio: number
@@ -28,11 +31,12 @@ export interface Bar {
  * left out when only one side has a value, with a zero baseline, or when its ratio is not positive,
  * which log2 is undefined for (CP2 "Chart Y-axis").
  */
-export function chartBars(rows: readonly ComparisonRow[]): Bar[] {
-  const bars: Bar[] = []
-  for (const { test, status, a, b, ratio, deltaPct } of rows) {
+export function chartBars<R extends Plottable>(rows: readonly R[]): Bar<R>[] {
+  const bars: Bar<R>[] = []
+  for (const row of rows) {
+    const { a, b, ratio, deltaPct } = row
     if (a === null || b === null || ratio === null || deltaPct === null || ratio <= 0) continue
-    bars.push({ test, y: Math.log2(ratio), status, a, b, ratio, deltaPct })
+    bars.push({ ...row, y: Math.log2(ratio), a, b, ratio, deltaPct })
   }
   return bars.sort((x, y) => x.ratio - y.ratio || compareStrings(x.test, y.test))
 }
@@ -42,13 +46,14 @@ export const BAR_GAP = 0.1
 
 /**
  * The colours of the bars, by status (CP2): those of the table, `--lnt-success` and `--lnt-danger`
- * (see index.css), and grey otherwise. Plotly needs them as values rather than CSS variables.
+ * (see index.css), amber for inconclusive, as `--status-mark` in compare.module.css, and grey
+ * otherwise. Plotly needs them as values rather than CSS variables.
  */
 const STATUS_COLORS: Record<Status, string> = {
   improved: '#15803d',
   regressed: '#b91c1c',
-  noise: '#9ca3af',
   unchanged: '#9ca3af',
+  inconclusive: '#d97706',
   na: '#9ca3af',
 }
 
@@ -58,22 +63,37 @@ const STATUS_COLORS: Record<Status, string> = {
  * least 3:1 against the page's background. Each shadow also has a marker of its own, since
  * colours alone cannot keep five lines apart for every reader.
  */
-export const SHADOW_COLORS = ['#7c3aed', '#d97706', '#0369a1', '#86198f', '#312e81'] as const
+export const SHADOW_COLORS = ['#7c3aed', '#552200', '#0369a1', '#86198f', '#312e81'] as const
 
 /** The colour and the marker of the `index`th shadow. */
 export function shadowLook(index: number) {
   return { color: SHADOW_COLORS[index % SHADOW_COLORS.length], marker: markerOf(index) }
 }
 
+/** A main bar's status, and what its status says of its change, as lines of a tooltip. */
+function statusLines({ status, change }: ComparisonRow): string {
+  const detail = describeStatus(status, change)
+  return `Status: ${LABELS[status]}${detail === undefined ? '' : `<br>${escapeHtml(detail)}`}`
+}
+
+/** What a tooltip says of a bar beyond its values: lines before them, and after them, as HTML. */
+interface MoreLines<R extends Plottable> {
+  before?: (bar: Bar<R>) => string
+  after?: (bar: Bar<R>) => string
+}
+
 /**
- * Where `bars` are drawn, at positions 0 to N - 1, and their tooltip, giving the test, followed by
- * a line holding `label` if any, the exact ratio, both sides' values and Delta % (CP3), and for the
- * main bars, which have details (no `label`), a last line saying that clicking shows them. The test
- * and the label are escaped, and passed as data rather than written into the template: Plotly
- * reads them as HTML, and the template would read `%{` in them as its own.
+ * Where `bars` are drawn, at positions 0 to N - 1, and their tooltip, giving the test, the lines
+ * `before` gives, if any, the exact ratio, both sides' values and Delta % (CP3), then the lines
+ * `after` gives, if any. The test and those lines are passed as data rather than written into the
+ * template: Plotly reads them as HTML, and the template would read `%{` in them as its own.
  */
-function plotted(bars: readonly Bar[], label?: string): Partial<PlotData> {
-  const escapedLabel = label === undefined ? [] : [escapeHtml(label)]
+function plotted<R extends Plottable>(
+  bars: readonly Bar<R>[],
+  { before, after }: MoreLines<R>,
+): Partial<PlotData> {
+  const lines = (bar: Bar<R>, more?: (bar: Bar<R>) => string) =>
+    more === undefined ? '' : `<br>${more(bar)}`
   return {
     x: bars.map((_, i) => i),
     y: bars.map((bar) => bar.y),
@@ -83,29 +103,33 @@ function plotted(bars: readonly Bar[], label?: string): Partial<PlotData> {
       formatNumber(bar.a),
       formatNumber(bar.b),
       formatDeltaPct(bar.deltaPct),
-      ...escapedLabel,
+      lines(bar, before),
+      lines(bar, after),
     ]) as unknown as PlotData['customdata'],
     hovertemplate:
-      `<b>%{customdata[0]}</b>${label === undefined ? '' : '<br>%{customdata[5]}'}` +
-      '<br>Ratio: %{customdata[1]}<br>A: %{customdata[2]}<br>' +
-      'B: %{customdata[3]}<br>Delta %: %{customdata[4]}' +
-      `${label === undefined ? '<br><i>Click for details</i>' : ''}<extra></extra>`,
+      '<b>%{customdata[0]}</b>%{customdata[5]}<br>Ratio: %{customdata[1]}<br>' +
+      'A: %{customdata[2]}<br>B: %{customdata[3]}<br>Delta %: %{customdata[4]}' +
+      '%{customdata[6]}<extra></extra>',
   }
 }
 
-/** The bars, as one Plotly trace, coloured by status (CP3). */
-export function barTrace(bars: readonly Bar[]): Partial<PlotData> {
+/**
+ * The bars, as one Plotly trace, coloured by status, whose tooltips give the status, what it says
+ * of the change, and a last line saying that clicking a bar shows its details (CP3).
+ */
+export function barTrace(bars: readonly Bar<ComparisonRow>[]): Partial<PlotData> {
   return {
     type: 'bar',
     name: 'comparison',
-    ...plotted(bars),
+    ...plotted(bars, { after: (bar) => `${statusLines(bar)}<br><i>Click for details</i>` }),
     marker: { color: bars.map((bar) => STATUS_COLORS[bar.status]) },
   }
 }
 
 /**
- * The comparison of the `index`th shadow, which `label` names, as a thin line through its points,
- * sorted by their own ratios, in its colour and with its marker (CP8).
+ * The comparison of the `index`th shadow, which `label` names on a line of the tooltips after the
+ * test's, as a thin line through its points, sorted by their own ratios, in its colour and with
+ * its marker (CP8).
  */
 export function shadowTrace(
   points: readonly Bar[],
@@ -117,19 +141,11 @@ export function shadowTrace(
     type: 'scatter',
     mode: 'lines+markers',
     name: `shadow ${index + 1}`,
-    ...plotted(points, label),
+    // A point of a line has no details, nor a status (CP8).
+    ...plotted(points, { before: () => escapeHtml(label) }),
     line: { color, width: 1.5 },
     marker: { color, size: 6, symbol: marker.symbol },
   }
-}
-
-/**
- * The noise band (CP2 "Noise band on chart"): the log2 ratios of the Delta % threshold `pct`, above
- * and below, made symmetric from 100% on, where the one below is undefined.
- */
-export function noiseBand(pct: number): { upper: number; lower: number } {
-  const upper = Math.log2(1 + pct / 100)
-  return { upper, lower: pct < 100 ? Math.log2(1 - pct / 100) : -upper }
 }
 
 /** The percentage changes the y-axis labels at any range, as positive values: gains, losses. */
@@ -193,16 +209,15 @@ export function ratioTicks(min: number, max: number): { tickvals: number[]; tick
 }
 
 /**
- * The range the chart spans when not zoomed: its bars, from 0, the shadows' points, if any, and the
- * noise band, if any, which the ticks are computed over.
+ * The range the chart spans when not zoomed: its bars, from 0, and the shadows' points, if any,
+ * which the ticks are computed over.
  */
 export function chartExtent(
   bars: readonly Bar[],
-  band: { upper: number; lower: number } | null,
   shadows: readonly (readonly Bar[])[] = [],
 ): [number, number] {
-  let min = Math.min(0, band?.lower ?? 0)
-  let max = Math.max(0, band?.upper ?? 0)
+  let min = 0
+  let max = 0
   for (const list of [bars, ...shadows]) {
     for (const { y } of list) {
       if (y < min) min = y
@@ -214,26 +229,10 @@ export function chartExtent(
 
 interface LayoutOptions {
   ticks: { tickvals: number[]; ticktext: string[] }
-  band: { upper: number; lower: number } | null
   /** What the comparison is: a new value resets what the user did to the chart (CP3 "Zoom"). */
   revision: string
   /** Whether to say that there is nothing to plot (CP3 "Empty state"). */
   empty: boolean
-}
-
-/** A dashed line across the plot at `y`, for the noise band. */
-function bandLine(y: number): Partial<Shape> {
-  return {
-    type: 'line',
-    xref: 'paper',
-    yref: 'y',
-    x0: 0,
-    x1: 1,
-    y0: y,
-    y1: y,
-    layer: 'below',
-    line: { color: '#6b7280', width: 1, dash: 'dash' },
-  }
 }
 
 /**
@@ -241,13 +240,12 @@ function bandLine(y: number): Partial<Shape> {
  * percentage changes at the positions of `ticks`. A zoom is kept until `revision` changes, and the
  * y-axis otherwise fits what is plotted (CP3).
  */
-export function compareLayout({ ticks, band, revision, empty }: LayoutOptions): Partial<Layout> {
+export function compareLayout({ ticks, revision, empty }: LayoutOptions): Partial<Layout> {
   return {
     margin: { t: 10, r: 20, b: 40, l: 70 },
     xaxis: { showticklabels: false, zeroline: false, title: { text: 'Tests, by ratio' } },
     yaxis: { ...ticks, tickmode: 'array', zeroline: true, automargin: true },
     bargap: BAR_GAP,
-    shapes: band === null ? [] : [bandLine(band.upper), bandLine(band.lower)],
     showlegend: false,
     hovermode: 'closest',
     uirevision: revision,
