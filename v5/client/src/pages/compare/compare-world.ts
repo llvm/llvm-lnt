@@ -8,6 +8,7 @@ import { HttpResponse } from 'msw'
 import type { PlotData } from 'plotly.js'
 import type { Schemas } from '../../api/client'
 import type { SuiteSchema } from '../../api/suites'
+import type { Interval } from './comparison'
 import {
   BARE_SUITE,
   SUITE,
@@ -74,7 +75,7 @@ const SAMPLES: Record<string, [test: string, value: number][]> = {
 export const SUITES = [SUITE, OTHER_SUITE, MILLIS_SUITE]
 
 /** Every suite's runs and samples are the same: their machines, commits and tests. */
-interface World {
+export interface World {
   suites?: SuiteSchema[]
   runs?: Record<string, string[]>
   samples?: Record<string, [string, number][]>
@@ -274,6 +275,16 @@ export const CLASSIFIED: World = {
   },
 }
 
+/** A change whose 90% confidence interval runs from `low` to `high`, both logarithms of ratios. */
+export function logInterval(low: number, high: number, pValue = 0.5): Interval {
+  return { kind: 'interval', confidence: 90, estimate: (low + high) / 2, low, high, pValue }
+}
+
+/** A change whose 90% confidence interval of the ratio runs from `low` to `high`. */
+export function interval(low: number, high: number, pValue = 0.5): Interval {
+  return logInterval(Math.log(low), Math.log(high), pValue)
+}
+
 /** What the page last handed its chart (see test/chart.tsx). */
 export const chart = () => chartProps(screen.getByRole('img', { name: /^Ratio of B to A/ }))
 
@@ -290,7 +301,7 @@ export const listedTests = async () =>
   (await comparison()).slice(1).map((row) => row.split(' | ')[0])
 
 /** The status of `test`'s row, if the table shows it. */
-export const statusOf = async (test: string) =>
+export const statusShown = async (test: string) =>
   (await comparison())
     .find((row) => row.startsWith(`${test} |`))
     ?.split(' | ')

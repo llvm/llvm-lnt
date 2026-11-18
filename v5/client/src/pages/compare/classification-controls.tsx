@@ -92,7 +92,6 @@ type Classification = Pick<
 
 interface Props {
   settings: Classification
-  /** Memoize it. */
   update(changes: Partial<Classification>): void
   /**
    * Whether both sides have the 2 selected runs a p-value needs, without which the P-value filter
@@ -152,7 +151,7 @@ export function ClassificationControls({ settings, update, pValues }: Props) {
                 value={filters[filter.key]}
                 reason={filter.key === 'pValue' && !pValues ? NO_P_VALUES : undefined}
                 kept={kept}
-                onChange={(key, value) => update({ [FILTER_PARAMS[key]]: value })}
+                onChange={(value) => update({ [FILTER_PARAMS[filter.key]]: value })}
               />
             ))}
           </Dialog>
@@ -256,7 +255,8 @@ interface FilterProps {
   reason?: string
   /** Each filter's value as the panel last closed (see `ClassificationControls`). */
   kept: RefObject<KeptValues>
-  onChange(key: FilterKey, value: number | null): void
+  /** Called with the filter's value once it changes, or null once it is disabled. */
+  onChange(value: number | null): void
 }
 
 /**
@@ -270,14 +270,14 @@ function FilterInput({ filter, value, reason, kept, onChange }: FilterProps) {
   const enabled = value !== null
   const labelId = useId()
   const helpId = useId()
-  useApplyOnPause(valid, value, enabled, () => onChange(filter.key, valid))
+  useApplyOnPause(valid, value, enabled, () => onChange(valid))
   // What closing the panel does: keep the filter's value, and apply it if it is the value typed,
   // while typing has not paused since.
   const close = useRef(() => {})
   useEffect(() => {
     close.current = () => {
       kept.current[filter.key] = valid
-      if (enabled && valid !== value) onChange(filter.key, valid)
+      if (enabled && valid !== value) onChange(valid)
     }
   })
   useEffect(() => () => close.current(), [])
@@ -293,7 +293,7 @@ function FilterInput({ filter, value, reason, kept, onChange }: FilterProps) {
           disabled={reason !== undefined}
           aria-labelledby={labelId}
           aria-describedby={why === undefined ? helpId : `${why} ${helpId}`}
-          onChange={(event) => onChange(filter.key, event.target.checked ? valid : null)}
+          onChange={(event) => onChange(event.target.checked ? valid : null)}
         />
         <HelpLabel id={labelId} help={filter.help}>
           {filter.label}

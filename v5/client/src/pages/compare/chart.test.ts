@@ -10,16 +10,11 @@ import {
   shadowTrace,
 } from './chart'
 import { statisticsOf, type Change, type ComparisonRow, type Status } from './comparison'
+import { interval } from './compare-world'
 import { MAX_SHADOWS } from './shadow-specs'
 
 /** A change with only one run on side A. */
 const ONE_RUN: Change = { kind: 'runs', sides: 'A' }
-
-/** A change whose 90% confidence interval of the ratio is `[low, high]`. */
-function within(low: number, high: number): Change {
-  const [l, h] = [Math.log(low), Math.log(high)]
-  return { kind: 'interval', confidence: 90, estimate: (l + h) / 2, low: l, high: h, pValue: 0 }
-}
 
 /** A compared row of `test`, valued `a` and `b`, with the ratio and Delta % they give. */
 function row(
@@ -115,17 +110,10 @@ describe('chartExtent', () => {
 
 describe('barTrace', () => {
   const bars = chartBars([
-    row('<b>', 2, 1, 'improved', within(0.4, 0.6)),
-    row('slow', 1, 2, 'regressed', within(1.8, 2.2)),
+    row('<b>', 2, 1, 'improved', interval(0.4, 0.6)),
+    row('slow', 1, 2, 'regressed', interval(1.8, 2.2)),
     row('same', 1, 1.001),
-    row('flat', 1, 1.0001, 'unchanged', {
-      kind: 'interval',
-      confidence: 95,
-      estimate: 0,
-      low: Math.log(0.99),
-      high: Math.log(1.02),
-      pValue: 1,
-    }),
+    row('flat', 1, 1.0001, 'unchanged', interval(0.99, 1.02, 1)),
   ])
 
   it('draws a bar per test at its log2 ratio, coloured by status', () => {
@@ -156,7 +144,7 @@ describe('barTrace', () => {
   it("says what a bar's status says of its change, and last that it has details (CP3)", () => {
     expect(hoverText(barTrace(bars), 1)).toBe(
       '<b>flat</b><br>Ratio: 1.0001<br>A: 1<br>B: 1<br>Delta %: +0.01%<br>' +
-        'Status: Unchanged<br>95% CI: 0.00% [-1.00%, +2.00%], within the margin<br>' +
+        'Status: Unchanged<br>90% CI: +0.49% [-1.00%, +2.00%], within the margin<br>' +
         '<i>Click for details</i><extra></extra>',
     )
   })
@@ -193,9 +181,9 @@ describe('shadowTrace', () => {
     expect(new Set(looks.map((look) => look.color)).size).toBe(MAX_SHADOWS)
     expect(new Set(looks.map((look) => look.symbol)).size).toBe(MAX_SHADOWS)
     const everyStatus = [
-      row('i', 2, 1, 'improved', within(0.4, 0.6)),
-      row('r', 1, 2, 'regressed', within(1.8, 2.2)),
-      row('u', 1, 1, 'unchanged', within(0.99, 1.01)),
+      row('i', 2, 1, 'improved', interval(0.4, 0.6)),
+      row('r', 1, 2, 'regressed', interval(1.8, 2.2)),
+      row('u', 1, 1, 'unchanged', interval(0.99, 1.01)),
       row('n', 1, 1),
     ]
     const statuses = (barTrace(chartBars(everyStatus)).marker as { color: string[] }).color
@@ -204,9 +192,8 @@ describe('shadowTrace', () => {
 })
 
 describe('compareLayout', () => {
-  it('draws no band, and says when there is nothing to plot', () => {
+  it('says when there is nothing to plot', () => {
     const layout = compareLayout({ ticks: ratioTicks(-1, 1), revision: 'r', empty: true })
-    expect(layout.shapes).toBeUndefined()
     expect(layout.annotations?.[0].text).toBe('No data to plot')
     expect(layout.uirevision).toBe('r')
   })

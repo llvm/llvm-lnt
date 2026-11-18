@@ -45,9 +45,9 @@ export function chartBars<R extends Plottable>(rows: readonly R[]): Bar<R>[] {
 export const BAR_GAP = 0.1
 
 /**
- * The colours of the bars, by status (CP2): those of the table, `--lnt-success` and `--lnt-danger`
- * (see index.css), amber for inconclusive, as `--status-mark` in compare.module.css, and grey
- * otherwise. Plotly needs them as values rather than CSS variables.
+ * The colours of the bars, by status (CP2): those of the table, `--lnt-success`, `--lnt-danger`
+ * and `--lnt-warning` (see index.css), and grey otherwise. Plotly needs them as values rather than
+ * CSS variables.
  */
 const STATUS_COLORS: Record<Status, string> = {
   improved: '#15803d',
@@ -76,24 +76,18 @@ function statusLines({ status, change }: ComparisonRow): string {
   return `Status: ${LABELS[status]}${detail === undefined ? '' : `<br>${escapeHtml(detail)}`}`
 }
 
-/** What a tooltip says of a bar beyond its values: lines before them, and after them, as HTML. */
-interface MoreLines<R extends Plottable> {
-  before?: (bar: Bar<R>) => string
-  after?: (bar: Bar<R>) => string
-}
-
 /**
- * Where `bars` are drawn, at positions 0 to N - 1, and their tooltip, giving the test, the lines
- * `before` gives, if any, the exact ratio, both sides' values and Delta % (CP3), then the lines
- * `after` gives, if any. The test and those lines are passed as data rather than written into the
- * template: Plotly reads them as HTML, and the template would read `%{` in them as its own.
+ * Where `bars` are drawn, at positions 0 to N - 1, and their tooltip, giving the test, followed by
+ * a line holding `label` if any, the exact ratio, both sides' values and Delta % (CP3), then the
+ * lines `after` gives, if any, as HTML. The test, the label and those lines are passed as data
+ * rather than written into the template: Plotly reads them as HTML, and the template would read
+ * `%{` in them as its own.
  */
 function plotted<R extends Plottable>(
   bars: readonly Bar<R>[],
-  { before, after }: MoreLines<R>,
+  { label, after }: { label?: string; after?: (bar: Bar<R>) => string },
 ): Partial<PlotData> {
-  const lines = (bar: Bar<R>, more?: (bar: Bar<R>) => string) =>
-    more === undefined ? '' : `<br>${more(bar)}`
+  const before = label === undefined ? '' : `<br>${escapeHtml(label)}`
   return {
     x: bars.map((_, i) => i),
     y: bars.map((bar) => bar.y),
@@ -103,8 +97,8 @@ function plotted<R extends Plottable>(
       formatNumber(bar.a),
       formatNumber(bar.b),
       formatDeltaPct(bar.deltaPct),
-      lines(bar, before),
-      lines(bar, after),
+      before,
+      after === undefined ? '' : `<br>${after(bar)}`,
     ]) as unknown as PlotData['customdata'],
     hovertemplate:
       '<b>%{customdata[0]}</b>%{customdata[5]}<br>Ratio: %{customdata[1]}<br>' +
@@ -142,7 +136,7 @@ export function shadowTrace(
     mode: 'lines+markers',
     name: `shadow ${index + 1}`,
     // A point of a line has no details, nor a status (CP8).
-    ...plotted(points, { before: () => escapeHtml(label) }),
+    ...plotted(points, { label }),
     line: { color, width: 1.5 },
     marker: { color, size: 6, symbol: marker.symbol },
   }

@@ -4,10 +4,9 @@ import {
   changes,
   compareRows,
   criticalT,
+  changeOf,
   geomeanRow,
-  intervalOf,
   joinSides,
-  logWelch,
   passesFilters,
   runValues,
   sideSamples,
@@ -20,10 +19,10 @@ import {
   type ComparedTest,
   type Filters,
   type Interval,
-  type LogSpread,
   type SampledRun,
   type Values,
 } from './comparison'
+import { interval, logInterval } from './compare-world'
 
 /** A test with no statistics to speak of, for the steps that do not read them. */
 function tested(test: string): ComparedTest {
@@ -47,25 +46,14 @@ function row(
   })[0]
 }
 
-/** The interval of a change from `low` to `high`, as ratios, its estimate halfway in log space. */
-function interval(low: number, high: number, pValue = 0.5): Interval {
-  const [l, h] = [Math.log(low), Math.log(high)]
-  return { kind: 'interval', confidence: 90, estimate: (l + h) / 2, low: l, high: h, pValue }
-}
-
-/** The interval of a change from `low` to `high`, both logarithms of ratios. */
-function logInterval(low: number, high: number): Interval {
-  return { kind: 'interval', confidence: 90, estimate: (low + high) / 2, low, high, pValue: 0.5 }
-}
-
 /** The edge of a 5% margin, in log space. */
 const EDGE = Math.log1p(0.05)
 
-/** The spread `logWelch` gives, which a test expects to have one. */
-function spreadOf(a: number[], b: number[]): LogSpread {
-  const spread = logWelch(a, b)
-  if (spread.kind !== 'spread') throw new Error(`no spread: ${spread.kind}`)
-  return spread
+/** The interval `changeOf` gives, which a test expects there to be. */
+function ci(a: number[], b: number[], confidence = 90): Interval {
+  const change = changeOf(a, b, confidence)
+  if (change.kind !== 'interval') throw new Error(`no interval: ${change.kind}`)
+  return change
 }
 
 /** A row's values, with the status given and the derived values left out. */
@@ -191,16 +179,18 @@ describe('criticalT', () => {
   })
 })
 
-describe('logWelch', () => {
+describe('changeOf', () => {
   it("matches scipy's Welch t-test on the logs, with unequal counts and variances", () => {
-    const spread = spreadOf([10, 12, 11.5], [13, 15, 14.2, 16.1])
-    expect(spread.pValue).toBeCloseTo(0.017683292059657702, 10)
-    expect(spread.df).toBeCloseTo(4.297074360927089, 10)
-    // scipy's confidence_interval(0.9) and (0.95).
-    const at90 = intervalOf(spread, 90) as Interval
+    const [a, b] = [
+      [10, 12, 11.5],
+      [13, 15, 14.2, 16.1],
+    ]
+    // scipy's ttest_ind(equal_var=False), and its confidence_interval(0.9) and (0.95).
+    const at90 = ci(a, b, 90)
+    expect(at90.pValue).toBeCloseTo(0.017683292059657702, 10)
     expect(at90.low).toBeCloseTo(0.11748929562398966, 10)
     expect(at90.high).toBeCloseTo(0.4151485831891999, 10)
-    const at95 = intervalOf(spread, 95) as Interval
+    const at95 = ci(a, b, 95)
     expect(at95.low).toBeCloseTo(0.07390116260564122, 10)
     expect(at95.high).toBeCloseTo(0.45873671620754836, 10)
     expect(at90.estimate).toBeCloseTo(
@@ -210,43 +200,38 @@ describe('logWelch', () => {
   })
 
   it("leaves one side without variance the other's degrees of freedom", () => {
-    const spread = spreadOf([5, 5, 5], [6, 7, 6.5])
-    expect(spread.df).toBeCloseTo(2, 12)
-    expect(spread.pValue).toBeCloseTo(0.02799916100654397, 10)
-    const ci = intervalOf(spread, 90) as Interval
-    expect(ci.low).toBeCloseTo(0.13041611830154104, 10)
-    expect(ci.high).toBeCloseTo(0.39035592028689753, 10)
+    // scipy's, with 2 degrees of freedom.
+    const change = ci([5, 5, 5], [6, 7, 6.5])
+    expect(change.pValue).toBeCloseTo(0.02799916100654397, 10)
+    expect(change.low).toBeCloseTo(0.13041611830154104, 10)
+    expect(change.high).toBeCloseTo(0.39035592028689753, 10)
   })
 
   it('makes the interval a point without variance: p is 0 with a change, and 1 without', () => {
-    const changed = spreadOf([2, 2], [3, 3, 3])
-    expect(changed).toMatchObject({ standardError: 0, pValue: 0 })
-    const point = intervalOf(changed, 99) as Interval
+    const point = ci([2, 2], [3, 3, 3], 99)
+    expect(point.pValue).toBe(0)
     expect(point.estimate).toBeCloseTo(Math.log(1.5), 15)
     expect([point.low, point.high]).toEqual([point.estimate, point.estimate])
-    const same = spreadOf([0.1, 0.1, 0.1], [0.1, 0.1])
-    expect(same).toMatchObject({ difference: 0, standardError: 0, pValue: 1 })
-    expect(intervalOf(same, 90)).toMatchObject({ low: 0, high: 0 })
+    expect(ci([0.1, 0.1, 0.1], [0.1, 0.1])).toMatchObject({ low: 0, high: 0, pValue: 1 })
   })
 
   it('sees no variance in equal values, even those a sum does not keep exact', () => {
-    expect(spreadOf(Array(27).fill(0.609), Array(30).fill(0.609)).pValue).toBe(1)
+    expect(ci(Array(27).fill(0.609), Array(30).fill(0.609)).pValue).toBe(1)
   })
 
   it('is the same whichever side comes first, but for its sign', () => {
-    const forth = spreadOf([1, 2, 4], [2, 6, 7, 9])
-    const back = spreadOf([2, 6, 7, 9], [1, 2, 4])
+    const forth = ci([1, 2, 4], [2, 6, 7, 9])
+    const back = ci([2, 6, 7, 9], [1, 2, 4])
     expect(back.pValue).toBeCloseTo(forth.pValue, 12)
-    expect(back.difference).toBeCloseTo(-forth.difference, 12)
+    expect(back.low).toBeCloseTo(-forth.high, 12)
   })
 
   it('needs 2 runs on each side, and positive values, which it checks first', () => {
-    expect(logWelch([1], [1, 2])).toEqual({ kind: 'runs', sides: 'A' })
-    expect(logWelch([1, 2], [3])).toEqual({ kind: 'runs', sides: 'B' })
-    expect(logWelch([1], [])).toEqual({ kind: 'runs', sides: 'both' })
-    expect(logWelch([1, 0], [1, 2])).toEqual({ kind: 'nonPositive' })
-    expect(logWelch([1, 2], [-1])).toEqual({ kind: 'nonPositive' })
-    expect(intervalOf({ kind: 'nonPositive' }, 90)).toEqual({ kind: 'nonPositive' })
+    expect(changeOf([1], [1, 2], 90)).toEqual({ kind: 'runs', sides: 'A' })
+    expect(changeOf([1, 2], [3], 90)).toEqual({ kind: 'runs', sides: 'B' })
+    expect(changeOf([1], [], 90)).toEqual({ kind: 'runs', sides: 'both' })
+    expect(changeOf([1, 0], [1], 90)).toEqual({ kind: 'nonPositive' })
+    expect(changeOf([1, 2], [-1], 90)).toEqual({ kind: 'nonPositive' })
   })
 
   it('has p below alpha exactly when the interval at 1 - alpha excludes no change', () => {
@@ -257,16 +242,14 @@ describe('logWelch', () => {
       return 0.5 + state / 2 ** 31
     }
     for (let i = 0; i < 200; i++) {
-      const spread = spreadOf(
-        Array.from({ length: 2 + (i % 4) }, next),
-        Array.from({ length: 2 + (i % 3) }, () => next() * 1.3),
-      )
+      const a = Array.from({ length: 2 + (i % 4) }, next)
+      const b = Array.from({ length: 2 + (i % 3) }, () => next() * 1.3)
       for (const confidence of [80, 90, 95, 99]) {
-        const ci = intervalOf(spread, confidence) as Interval
+        const change = ci(a, b, confidence)
         const alpha = 1 - confidence / 100
         // Away from the boundary, where rounding could tell them apart.
-        if (Math.abs(spread.pValue - alpha) < 1e-9) continue
-        expect(spread.pValue < alpha).toBe(ci.low > 0 || ci.high < 0)
+        if (Math.abs(change.pValue - alpha) < 1e-9) continue
+        expect(change.pValue < alpha).toBe(change.low > 0 || change.high < 0)
       }
     }
   })
@@ -302,8 +285,8 @@ describe('statusOf', () => {
   it('makes a significance test of a margin of 0, where only an exact equality is unchanged', () => {
     expect(statusOf(interval(1.001, 1.002), 0, false)).toBe('regressed')
     expect(statusOf(interval(0.99, 1.01), 0, false)).toBe('inconclusive')
-    expect(statusOf(intervalOf(spreadOf([3, 3], [3, 3]), 90), 0, false)).toBe('unchanged')
-    expect(statusOf(intervalOf(spreadOf([3, 3], [4, 4]), 90), 0, true)).toBe('improved')
+    expect(statusOf(ci([3, 3], [3, 3]), 0, false)).toBe('unchanged')
+    expect(statusOf(ci([3, 3], [4, 4]), 0, true)).toBe('improved')
   })
 })
 
@@ -352,7 +335,7 @@ describe('changes', () => {
     )
     const b = runValues(new Map([['t', [[2], [4, 5]]]]), 'min')
     const changed = changes(tests, a, b, 95)
-    expect(changed.get('t')).toEqual(intervalOf(logWelch([1, 2], [2, 4]), 95))
+    expect(changed.get('t')).toEqual(changeOf([1, 2], [2, 4], 95))
     expect(changed.get('u')).toEqual({ kind: 'runs', sides: 'both' })
   })
 })
@@ -436,8 +419,10 @@ describe('passesFilters', () => {
 })
 
 describe('geomeanRow', () => {
+  const OPTIONS = { biggerIsBetter: false, margin: 5 }
+
   it('takes the geometric means of the absolute values, and their ratio', () => {
-    const geomean = geomeanRow([valued(1, 2), valued(-4, -2)], false)
+    const geomean = geomeanRow([valued(1, 2), valued(-4, -2)], OPTIONS)
     expect(geomean.a).toBeCloseTo(2)
     expect(geomean.b).toBeCloseTo(2)
     expect(geomean.ratio).toBeCloseTo(1)
@@ -447,7 +432,7 @@ describe('geomeanRow', () => {
   it('leaves out rows with a side without a value, or a zero on either side', () => {
     const geomean = geomeanRow(
       [valued(2, 8), valued(null, 3), valued(0, 3), valued(3, 0), valued(5, null)],
-      true,
+      { ...OPTIONS, biggerIsBetter: true },
     )
     expect(geomean.a).toBeCloseTo(2)
     expect(geomean.b).toBeCloseTo(8)
@@ -457,13 +442,20 @@ describe('geomeanRow', () => {
     expect(geomean.status).toBe('improved')
   })
 
-  it('classifies its own Delta, whatever the rows\' statuses', () => {
-    expect(geomeanRow([valued(2, 8, 'inconclusive')], false).status).toBe('regressed')
-    expect(geomeanRow([valued(2, 2, 'inconclusive')], false).status).toBe('unchanged')
+  it("classifies its Ratio against the margin, edges included, whatever the rows' statuses", () => {
+    const statusAt = (b: number, options = OPTIONS) =>
+      geomeanRow([valued(100, b, 'inconclusive')], options).status
+    expect(statusAt(108)).toBe('regressed')
+    expect(statusAt(108, { biggerIsBetter: true, margin: 5 })).toBe('improved')
+    expect(statusAt(92)).toBe('improved')
+    expect(statusAt(98.41)).toBe('unchanged')
+    expect(statusAt(104.9)).toBe('unchanged')
+    expect(statusAt(108, { biggerIsBetter: false, margin: 10 })).toBe('unchanged')
+    expect(statusAt(100.1, { biggerIsBetter: false, margin: 0 })).toBe('regressed')
   })
 
   it('is N/A with no row to take', () => {
-    expect(geomeanRow([valued(0, 1)], false)).toEqual(valued(null, null))
+    expect(geomeanRow([valued(0, 1)], OPTIONS)).toEqual(valued(null, null))
   })
 })
 

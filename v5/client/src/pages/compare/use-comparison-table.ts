@@ -98,7 +98,11 @@ export function useComparisonTable(
     () => sorted.filter((row) => !hiddenTests.has(row.test)),
     [sorted, hiddenTests],
   )
-  const geomean = useMemo(() => geomeanRow(compared, biggerIsBetter), [compared, biggerIsBetter])
+  const { margin } = settings
+  const geomean = useMemo(
+    () => geomeanRow(compared, { biggerIsBetter, margin }),
+    [compared, biggerIsBetter, margin],
+  )
   // The same, in no particular order, for the chart, which sorts them its own way: sorting the
   // table by another column leaves it as it is.
   const plotted = useMemo(

@@ -127,7 +127,7 @@ const AGAINST_MARGIN: Partial<Record<Status, string>> = {
 }
 
 /**
- * What a test's status says of its change (CP2 "Status colors"): its confidence interval and where
+ * What a test's status says of its change (CP2 "Status tooltip"): its confidence interval and where
  * it lies against the margin, or why it has none. Nothing for a test that cannot be compared.
  */
 export function describeStatus(status: Status, change: Change): string | undefined {
@@ -202,39 +202,6 @@ export const OPTIONAL_KEYS = [
 
 export type OptionalKey = (typeof OPTIONAL_KEYS)[number]
 
-/** The optional columns that are statistics of the samples, or the p-value: all but `ci`. */
-type StatisticKey = Exclude<OptionalKey, 'ci'>
-
-/** An optional statistic: what it is called, how it is shown, and its value, per side or not. */
-type Statistic = { label: string; format: (value: number) => string } & (
-  | { perSide: true; of: (side: SideStatistics) => number | null }
-  | { perSide: false; of: (row: ComparisonRow) => number | null }
-)
-
-const toFixed2 = (value: number) => value.toFixed(2)
-
-/** The optional statistics (CP2 "Optional columns"). */
-const STATISTICS: Record<StatisticKey, Statistic> = {
-  samples: { label: 'Samples', format: String, perSide: true, of: (side) => side.count },
-  mean: { label: 'Mean', format: formatNumber, perSide: true, of: (side) => side.mean },
-  median: { label: 'Median', format: formatNumber, perSide: true, of: (side) => side.median },
-  min: { label: 'Min', format: formatNumber, perSide: true, of: (side) => side.min },
-  max: { label: 'Max', format: formatNumber, perSide: true, of: (side) => side.max },
-  stddev: { label: 'Std dev', format: formatNumber, perSide: true, of: (side) => side.stddev },
-  cv: { label: 'CV %', format: toFixed2, perSide: true, of: (side) => side.cv },
-  pvalue: {
-    label: 'P-value',
-    format: formatNumber,
-    perSide: false,
-    of: (row) => pValueOf(row.change),
-  },
-}
-
-/** How the Columns menu names the optional column `key`. */
-export function optionalLabel(key: OptionalKey): string {
-  return key === 'ci' ? 'CI' : STATISTICS[key].label
-}
-
 /** What the Columns menu says the optional columns are computed over (CP2 "Optional columns"). */
 export const STATISTICS_OVER =
   'Samples to CV % are computed over all samples, without aggregation; ' +
@@ -267,9 +234,6 @@ function shownInterval(row: Row): Interval | null {
   return row.test === null || row.change.kind !== 'interval' ? null : row.change
 }
 
-/** What the CI column is sorted by: the estimate, whatever the confidence. */
-const intervalSortKey = (row: ComparisonRow) => shownInterval(row)?.estimate ?? null
-
 /**
  * The CI column, at `confidence`, a percentage (CP2 "Optional columns"), which Copy as CSV writes
  * as three columns: the estimate and the bounds, each a percentage change.
@@ -288,7 +252,7 @@ function intervalColumn(confidence: number): CompareColumn {
       const interval = shownInterval(row)
       return interval === null ? NA : formatInterval(interval)
     },
-    sortKey: intervalSortKey,
+    sortKey: (row) => shownInterval(row)?.estimate ?? null,
     csv: [
       { header: 'CI estimate %', value: percent('estimate') },
       { header: `${confidence}% CI low %`, value: percent('low') },
@@ -297,22 +261,51 @@ function intervalColumn(confidence: number): CompareColumn {
   }
 }
 
-/** The columns of the optional statistic `key`: one per side, A before B, or one for the test. */
-function statisticColumns(key: StatisticKey): CompareColumn[] {
-  const statistic = STATISTICS[key]
-  const { label, format } = statistic
-  if (!statistic.perSide) {
-    return [statisticColumn(key, label, statistic.of, format)]
-  }
-  return [
-    statisticColumn(`${key}_a`, `${label} A`, (row) => statistic.of(row.statisticsA), format),
-    statisticColumn(`${key}_b`, `${label} B`, (row) => statistic.of(row.statisticsB), format),
-  ]
+/** An optional column: what the Columns menu calls it, and its columns, which `key` names. */
+interface Optional {
+  label: string
+  /** The columns, at `confidence`, a percentage, for the CI's. */
+  columns(key: string, confidence: number): CompareColumn[]
 }
 
-/** The columns of the optional column `key`, at `confidence` for the CI. */
-function optionalColumns(key: OptionalKey, confidence: number): CompareColumn[] {
-  return key === 'ci' ? [intervalColumn(confidence)] : statisticColumns(key)
+/** A statistic of each side's samples for a test, as the columns of `label` A and `label` B. */
+function perSide(
+  label: string,
+  format: (value: number) => string,
+  of: (side: SideStatistics) => number | null,
+): Optional {
+  return {
+    label,
+    columns: (key) => [
+      statisticColumn(`${key}_a`, `${label} A`, (row) => of(row.statisticsA), format),
+      statisticColumn(`${key}_b`, `${label} B`, (row) => of(row.statisticsB), format),
+    ],
+  }
+}
+
+const toFixed2 = (value: number) => value.toFixed(2)
+
+/** The optional columns (CP2 "Optional columns"). */
+const OPTIONAL: Record<OptionalKey, Optional> = {
+  samples: perSide('Samples', String, (side) => side.count),
+  mean: perSide('Mean', formatNumber, (side) => side.mean),
+  median: perSide('Median', formatNumber, (side) => side.median),
+  min: perSide('Min', formatNumber, (side) => side.min),
+  max: perSide('Max', formatNumber, (side) => side.max),
+  stddev: perSide('Std dev', formatNumber, (side) => side.stddev),
+  cv: perSide('CV %', toFixed2, (side) => side.cv),
+  ci: { label: 'CI', columns: (_, confidence) => [intervalColumn(confidence)] },
+  pvalue: {
+    label: 'P-value',
+    columns: (key) => [
+      statisticColumn(key, 'P-value', (row) => pValueOf(row.change), formatNumber),
+    ],
+  },
+}
+
+/** How the Columns menu names the optional column `key`. */
+export function optionalLabel(key: OptionalKey): string {
+  return OPTIONAL[key].label
 }
 
 /**
@@ -321,27 +314,16 @@ function optionalColumns(key: OptionalKey, confidence: number): CompareColumn[] 
  */
 export function tableColumns(shown: readonly OptionalKey[], confidence: number): CompareColumn[] {
   const optional = OPTIONAL_KEYS.filter((key) => shown.includes(key)).flatMap((key) =>
-    optionalColumns(key, confidence),
+    OPTIONAL[key].columns(key, confidence),
   )
   return [...BASE_COLUMNS.slice(0, -1), ...optional, ...BASE_COLUMNS.slice(-1)]
 }
 
-/**
- * What each column the table can show is sorted by, by how `sort` names it (CP7), in the table's
- * order, whatever the confidence, which only names the CI's header.
- */
-const SORT_KEYS = new Map<string, CompareColumn['sortKey']>([
-  ...BASE_COLUMNS.slice(0, -1).map((column) => [column.id, column.sortKey] as const),
-  ...OPTIONAL_KEYS.flatMap((key) =>
-    key === 'ci'
-      ? [['ci', intervalSortKey] as const]
-      : statisticColumns(key).map((column) => [column.id, column.sortKey] as const),
-  ),
-  ...BASE_COLUMNS.slice(-1).map((column) => [column.id, column.sortKey] as const),
-])
+/** Every column of the table, whichever are shown, at any confidence: it only names headers. */
+const ALL_COLUMNS = tableColumns(OPTIONAL_KEYS, 90)
 
 /** Every column the table can sort by, as `sort` names them (CP7). */
-export const SORTABLE = [...SORT_KEYS.keys()]
+export const SORTABLE = ALL_COLUMNS.map((column) => column.id)
 
 /** `rows`, sorted by the column `id` in `direction` (see `sortRows`). */
 export function sortComparison(
@@ -349,8 +331,8 @@ export function sortComparison(
   id: string,
   direction: SortDirection,
 ): ComparisonRow[] {
-  const sortKey = SORT_KEYS.get(id)
-  return sortKey === undefined ? rows : sortRows(rows, sortKey, direction)
+  const column = ALL_COLUMNS.find((entry) => entry.id === id)
+  return column === undefined ? rows : sortRows(rows, column.sortKey, direction)
 }
 
 /** The compared rows as CSV (CP2 "Copy as CSV"): the columns' headers, the geomean, the rows. */

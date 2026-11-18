@@ -31,6 +31,9 @@
   --lnt-panel: #f7f8fa;
   --lnt-danger: #b91c1c;
   --lnt-success: #15803d;
+  /* Amber, for a mark (a bar, a dot), and darker for text, to be read as easily as the others. */
+  --lnt-warning: #d97706;
+  --lnt-warning-text: #b45309;
   --lnt-danger-strong: #991b1b;
   --lnt-danger-bg: #fef2f2;
   --lnt-danger-border: #fca5a5;

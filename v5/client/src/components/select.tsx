@@ -202,7 +202,7 @@ export function Select<Value extends string>({
         {...({ disabledBehavior: 'selection' } satisfies { disabledBehavior: DisabledBehavior })}
       >
         <ForgetRefusedFocus refused={refused} />
-        <FieldLabel label={label} hidden={hideLabel} title={help} />
+        <FieldLabel label={label} hidden={hideLabel} help={help} />
         <Button
           ref={ref}
           className={styles.button}

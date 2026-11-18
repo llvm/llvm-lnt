@@ -6,15 +6,16 @@ import { pickOption } from '../../test/select'
 import { SEARCH_DELAY_MS } from '../../components/suggestions'
 import { SUITE, uuidOf } from '../../test/fixtures'
 import {
+  CHANGES,
   CLASSIFIED,
   COMPARED,
   comparison,
   listedTests,
   mockWorld,
-  CHANGES,
   runBox,
   showBox,
-  statusOf,
+  statusShown,
+  type World,
 } from './compare-world'
 
 // The page renders its chart, which Plotly cannot draw in jsdom (see test/chart.tsx).
@@ -49,26 +50,36 @@ describe('the classification (CP1, CP2)', () => {
     ])
   })
 
+  it("classifies the geomean's Ratio against the margin", async () => {
+    mockWorld(CLASSIFIED)
+    renderPage(`${COMPARED}&margin=20`)
+
+    // +12.76%, within 20%, though up and down are well beyond it.
+    expect((await comparison())[0]).toBe(
+      'Geomean | 20.59 | 23.22 | 2.627 | +12.76% | 1.1276 | Unchanged',
+    )
+  })
+
   it('classifies a change by whether bigger is better', async () => {
     const biggerIsBetter = { ...SUITE.metrics[0], bigger_is_better: true }
     mockWorld({ ...CLASSIFIED, suites: [{ ...SUITE, metrics: [biggerIsBetter] }] })
     renderPage(COMPARED)
 
-    expect(await statusOf('up')).toBe('Improved')
-    expect(await statusOf('down')).toBe('Regressed')
-    expect(await statusOf('flat')).toBe('Unchanged')
+    expect(await statusShown('up')).toBe('Improved')
+    expect(await statusShown('down')).toBe('Regressed')
+    expect(await statusShown('flat')).toBe('Unchanged')
   })
 
   it('swaps improved and regressed with the sides', async () => {
     mockWorld(CLASSIFIED)
     renderPage(COMPARED)
-    expect(await statusOf('up')).toBe('Regressed')
+    expect(await statusShown('up')).toBe('Regressed')
 
     await userEvent.setup().click(screen.getByRole('button', { name: 'Swap sides' }))
 
-    await waitFor(async () => expect(await statusOf('up')).toBe('Improved'))
-    expect(await statusOf('down')).toBe('Regressed')
-    expect(await statusOf('flat')).toBe('Unchanged')
+    await waitFor(async () => expect(await statusShown('up')).toBe('Improved'))
+    expect(await statusShown('down')).toBe('Regressed')
+    expect(await statusShown('flat')).toBe('Unchanged')
     expect(statusTitle('up')).toMatch(/^90% CI: -33\.11% \[/)
   })
 
@@ -92,7 +103,7 @@ describe('the classification (CP1, CP2)', () => {
     mockWorld(CHANGES)
     renderPage(COMPARED)
 
-    expect(await statusOf('d')).toBe('Inconclusive')
+    expect(await statusShown('d')).toBe('Inconclusive')
     expect(statusTitle('d')).toBe('Only 1 run on side B: a CI needs at least 2 runs on each side')
   })
 
@@ -109,8 +120,8 @@ describe('the classification (CP1, CP2)', () => {
     // Not yet: neither 6 on the way, nor 60.
     expect(query().margin).toBeUndefined()
     await waitFor(() => expect(query().margin).toEqual(['60']))
-    await waitFor(async () => expect(await statusOf('up')).toBe('Unchanged'))
-    expect(await statusOf('down')).toBe('Improved')
+    await waitFor(async () => expect(await statusShown('up')).toBe('Unchanged'))
+    expect(await statusShown('down')).toBe('Improved')
   })
 
   it('keeps the last valid margin while the text is not one, an empty one included', async () => {
@@ -128,13 +139,13 @@ describe('the classification (CP1, CP2)', () => {
     await new Promise((resolve) => setTimeout(resolve, SEARCH_DELAY_MS + 100))
     expect(query().margin).toEqual(['0'])
     // With a margin of 0, only an exact equality is unchanged.
-    expect(await statusOf('flat')).toBe('Inconclusive')
+    expect(await statusShown('flat')).toBe('Inconclusive')
   })
 
   it('reclassifies the tests at the confidence picked', async () => {
     mockWorld(CLASSIFIED)
     renderPage(`${COMPARED}&margin=40`)
-    expect(await statusOf('up')).toBe('Regressed')
+    expect(await statusShown('up')).toBe('Regressed')
     // Explained on hover over its label, and to assistive technology.
     expect(screen.getByText('Confidence')).toHaveAttribute(
       'title',
@@ -147,7 +158,7 @@ describe('the classification (CP1, CP2)', () => {
     await pickOption('Confidence', '99%')
 
     await waitFor(() => expect(query().confidence).toEqual(['99']))
-    await waitFor(async () => expect(await statusOf('up')).toBe('Inconclusive'))
+    await waitFor(async () => expect(await statusShown('up')).toBe('Inconclusive'))
     expect(statusTitle('up')).toMatch(/^99% CI: /)
   })
 
@@ -168,7 +179,7 @@ describe('the classification (CP1, CP2)', () => {
     renderPage(`${COMPARED}${old}`)
 
     expect(await listedTests()).toEqual(['neg', 'up', 'wild', 'one', 'flat', 'down', 'only'])
-    expect(await statusOf('flat')).toBe('Unchanged')
+    expect(await statusShown('flat')).toBe('Unchanged')
     expect(currentUrl()).toContain(old)
   })
 })
@@ -197,20 +208,6 @@ describe('Hide unchanged and Hide inconclusive (CP1)', () => {
       'Only in B 0',
       'Zero baseline 0',
     ])
-  })
-
-  it('says which of them leaves no row', async () => {
-    mockWorld(CLASSIFIED)
-    renderPage(`${COMPARED}&test_filter=flat&hide_unchanged=true`)
-    expect(await screen.findByText('Every matching test is unchanged.')).toBeInTheDocument()
-  })
-
-  it('says so when both leave no row', async () => {
-    mockWorld(CHANGES)
-    renderPage(`${COMPARED}&test_filter=a&hide_unchanged=true&hide_inconclusive=true`)
-    expect(
-      await screen.findByText('Every matching test is unchanged or inconclusive.'),
-    ).toBeInTheDocument()
   })
 })
 
@@ -288,25 +285,6 @@ describe('the filters (CP1)', () => {
     await user.dblClick(screen.getByRole('cell', { name: 'up' }))
     await waitFor(() => expect(query().hidden_test).toEqual(['down', 'only']))
     expect(showBox('up')).toBeChecked()
-  })
-
-  it('say when they leave none of the rows the test filter keeps', async () => {
-    mockWorld(CLASSIFIED)
-    renderPage(`${COMPARED}&min_abs=1000&test_filter=^(up|down)$&test_filter_regex=true`)
-    expect(await screen.findByText('No matching test passes the filters.')).toBeInTheDocument()
-    expect(screen.getByText('0 of 0 matching tests shown · 7 tests in total')).toBeInTheDocument()
-  })
-
-  it('say when they leave no row, without a test filter', async () => {
-    mockWorld({ samples: { '1': [['a', 1]], '2': [['a', 1]], '3': [['a', 2]] } })
-    renderPage(`${COMPARED}&min_abs=1000`)
-    expect(await screen.findByText('No test passes the filters.')).toBeInTheDocument()
-  })
-
-  it('leave the test filter to say when it keeps no row', async () => {
-    mockWorld(CLASSIFIED)
-    renderPage(`${COMPARED}&min_abs=1000&test_filter=nothing`)
-    expect(await screen.findByText('No tests match the filter.')).toBeInTheDocument()
   })
 
   it('enable a filter with its value, and apply a value typed once typing pauses', async () => {
@@ -432,6 +410,28 @@ describe('the filters (CP1)', () => {
     expect(query().min_delta_pct).toEqual(['60'])
   })
 
+  it('explain themselves, as the margin does, on hover and to assistive technology', async () => {
+    mockWorld(CLASSIFIED)
+    renderPage(COMPARED)
+    await comparison()
+    const explains = (label: string, control: HTMLElement, help: RegExp) => {
+      expect(screen.getByText(label)).toHaveAttribute('title', expect.stringMatching(help))
+      expect(control).toHaveAccessibleDescription(help)
+    }
+
+    const margin = screen.getByRole('textbox', { name: 'Margin' })
+    explains('Margin', margin, /as a ratio: with 5%, beyond ×1\.05 or ÷1\.05/)
+    await open()
+    const filter = (name: string) => screen.getByRole('checkbox', { name })
+    explains('|Delta %| at least', filter('|Delta %| at least'), /absolute Delta % is below this/)
+    explains(
+      'P-value at most',
+      filter('P-value at most'),
+      /is above this, and those without one: with fewer than 2 runs on a side, or a run's value/,
+    )
+    explains('Absolute at least', filter('Absolute at least'), /both below this in absolute value/)
+  })
+
   it('start collapsed', async () => {
     mockWorld(CHANGES)
     renderPage(COMPARED)
@@ -473,5 +473,28 @@ describe('the filters (CP1)', () => {
     expect(threshold).toBeDisabled()
     expect(threshold).toHaveValue('0.05')
     expect(screen.getByRole('checkbox', { name: 'P-value at most' })).toBeEnabled()
+  })
+})
+
+describe('the empty states (CP6)', () => {
+  /** A comparison with only a test that can be compared, which no filter passes by default. */
+  const COMPARABLE: World = { samples: { '1': [['a', 1]], '2': [['a', 1]], '3': [['a', 2]] } }
+  const regex = (pattern: string) => `&test_filter=${pattern}&test_filter_regex=true`
+  const CASES: [query: string, message: string, world?: World][] = [
+    ['&min_abs=1000&test_filter=nothing', 'No tests match the filter.'],
+    ['&min_abs=1000', 'No test passes the filters.', COMPARABLE],
+    [`&min_abs=1000${regex('^(up|down)$')}`, 'No matching test passes the filters.'],
+    ['&test_filter=flat&hide_unchanged=true', 'Every matching test is unchanged.'],
+    ['&test_filter=wild&hide_inconclusive=true', 'Every matching test is inconclusive.'],
+    [
+      `${regex('^(flat|wild)$')}&hide_unchanged=true&hide_inconclusive=true`,
+      'Every matching test is unchanged or inconclusive.',
+    ],
+  ]
+
+  it.each(CASES)('with %s, say: %s', async (query, message, world = CLASSIFIED) => {
+    mockWorld(world)
+    renderPage(`${COMPARED}${query}`)
+    expect(await screen.findByText(message)).toBeInTheDocument()
   })
 })

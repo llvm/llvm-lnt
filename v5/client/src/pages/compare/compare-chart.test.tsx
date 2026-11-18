@@ -14,11 +14,11 @@ import type { PlotGeometry } from '../../components/chart'
 import {
   barsOf,
   chart,
+  CHANGES,
   CLASSIFIED,
   COMPARED,
   comparison,
   mockWorld,
-  CHANGES,
   runBox,
   showBox,
 } from './compare-world'
@@ -39,20 +39,12 @@ describe('the chart (CP3)', () => {
     await waitFor(() => expect(barsOf()).toEqual([Math.log2(1.005)]))
   })
 
-  it('draws no band, whatever the margin and the filters', async () => {
-    mockWorld(CHANGES)
-    renderPage(`${COMPARED}&margin=50&min_delta_pct=0`)
-    await comparison()
-
-    expect(chart().layout.shapes).toBeUndefined()
-  })
-
   it('plots only the tests the filters and the hide checkboxes keep', async () => {
     mockWorld(CLASSIFIED)
     renderPage(`${COMPARED}&min_delta_pct=40&hide_inconclusive=true`)
     await comparison()
 
-    // down and up: neg is inconclusive, and only has a value on side A only.
+    // down and up: neg is inconclusive, and only has a value on side A alone.
     expect(barsOf()).toEqual([Math.log2(0.5), Math.log2(151 / 101)])
   })
 

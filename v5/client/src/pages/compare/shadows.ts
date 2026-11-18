@@ -24,7 +24,7 @@ import {
   runValues,
   sideSamples,
   sideValues,
-  valueRows,
+  valueRow,
   type ComparisonRow,
 } from './comparison'
 import { hasFailed, sidesRuns } from './loading'
@@ -229,8 +229,10 @@ export function useShadowLines(
   const bars = useMemo(
     () =>
       values.map((ofShadow) =>
-        // Without statuses, which a shadow does not have (CP8).
-        tests && valuesA && ofShadow ? chartBars(valueRows(tests, valuesA, ofShadow)) : undefined,
+        // Without statistics or statuses, which a shadow does not have (CP8).
+        tests && valuesA && ofShadow
+          ? chartBars(tests.map(({ test }) => valueRow(test, valuesA, ofShadow)))
+          : undefined,
       ),
     [values, tests, valuesA],
   )

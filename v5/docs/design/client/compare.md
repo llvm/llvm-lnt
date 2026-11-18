@@ -112,12 +112,10 @@ Global controls, shared by both sides:
 - **Test filter**: a text filter on test names, with regex mode (see AR9).
 - **Margin**: a percentage `m`, at least 0, 5 by default: how large a change
   has to be to matter, as a ratio: beyond a factor of `1 + m` either way, so
-  that 5% means above ×1.05 or below ÷1.05 (-4.76%). Its label has a help
-  tooltip saying so, and how it classifies the tests (see CP2 "Status
+  that 5% means above ×1.05 or below ÷1.05 (-4.76%) (see CP2 "Status
   classification").
 - **Confidence**: a dropdown of the confidence levels of the intervals that
-  classify the tests: 80%, 90%, 95% or 99%, 90% by default. Its label has a
-  help tooltip saying what it is.
+  classify the tests: 80%, 90%, 95% or 99%, 90% by default.
 - **Hide unchanged**, **Hide inconclusive**: checkboxes that remove the rows
   whose status is Unchanged, or Inconclusive, from the table and the chart.
 - **Filters**: a button opening a panel below it, over the page, which holds
@@ -126,31 +124,28 @@ Global controls, shared by both sides:
   Each filter has a checkbox to enable it (off by default) and a value. While a
   filter is disabled, so is its value's input: a value can only be typed once
   the filter is enabled. Closing the panel keeps the values typed in it, and a
-  disabled filter keeps its value for when it is enabled again. Each filter's
-  label has a help tooltip saying what the filter does.
+  disabled filter keeps its value for when it is enabled again.
   - **|Delta %| at least** (1 by default, at least 0): |Delta %| is at least
     the value.
   - **P-value at most** (0.05 by default, between 0 and 1): the test's p-value
     (see CP2 "Computation Reference") is at most the value. A test without a
-    p-value, with fewer than 2 runs on a side or a run's value of 0 or less,
-    fails it, which its help tooltip says. While a side has fewer than 2
-    selected runs, no test can have a p-value: the filter's checkbox and value
-    are then disabled, saying why on hover and to assistive technology, and the
-    filter does not apply. It keeps its setting, in the URL too, and applies
-    again once both sides have 2 selected runs or more.
+    p-value fails it. While a side has fewer than 2 selected runs, no test can
+    have one: the filter's checkbox and value are then disabled, saying why on
+    hover and to assistive technology, and the filter does not apply. It keeps
+    its setting, in the URL too.
   - **Absolute at least** (0 by default, at least 0): max(|Value A|,
     |Value B|), in the metric's unit, is at least the value. For measurements
-    too small to be meaningful, which more runs would not make conclusive.
+    too small to be meaningful.
 
-  A test passes the filters when it passes every one that applies: every
-  enabled one, but for P-value at most while it is disabled. A test whose
+  A test passes the filters when it passes every one that applies. A test whose
   status is N/A passes every filter. The filters never change a test's status:
   they only narrow the tests looked at (see CP2 "Rows" and CP4).
 
-The margin and the filters' values are typed. A value is applied once typing
-pauses, or as the Filters panel closes, if that is sooner. If the text is not a
-number, is out of range, or is empty, the input shows the red halo (see AR11),
-and the last valid value stays in use.
+The labels of the margin, the confidence and each filter have a help tooltip
+saying what they do. The margin and the filters' values are typed. A value is
+applied once typing pauses, or as the Filters panel closes, if that is sooner.
+If the text is not a number, is out of range, or is empty, the input shows the
+red halo (see AR11), and the last valid value stays in use.
 
 There is no Compare button. The comparison is computed automatically once both
 sides have at least one run selected, a metric is selected, and the samples of
@@ -214,7 +209,8 @@ all use these rows.
   as in `90% CI: +3.10% [-1.20%, +7.60%], straddles an edge of the margin`;
   or why it has none: `Only 1 run on side A: a CI needs at least 2 runs on
   each side` (or side B, or each side), or that a run's value is 0 or
-  negative. The geomean summary row's status has no tooltip.
+  negative, which it says when both apply, since more runs would not remedy
+  it. The geomean summary row's status has no tooltip.
 - **Sample count tooltips**: Value A and Value B have a tooltip saying how many
   samples and runs the value was computed from, e.g. "6 samples across 2
   runs". Delta, Delta % and Ratio show both sides: "A:
@@ -256,9 +252,8 @@ all use these rows.
   The statistics from Samples to CV % are computed over the side's samples for
   the test (see Computation Reference), from all its selected runs together,
   before any aggregation: the sample and run aggregation settings do not affect
-  them. The CI and the p-value are computed from each run's value of the test,
-  which the sample aggregation gives, and the run aggregation does not affect
-  them. A line above the Columns menu's items says so. A CI is shown as its
+  them. The CI and the p-value come from the runs' values (see Computation
+  Reference). A line above the Columns menu's items says so. A CI is shown as its
   estimate followed by its bounds in brackets, each a percentage change shown as
   Delta % is, as in `+58.12% [-16.03%, +197.40%]`. A bound too large to be
   represented is shown as `+∞%`. A CI sorts by its estimate. A p-value is shown
@@ -337,10 +332,8 @@ computed in log space with Welch's method:
 | P-value  | The two-tailed p-value of `d / se` in Student's t-distribution with `df` degrees of freedom |
 
 When `se = 0`, neither side varies: the interval is the estimate alone, and the
-p-value is 0 when `d` is not 0, and 1 when it is. The p-value is that of
-Welch's t-test on the logs of the runs' values, and does not depend on the
-confidence level: a p-value below `1 - c` means that the interval at `c` does not
-hold 1.
+p-value is 0 when `d` is not 0, and 1 when it is. A p-value below `1 - c`
+means that the interval at `c` does not hold 1.
 
 **Status classification** (for tests whose status is not N/A). The margin `m`,
 as a fraction, gives the band `[1 / (1 + m), 1 + m]` of ratios, symmetric in
@@ -355,9 +348,7 @@ log space, edges included:
 
 A margin of 0 makes this a plain significance test: a test is improved or
 regressed when its interval does not hold 1, and unchanged only when neither
-side varies and the two are equal. When a test has both fewer than 2 runs on a
-side and a run's value that is 0 or negative, its status's tooltip (see "Status
-tooltip") gives the latter, which more runs would not remedy.
+side varies and the two are equal.
 
 **Geomean summary row.** Computed over the N compared rows where both sides
 have a value and both values are non-zero:
@@ -375,10 +366,9 @@ metric values do not produce undefined logarithms. Since all three are taken
 over the same N tests, the geometric mean of the ratios equals
 `Geomean B / Geomean A`.
 
-The row has no interval. Its Status comes from the sign of its Delta combined
-with `bigger_is_better`: `unchanged` when Delta is 0, `improved` when Delta is
-positive and bigger is better, or negative and bigger is not, and `regressed`
-otherwise. When N is 0, the row shows N/A throughout.
+The row has no interval: its Status classifies its Ratio as an interval of a
+single point would be, so that it is never `inconclusive`. When N is 0, the row
+shows N/A throughout.
 
 **Chart Y-axis.** The chart plots `log2(Ratio)` = `log2(vB / vA)`. The log2
 scale makes equal multiplicative changes symmetric: a 2x speedup (ratio = 0.5)

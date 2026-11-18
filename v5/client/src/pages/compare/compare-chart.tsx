@@ -178,7 +178,6 @@ export function CompareChart({
     const x = right
       ? Math.min(geometry.x(openAt + half), middle)
       : Math.max(geometry.x(openAt - half), middle)
-    const row = rows.find((entry) => entry.test === open)!
     opened = (
       <ChartDialog
         key={open}
@@ -187,7 +186,7 @@ export function CompareChart({
         at={{ x, y: area.top, side: right ? 'right' : 'left', align: 'start' }}
         onClose={close}
       >
-        {details(row)}
+        {details(bars[openAt])}
       </ChartDialog>
     )
   }

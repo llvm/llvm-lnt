@@ -8,7 +8,7 @@
  * 2. `runValues`: each run's value of each test, with the sample aggregation.
  * 3. `sideValues`: a side's value of each test, from its runs' values, with the run aggregation.
  * 4. `changes`: each test's change, from Welch's t-test between the logs of the two sides' runs'
- *    values, with its confidence interval at the confidence chosen.
+ *    values, with its confidence interval at the confidence chosen (see `changeOf`).
  * 5. `compareRows`: the rows: Delta, Delta %, Ratio, and the status, with the margin chosen.
  */
 
@@ -122,7 +122,7 @@ const LANCZOS = [
 
 /**
  * `ln(Γ(z))`, by the Lanczos approximation, for `z >= 0.5`: every argument the t-distribution
- * gives it here, whose degrees of freedom are at least 1 (see `logWelch`).
+ * gives it here, whose degrees of freedom are at least 1 (see `changeOf`).
  */
 function lnGamma(z: number): number {
   const x = z - 1
@@ -210,57 +210,6 @@ export const MIN_RUNS = 2
  */
 export type NoInterval = { kind: 'nonPositive' } | { kind: 'runs'; sides: 'A' | 'B' | 'both' }
 
-/** Welch's t-test between the logarithms of two sides' runs' values for a test. */
-export interface LogSpread {
-  kind: 'spread'
-  /** `mean(ln B) - mean(ln A)`: the logarithm of the ratio of the geometric means. */
-  difference: number
-  /** The standard error of `difference`: 0 when neither side varies. */
-  standardError: number
-  /**
-   * The Welch-Satterthwaite degrees of freedom, which are at least `min(nA, nB) - 1`, and so at
-   * least 1. Infinite when neither side varies, where they do not matter.
-   */
-  df: number
-  /**
-   * The two-tailed p-value of `difference`. Without variance, the change is exact: 0 when there is
-   * one, 1 when there is none.
-   */
-  pValue: number
-}
-
-/**
- * Welch's t-test between the logarithms of `a` and `b`, two sides' runs' values for a test (CP2
- * "Computation Reference"), unless a value is not positive, or a side has fewer than 2 of them,
- * checked in this order.
- */
-export function logWelch(a: readonly number[], b: readonly number[]): LogSpread | NoInterval {
-  if (a.some((value) => !(value > 0)) || b.some((value) => !(value > 0))) {
-    return { kind: 'nonPositive' }
-  }
-  if (a.length < MIN_RUNS || b.length < MIN_RUNS) {
-    const sides = a.length < MIN_RUNS ? (b.length < MIN_RUNS ? 'both' : 'A') : 'B'
-    return { kind: 'runs', sides }
-  }
-  const logA = a.map(Math.log)
-  const logB = b.map(Math.log)
-  const meanA = mean(logA)
-  const meanB = mean(logB)
-  const difference = meanB - meanA
-  // The variance of each side's mean.
-  const spreadA = variance(logA, meanA) / a.length
-  const spreadB = variance(logB, meanB) / b.length
-  const spread = spreadA + spreadB
-  if (spread === 0) {
-    const pValue = difference === 0 ? 1 : 0
-    return { kind: 'spread', difference, standardError: 0, df: Infinity, pValue }
-  }
-  const standardError = Math.sqrt(spread)
-  const df = spread ** 2 / (spreadA ** 2 / (a.length - 1) + spreadB ** 2 / (b.length - 1))
-  const pValue = twoTailed(difference / standardError, df)
-  return { kind: 'spread', difference, standardError, df, pValue }
-}
-
 /**
  * The confidence interval of a test's change (CP2 "Computation Reference"), as the logarithms of
  * the ratio B / A: its estimate, the ratio of the geometric means of the two sides' runs' values,
@@ -273,26 +222,55 @@ export interface Interval {
   estimate: number
   low: number
   high: number
-  /** The p-value of Welch's t-test between the same values (see `LogSpread`). */
+  /**
+   * The two-tailed p-value of Welch's t-test between the same values. Without variance, the change
+   * is exact: 0 when there is one, 1 when there is none.
+   */
   pValue: number
 }
 
 /** A test's change: its confidence interval, or why it has none. */
 export type Change = Interval | NoInterval
 
-/** The confidence interval at `confidence`, a percentage, of the change `spread` describes. */
-export function intervalOf(spread: LogSpread | NoInterval, confidence: number): Change {
-  if (spread.kind !== 'spread') return spread
-  const { difference, standardError, df, pValue } = spread
-  const half = standardError === 0 ? 0 : criticalT(confidence / 100, df) * standardError
-  return {
+/**
+ * The change between `a` and `b`, two sides' runs' values for a test, with its confidence interval
+ * at `confidence`, a percentage, from Welch's t-test between their logarithms (CP2 "Computation
+ * Reference"), unless a value is not positive, or a side has fewer than 2 of them, checked in this
+ * order.
+ */
+export function changeOf(a: readonly number[], b: readonly number[], confidence: number): Change {
+  if (a.some((value) => !(value > 0)) || b.some((value) => !(value > 0))) {
+    return { kind: 'nonPositive' }
+  }
+  if (a.length < MIN_RUNS || b.length < MIN_RUNS) {
+    const sides = a.length < MIN_RUNS ? (b.length < MIN_RUNS ? 'both' : 'A') : 'B'
+    return { kind: 'runs', sides }
+  }
+  const logA = a.map(Math.log)
+  const logB = b.map(Math.log)
+  const meanA = mean(logA)
+  const meanB = mean(logB)
+  const estimate = meanB - meanA
+  // The variance of each side's mean.
+  const spreadA = variance(logA, meanA) / a.length
+  const spreadB = variance(logB, meanB) / b.length
+  const spread = spreadA + spreadB
+  const interval = (half: number, pValue: number): Interval => ({
     kind: 'interval',
     confidence,
-    estimate: difference,
-    low: difference - half,
-    high: difference + half,
+    estimate,
+    low: estimate - half,
+    high: estimate + half,
     pValue,
-  }
+  })
+  if (spread === 0) return interval(0, estimate === 0 ? 1 : 0)
+  const standardError = Math.sqrt(spread)
+  // The Welch-Satterthwaite degrees of freedom, at least `min(nA, nB) - 1`, and so at least 1.
+  const df = spread ** 2 / (spreadA ** 2 / (a.length - 1) + spreadB ** 2 / (b.length - 1))
+  return interval(
+    criticalT(confidence / 100, df) * standardError,
+    twoTailed(estimate / standardError, df),
+  )
 }
 
 /** The p-value of a change, or null when it has no interval. */
@@ -357,10 +335,7 @@ export function changes(
   confidence: number,
 ): Map<string, Change> {
   return new Map(
-    tests.map(({ test }) => {
-      const spread = logWelch(a.get(test) ?? [], b.get(test) ?? [])
-      return [test, intervalOf(spread, confidence)]
-    }),
+    tests.map(({ test }) => [test, changeOf(a.get(test) ?? [], b.get(test) ?? [], confidence)]),
   )
 }
 
@@ -374,12 +349,24 @@ export type Status = (typeof STATUSES)[number]
 
 /** The status of a test whose sides can be compared, from its change (CP2). */
 export function statusOf(change: Change, margin: number, biggerIsBetter: boolean): Status {
-  if (change.kind !== 'interval') return 'inconclusive'
+  return change.kind === 'interval'
+    ? statusOfBounds(change, { margin, biggerIsBetter })
+    : 'inconclusive'
+}
+
+/**
+ * The status of a change from `low` to `high`, logarithms of ratios, against the margin, a
+ * percentage: that of an interval, or of a point (`low = high`), as the geomean row's is.
+ */
+function statusOfBounds(
+  { low, high }: { low: number; high: number },
+  { margin, biggerIsBetter }: RowOptions,
+): Status {
   // The margin's band, [1 / (1 + m), 1 + m], is symmetric around 0 in log space.
   const edge = Math.log1p(margin / 100)
-  if (change.low > edge) return biggerIsBetter ? 'improved' : 'regressed'
-  if (change.high < -edge) return biggerIsBetter ? 'regressed' : 'improved'
-  return change.low >= -edge && change.high <= edge ? 'unchanged' : 'inconclusive'
+  if (low > edge) return biggerIsBetter ? 'improved' : 'regressed'
+  if (high < -edge) return biggerIsBetter ? 'regressed' : 'improved'
+  return low >= -edge && high <= edge ? 'unchanged' : 'inconclusive'
 }
 
 /** The values a row of the table shows, the geomean summary row's included. */
@@ -394,10 +381,10 @@ export interface Values {
 }
 
 /** A test of the comparison, with each side's value of it and how they differ. */
-export type ValueRow = ComparedTest & Omit<Values, 'status'>
+type ValueRow = { test: string } & Omit<Values, 'status'>
 
 /** A row of the comparison table. */
-export interface ComparisonRow extends ValueRow, Values {
+export interface ComparisonRow extends ComparedTest, Values {
   /** The test's change, from its runs' values, whatever its status. */
   change: Change
 }
@@ -417,29 +404,21 @@ function derive(
 /** The values of a row that has nothing to compare: N/A throughout. */
 const NOTHING: Values = { a: null, b: null, delta: null, deltaPct: null, ratio: null, status: 'na' }
 
-/** Delta's status, from its sign and the metric's `bigger_is_better`: the geomean row's (CP2). */
-function statusOfDelta(delta: number, biggerIsBetter: boolean): Status {
-  if (delta === 0) return 'unchanged'
-  return delta > 0 === biggerIsBetter ? 'improved' : 'regressed'
-}
-
 export interface RowOptions {
   biggerIsBetter: boolean
   /** The margin, as a percentage (CP1). */
   margin: number
 }
 
-/** `tests`, with each side's value of them (see `sideValues`), and how they differ. */
-export function valueRows(
-  tests: readonly ComparedTest[],
+/** `test`, with each side's value of it (see `sideValues`), and how they differ. */
+export function valueRow(
+  test: string,
   valuesA: ReadonlyMap<string, number>,
   valuesB: ReadonlyMap<string, number>,
-): ValueRow[] {
-  return tests.map((test) => {
-    const a = valuesA.get(test.test) ?? null
-    const b = valuesB.get(test.test) ?? null
-    return { ...test, a, b, ...derive(a, b) }
-  })
+): ValueRow {
+  const a = valuesA.get(test) ?? null
+  const b = valuesB.get(test) ?? null
+  return { test, a, b, ...derive(a, b) }
 }
 
 /**
@@ -454,10 +433,11 @@ export function compareRows(
   changesOf: ReadonlyMap<string, Change>,
   { biggerIsBetter, margin }: RowOptions,
 ): ComparisonRow[] {
-  return valueRows(tests, valuesA, valuesB).map((row) => {
-    const change = changesOf.get(row.test)!
+  return tests.map((test) => {
+    const row = valueRow(test.test, valuesA, valuesB)
+    const change = changesOf.get(test.test)!
     const status = row.ratio === null ? 'na' : statusOf(change, margin, biggerIsBetter)
-    return { ...row, status, change }
+    return { ...test, ...row, status, change }
   })
 }
 
@@ -489,10 +469,13 @@ function geomean(values: readonly number[]): number {
 
 /**
  * The geomean summary row of `rows`, the compared rows (CP2): over those where both sides have a
- * value and neither is 0. Its status comes from the sign of its Delta. With no such row, every
- * value is null and the status N/A.
+ * value and neither is 0. Its status is that of its Ratio, a point, against the margin, as
+ * `options` hold them. With no such row, every value is null and the status N/A.
  */
-export function geomeanRow(rows: readonly Values[], biggerIsBetter: boolean): Values {
+export function geomeanRow(
+  rows: readonly Values[],
+  options: RowOptions,
+): Values {
   const pairs: [number, number][] = []
   for (const { a, b } of rows) {
     if (a !== null && b !== null && a !== 0 && b !== 0) pairs.push([a, b])
@@ -502,7 +485,8 @@ export function geomeanRow(rows: readonly Values[], biggerIsBetter: boolean): Va
   const b = geomean(pairs.map(([, value]) => value))
   // Over the same tests, the geomean of the ratios is that of B over that of A.
   const derived = derive(a, b)
-  return { a, b, ...derived, status: statusOfDelta(derived.delta!, biggerIsBetter) }
+  const log = Math.log(derived.ratio!)
+  return { a, b, ...derived, status: statusOfBounds({ low: log, high: log }, options) }
 }
 
 /** The categories of the summary bar (CP4), in the order it shows them. */

@@ -11,12 +11,12 @@ import { resize } from '../../test/resize-observer'
 import { uuidOf } from '../../test/fixtures'
 import { STATISTICS_OVER } from './columns'
 import {
+  CHANGES,
   CLASSIFIED,
   COMPARED,
   comparison,
   listedTests,
   mockWorld,
-  CHANGES,
   ROWS,
   runBox,
   showBox,
@@ -133,7 +133,7 @@ describe('hidden tests (CP2)', () => {
     await waitFor(() => expect(query().hidden_test).toEqual(['d']))
     // The geomean is a's alone.
     expect((await comparison())[0]).toBe(
-      'Geomean | 100 | 100.5 | 0.5 | +0.50% | 1.0050 | Regressed',
+      'Geomean | 100 | 100.5 | 0.5 | +0.50% | 1.0050 | Unchanged',
     )
   })
 

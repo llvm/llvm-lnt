@@ -352,8 +352,8 @@
 
 /*
  * The colours of the statuses (CP2, CP4): green for improved, red for regressed, amber for
- * inconclusive, grey otherwise. Inconclusive's text is a darker amber than its marks, the chart's
- * bars and the summary bar's dots, to be read as easily as the others'.
+ * inconclusive, grey otherwise, with a darker amber for inconclusive's text than for its marks:
+ * the chart's bars and the summary bar's dots.
  */
 .improved {
   --status-color: var(--lnt-success);
@@ -364,8 +364,8 @@
 }
 
 .inconclusive {
-  --status-color: #b45309;
-  --status-mark: #d97706;
+  --status-color: var(--lnt-warning-text);
+  --status-mark: var(--lnt-warning);
 }
 
 .unchanged,
