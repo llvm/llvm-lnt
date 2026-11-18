@@ -5,6 +5,7 @@
 
 import { useMemo } from 'react'
 import { useQueries, type QueryClient } from '@tanstack/react-query'
+import type { BranchName } from '../../api/commits'
 import { combineResults, type Failures } from '../../api/failures'
 import { forgetEverySuiteLater, queryKeys } from '../../api/keys'
 import { fetchMeasurements, type Measurement } from '../../api/series'
@@ -49,6 +50,8 @@ export interface BaselineState {
   machineLabel: string
   /** The display value of its commit, or the commit string until it is known. */
   display: string
+  /** Its commit's branch, null if it has none, once it is known: maybe not the one plotted. */
+  branch: BranchName | undefined
   /**
    * How it is named: its suite's full label, its machine's label and its commit's display value
    * (GR9).
@@ -218,12 +221,13 @@ export function useBaselines(
     () =>
       baselines.map((baseline, i): BaselineState => {
         const suiteLabel = fullLabelOf(suites, baseline.suite)
-        const { machineLabel, display, unusable } = checked.states[i]
+        const { machineLabel, display, branch, unusable } = checked.states[i]
         return {
           baseline,
           suiteLabel,
           machineLabel,
           display,
+          branch,
           label: joinLabels(suiteLabel, machineLabel, display),
           unusable,
           samples: byBaseline[i],

@@ -364,15 +364,18 @@ Interactivity:
     Reference") come from, as GR11 lists a point's runs, in a list of their own
     whose accessible name says the side;
   - "View on graph": a link to the Graph page in side B's context: side B's
-    suite and machine, the selected metric, this test selected, and Compare's
-    run and sample aggregations. When side B selects all its runs, the Graph's
-    point at side B's commit is therefore Value B. The link also highlights commits
-    (GR16): side B's commit, and side A's commit if side A has the same suite
-    and machine. A commit is highlighted only once it is known to have an
+    suite and machine, the branch of side B's commit, the selected metric, this
+    test selected, and Compare's run and sample aggregations. When side B
+    selects all its runs, the Graph's point at side B's commit is therefore
+    Value B. The link also highlights commits (GR16): side B's commit, and side
+    A's commit if side A has the same suite and machine, and its commit is on
+    the same branch. A commit is highlighted only once it is known to have an
     ordinal: without one, it is not on the Graph's x-axis (GR3). The link is
     disabled (see AR8) while side B's commit is being looked up (CP6), and when
     that commit has no ordinal. If a lookup fails, that commit is not
-    highlighted, but the link stays enabled;
+    highlighted, but the link stays enabled. If side B's fails, the link has no
+    branch, and side A's commit is not highlighted either, since its branch
+    cannot be compared with side B's;
   - the test's Profile link, when its row has one (CP2).
 
   It closes on Escape, on its close button, on a click anywhere but on it, on
@@ -460,10 +463,10 @@ page or the table.
   the runs that have profiles, and `GET runs/{uuid}/profiles` lists the
   profiles of each of them that is selected. This never delays the
   comparison.
-- A bar's details look up the ordinal of side B's commit, and of side A's when
-  side A has the same suite and machine, through `POST commits/resolve` (see
-  CP3). The details don't wait for these lookups; only their link to the Graph
-  does.
+- A bar's details look up the ordinal and the branch of side B's commit, and of
+  side A's when side A has the same suite and machine, through
+  `POST commits/resolve` (see CP3). The details don't wait for these lookups;
+  only their link to the Graph does.
 - A side's commit card (AR21), and the field values "Diff on" needs (CP1), are
   those of the commit as its picker looked it up or listed it when it was
   picked. Only while the picker has it neither way, such as while its lookup is

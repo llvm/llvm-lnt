@@ -546,6 +546,70 @@ test("links a test to its profile on both sides, side B on its default test", as
   )
 })
 
+test("views a bar on the Graph on side B's branch, highlighting side A's commit only on it (CP3)", async ({
+  page,
+  request,
+  tokenFor,
+}, testInfo) => {
+  const run = (commit: string, ordinal: number, value: number, branch?: string) => ({
+    machine: 'm1',
+    commit,
+    ordinal,
+    branch,
+    tests: [{ name: 'bench', samples: [{ execution_time: value }] }],
+  })
+  // c1 without a branch, and r1 and r2 on a branch, r1 with c1's ordinal. The branch's name is too
+  // long for a commit picker, which shows it after a commit's display value.
+  const branch = 'release/1.x-with-a-name-far-too-long-to-show-whole-in-a-commit-picker'
+  const runs = [run('c1', 1, 1), run('r1', 1, 2, branch), run('r2', 2, 3, branch)]
+  await ownSuite(request, tokenFor, testInfo, runs, async (suite) => {
+    const { project, suite: name } = suite
+    const graphLink = async (commitA: string) => {
+      await page.goto(
+        `/compare?project_a=${project}&suite_a=${name}&machine_a=m1&commit_a=${commitA}` +
+          `&project_b=${project}&suite_b=${name}&machine_b=m1&commit_b=r2&metric=execution_time`,
+      )
+      await expect(rows(table(page, 'Comparison')).first()).toContainText('Geomean')
+      // Hovered first, as Plotly reports a click on the bar whose hover label shows, from
+      // elsewhere, where the pointer may still be from the previous comparison. Inside the bar,
+      // whose top is at the top of the plot.
+      const top = await pointOf(page, 0, 0)
+      const position = { x: top.x, y: top.y + 20 }
+      await page.mouse.move(0, 0)
+      await plotOf(page).hover({ position })
+      await expect(page.locator('.hoverlayer .hovertext')).toContainText('Click for details')
+      await plotOf(page).click({ position })
+      return page.getByRole('dialog').getByRole('link', { name: 'View on graph' })
+    }
+    const graph =
+      `/graph?project=${project}&suite=${name}&branch=${encodeURIComponent(branch)}&machine=m1` +
+      '&metric=execution_time&test=bench'
+
+    // Side A's commit has no branch: it is not on the x-axis of side B's.
+    await expect(await graphLink('c1')).toHaveAttribute('href', `${graph}&highlight=r2`)
+    // Each picker shows its commit's branch after it, if it has one (AR15).
+    const pickerOf = (side: string) =>
+      page.getByRole('region', { name: side }).getByRole('combobox', { name: 'Commit' })
+    await expect(pickerOf('Side B (New)')).toHaveValue('r2')
+    await expect(pickerOf('Side B (New)')).toHaveAccessibleDescription(`On branch ${branch}`)
+    await expect(pickerOf('Side A (Baseline)')).not.toHaveAccessibleDescription(/branch/)
+    // Cut short before the button clearing the picker: what shows of the note ends left of it.
+    const sideB = page.getByRole('region', { name: 'Side B (New)' })
+    const shown = sideB.getByText(branch, { exact: true }).locator('..')
+    const clear = sideB.getByRole('button', { name: 'Clear Commit' })
+    const [line, button] = [(await shown.boundingBox())!, (await clear.boundingBox())!]
+    expect(line.x + line.width).toBeLessThanOrEqual(button.x)
+
+    const link = await graphLink('r1')
+    await expect(link).toHaveAttribute('href', `${graph}&highlight=r1&highlight=r2`)
+    await link.click()
+    await expect(page).toHaveURL(`${graph}&highlight=r1&highlight=r2`)
+    await expect(page.getByRole('list', { name: 'Highlighted commits' })).toHaveText(
+      /Highlighted: r1.*Highlighted: r2/,
+    )
+  })
+})
+
 test('adds the comparison to a new regression, then to that one', async ({
   page,
   request,

@@ -254,6 +254,7 @@ describe('baselineTraces (GR9)', () => {
       suiteLabel: 'nts',
       machineLabel: 'm<1>',
       commit: 'r10',
+      branch: null,
       test: 't',
       value: 1.5,
       color: '#123456',
@@ -271,7 +272,7 @@ describe('baselineTraces (GR9)', () => {
     expect(hoverText(drawn, 100)).toBe(hoverText(drawn, 0))
   })
 
-  it("shows the test and the commit's display value as they are, even with template fields", () => {
+  it("shows the test, the commit's display value and its branch as they are, even with template fields", () => {
     const line = {
       metric: SECONDS,
       panel: 0,
@@ -280,6 +281,7 @@ describe('baselineTraces (GR9)', () => {
       machineLabel: '<&>',
       // The commit's display value, which unlike a commit string may contain a `%` (I1).
       commit: 'r10 %{x}',
+      branch: 'release/<%{z}>',
       test: 'fmt/%{y}',
       value: 1.5,
       color: '#123456',
@@ -287,7 +289,8 @@ describe('baselineTraces (GR9)', () => {
     const [drawn] = baselineTraces([line])
 
     expect(hoverText(drawn, 50)).toContain(
-      'Machine: &lt;&amp;&gt;<br>Commit: r10 %{x}<br>Test: fmt/%{y}<br>',
+      'Machine: &lt;&amp;&gt;<br>Commit: r10 %{x}<br>Branch: release/&lt;%{z}&gt;<br>' +
+        'Test: fmt/%{y}<br>',
     )
     expect((drawn as PlotData).name).toBe('fmt/%{y} - baseline nts › &lt;&amp;&gt; › r10 %{x}')
   })

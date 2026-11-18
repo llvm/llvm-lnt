@@ -14,13 +14,32 @@ several metrics at once, each in a panel of its own.
 
 - **Suite selector**: A required dropdown at the top of the page, over the test
   suites defined on the instance, grouped by project (see AR22). All other
-  controls (machines, metrics, test filter, aggregation, regression annotations,
-  baselines) are disabled until a suite is selected. Changing the suite clears
-  the machines, the metrics, the selected tests, the highlighted commits (GR16)
-  and the chart. The test filter, the aggregation, the regression annotation
-  mode (GR15) and the baselines (GR9) are kept: a baseline names its own suite.
-  When the page is loaded with `project=` and `suite=` in the URL, the dropdown
-  is pre-selected.
+  controls (branch, machines, metrics, test filter, aggregation, regression
+  annotations, baselines) are disabled until a suite is selected. Changing the
+  suite clears the branch, the machines, the metrics, the selected tests, the
+  highlighted commits (GR16) and the chart. The test filter, the aggregation,
+  the regression annotation mode (GR15) and the baselines (GR9) are kept: a
+  baseline names its own suite. When the page is loaded with `project=` and
+  `suite=` in the URL, the dropdown is pre-selected.
+
+- **Branch selector**: A dropdown after the suite selector, over the branches
+  that the suite's commits with an ordinal are on (`GET branches`, see E3), in
+  its order: "No branch", standing for the commits without a branch, when some
+  of them have an ordinal, then the branch names. The chart plots one branch at
+  a time, since the ordinals of different branches are unrelated (see D1): the
+  x-axis (GR3) and the traces (GR2) hold the commits of that branch alone. The
+  selector is always there. Until a suite is selected, it says to select a
+  branch; while the suite's branches are being listed, it says so; once they
+  are, it shows the branch plotted. For a suite whose list holds no named
+  branch, it shows "No branch", disabled, and says why on hover and to
+  assistive technology, as it does when the branches could not be listed.
+  Without a branch in the URL (GR14), or once one that the list does not hold
+  is dropped (see AR2 "State"), the page plots the list's first entry, and
+  writes it to the URL if it is a named branch. Nothing is plotted until the
+  branches are listed, which the page does anew each time it is opened, rather
+  than trusting a list fetched before. Changing the branch keeps everything
+  else: the machines, the metrics, the selected tests, the baselines and the
+  highlighted commits.
 
 - **Machine chip input**: The machine selector is a chip-based multi-select
   input: the user adds a machine by picking it from a combobox (see AR14), and
@@ -140,17 +159,20 @@ disturbing the rest. Leaving the page stops all loading.
 ### GR3: X-axis Scaffolding
 
 To prevent the x-axis from resizing/shifting as the traces' data arrives, the
-graph page pre-fetches the complete list of commit values for each selected
-machine via paginated calls to
-`GET commits?machine={name}&has_ordinal=true&sort=ordinal`. This returns
-commits in ordinal order, excluding commits without ordinals (which have no
-meaningful position in a time series). When multiple machines are selected,
-the scaffold is the **union** of all machines' commit values, sorted by ordinal,
-so the x-axis spans the full range across all machines. A trace has no value at
+graph page pre-fetches the complete list of commit values of the branch plotted
+(GR1) for each selected machine via paginated calls to
+`GET commits?machine={name}&branch={branch}&has_ordinal=true&sort=ordinal`, or
+with `has_branch=false` in place of `branch=` for the commits without a branch.
+This returns the branch's commits in ordinal order, excluding commits without
+ordinals (which have no meaningful position in a time series). When multiple
+machines are selected, the scaffold is the **union** of all machines' commit
+values, sorted by ordinal, so the x-axis spans the full range across all
+machines. A trace has no value at
 the commits where its machine has no data for its test. Data on a commit that
 is not on the scaffold, such as one without an ordinal, has no position and is
-not plotted. Each machine's scaffold is fetched and cached independently; the
-union is recomputed when machines are added or removed.
+not plotted, and neither is data on a commit of another branch. Each machine's
+scaffold is fetched and cached independently; the union is recomputed when
+machines are added or removed, or the branch changes.
 
 If a machine's scaffold cannot be fetched, the page says so (GR4), and that
 machine's traces are not drawn until its scaffold has loaded, since their
@@ -159,11 +181,11 @@ commits would have no position on the x-axis.
 
 ### GR4: Errors
 
-When something the page needs cannot be fetched -- the suites, the machine
-list, a test list, a scaffold, the data of the selected tests, a baseline, or
-the regression annotations -- the page says what could not be loaded, with a
-way to try again (see AR7), and keeps showing what it
-already has: traces that are drawn stay drawn, and other machines and panels
+When something the page needs cannot be fetched -- the suites, the branches,
+the machine list, a test list, a scaffold, the data of the selected tests, a
+baseline, or the regression annotations -- the page says what could not be
+loaded, with a way to try again (see AR7), and keeps showing what it already
+has: traces that are drawn stay drawn, and other machines and panels
 are unaffected.
 
 
@@ -172,11 +194,12 @@ are unaffected.
 The chart is updated in place as the traces' data arrives. If the user zooms
 into the chart while data is still loading, the zoom is preserved across
 incremental updates. The x-axis range is always preserved (it was established by
-the scaffold or by user zoom), until the scaffold itself changes, because a
-machine was removed or a machine's scaffold has arrived, which resets the zoom
-of every panel. Each panel's y-axis range is preserved only when the user has
-explicitly zoomed it, and only until the metric at the panel's place changes,
-since another metric has another scale; otherwise, it auto-ranges to
+the scaffold or by user zoom), until the scaffold itself changes, because the
+branch changed, a machine was removed or a machine's scaffold has arrived, which
+resets the zoom of every panel. A branch change resets the zoom even if its
+scaffold is cached. Each panel's y-axis range is preserved only when the user
+has explicitly zoomed it, and only until the metric at the panel's place
+changes, since another metric has another scale; otherwise, it auto-ranges to
 accommodate new data as it arrives. Adding a metric therefore keeps every
 panel's zoom, whereas removing one resets the zoom of the panels below it,
 which move up to places that showed other metrics. Double-clicking the chart
@@ -247,14 +270,17 @@ the table, without scrolling the page.
 
 While the page is open, it keeps what it has fetched: in the selected suite,
 test names per machine and metric (all of them, filtered client-side), data per
-machine, metric and test, and scaffolds per machine; and, for each baseline,
-its machine's test names and its data per metric and test. In particular:
+branch, machine, metric and test, and scaffolds per branch and machine; and, for
+each baseline, its machine's test names and its data per metric and test. In
+particular:
 
 - Changing the aggregation redraws the traces from the data already loaded,
   without fetching any again. Changing the test filter changes only the test
   table (GR1).
 - Adding a machine fetches only that machine's data, while the other machines'
   traces stay displayed.
+- Going back to a branch plotted before fetches neither its scaffolds nor its
+  data again.
 - Adding a metric fetches only that metric's test lists, data and regression
   annotations (GR15), while the other panels stay displayed. Removing a metric,
   adding it back or changing the order of the metrics fetches no test list and
@@ -271,12 +297,15 @@ comparisons. The selector is the baseline panel, opened by a "+" button beside
 the "Baselines" label, with cascading selectors: Suite (a dropdown over the test
 suites defined on the instance, grouped by project; see AR22) -> Machine
 (populated from the selected suite's machines endpoint, see AR18) -> Commit
-(populated from the selected machine's commits via
-`GET commits?machine={name}&sort=-ordinal`; see AR15). Picking a commit adds the
+(populated from the selected machine's commits of every branch via
+`GET commits?machine={name}&sort=-ordinal`; see AR15). A baseline has no
+position on the x-axis, so its commit may be on another branch than the one
+plotted. Picking a commit adds the
 baseline and closes the baseline panel; "+" closes it too. Added baselines
 appear as removable chips labeled `{suite} › {machine} › {display_value}`, where
 `{suite}` is the suite's full label (see AR22) and `display_value` the commit's
-display value (see AR6), or the commit string until the display value is known.
+display value (see AR6), or the commit string until the display value is known,
+followed, set apart as secondary, by the commit's branch, when it has one.
 A baseline loaded from the URL is looked up like a commit given to the commit
 picker: through `GET commits?machine={machine}&commit={commit}` in the
 baseline's suite, which returns the commit, with its display value, only if the
@@ -308,7 +337,8 @@ baseline commit. A baseline's line for a test is drawn once all of that test's
 data for the panel's metric has arrived, never in part. Each panel's y-axis
 range includes the baselines' lines in it. A baseline draws no line for a test
 it has no data for. Hovering a dashed line shows a tooltip with: the baseline
-suite, machine, commit, test name, and value, labelled with the panel's metric
+suite, machine, commit, the commit's branch when it has one, test name, and
+value, labelled with the panel's metric
 as a point's is (GR10). A point on a dashed line keeps its tooltip and details
 (GR10, GR11). Baselines are encoded in
 the URL query string for shareability as `{project}/{suite}/{machine}/{commit}`,
@@ -418,8 +448,9 @@ commit's card is open, which Escape then closes alone (see AR21), or Escape is
 pressed in its "Create regression" form, which closes alone; on its close
 button; on a click anywhere but on it, a marker of its point's scatter or its
 commit's card; and on any change to the chart other than data arriving, such as
-a zoom or pan, or a change to the selected tests, machines, metrics, aggregation
-or regression annotation mode, and once its point is no longer drawn. A change
+a zoom or pan, or a change to the branch, selected tests, machines, metrics,
+aggregation or regression annotation mode, and once its point is no longer
+drawn. A change
 to the baselines (GR9) or the highlighted commits (GR16) does not close it:
 neither changes which point it is about.
 Moving the focus out of it does not close it. A click on another point opens
@@ -430,27 +461,31 @@ nothing.
 
 ### GR12: Empty State
 
-When a panel has no point to draw, while no scaffold, nor any of its metric's
-test lists or of the data of the selected tests for it, is loading or has failed
-to load -- before a machine and a metric are chosen, when no test is selected,
-or when the selected tests have no data for its metric on the selected machines
--- the panel displays an overlay "No data to plot" centered on it, preserving
-the x-axis scaffold, if there is one, so the user can see the commit range.
+When a panel has no point to draw, while neither the branches nor any scaffold,
+nor any of its metric's test lists or of the data of the selected tests for it,
+is loading or has failed to load -- before a machine and a metric are chosen,
+when no test is selected, or when the selected tests have no data for its
+metric on the selected machines -- the panel displays an overlay "No data to
+plot" centered on it, preserving the x-axis scaffold, if there is one, so the
+user can see the commit range.
 Baseline lines (GR9), regression annotations (GR15) and the highlighted commits
 (GR16) are not points.
 
 
 ### GR13: API Calls
 
-- `GET series?machine={name}&metric=...&test={test}&has_ordinal=true` (one per
-  selected test, metric and machine)
+- `GET branches` (the branch plotted, and its selector)
+- `GET series?machine={name}&metric=...&test={test}&branch={branch}&has_ordinal=true`
+  (or `has_branch=false` in place of `branch=`; one per selected test, metric
+  and machine, on the branch plotted)
 - `GET series?machine={name}&metric=...&test={test}&commit={value}` in a
   baseline's suite (baseline data, one per baseline, metric it is drawn for,
   and selected test its machine lists; see GR9)
 - `GET tests?machine=...&metric=...` (test name discovery, one per selected
   machine and metric, and in a baseline's suite, the tests its machine lists)
-- `GET commits?machine={name}&has_ordinal=true&sort=ordinal` (x-axis scaffold,
-  per machine)
+- `GET commits?machine={name}&branch={branch}&has_ordinal=true&sort=ordinal`,
+  or with `has_branch=false` in place of `branch=` (x-axis scaffold, per
+  machine, on the branch plotted)
 - `GET commits?machine={name}&sort=-ordinal&search=...` (baseline commit picker)
 - `GET commits?machine={name}&commit={value}` (baselines loaded from the URL)
 - `GET machines` (machine combobox, and the baseline panel's machines)
@@ -462,7 +497,11 @@ Baseline lines (GR9), regression annotations (GR15) and the highlighted commits
 
 ### GR14: URL State
 
-`?project={p}&suite={s}&machine={name}&machine={name2}&metric={name}&metric={name2}&test_filter={text}&test_filter_regex=true&test={name}&test={name2}&run_agg={fn}&sample_agg={fn}&regressions={mode}&baseline={project}/{suite}/{machine}/{commit}&baseline={project2}/{suite2}/{machine2}/{commit2}&highlight={commit}&highlight={commit2}`
+`?project={p}&suite={s}&branch={name}&machine={name}&machine={name2}&metric={name}&metric={name2}&test_filter={text}&test_filter_regex=true&test={name}&test={name2}&run_agg={fn}&sample_agg={fn}&regressions={mode}&baseline={project}/{suite}/{machine}/{commit}&baseline={project2}/{suite2}/{machine2}/{commit2}&highlight={commit}&highlight={commit2}`
+
+`branch` names the branch plotted (GR1). Without it, the page plots the first
+entry of the suite's branches: the commits without a branch, which no `branch`
+can name, when some of them have an ordinal.
 
 `metric` is repeated once per metric, in the order of the panels (GR1), from the
 top, and a page loaded from the URL stacks its panels in that order. A URL
@@ -552,7 +591,8 @@ string instead.
 
 Highlighted commits are kept as given, without being looked up, even if the
 suite has no such commit. This is an exception to AR2 "State": whether a commit
-is drawn depends on the x-axis, which changes with the machines. The highlighted
+is drawn depends on the x-axis, which changes with the machines and the branch:
+a commit of another branch than the one plotted is not drawn. The highlighted
 commits change only through their chips, a point's details (GR11), or a suite
 change (GR1). If the URL names a commit twice, it is highlighted once. If it
 names more than 10 commits, which the page never does itself, only the first 10

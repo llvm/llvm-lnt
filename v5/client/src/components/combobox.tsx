@@ -50,6 +50,12 @@ interface CommonProps {
    */
   inherited?: { text: string; description: string }
   /**
+   * Shows the picked value's note, muted, after its text in the input while the input holds that
+   * text unchanged: a commit's branch, say (AR15). It is not part of the editable text, and
+   * assistive technology reads `describePickedNote(note)` as the input's description.
+   */
+  describePickedNote?: (note: string) => string
+  /**
    * What the combobox says when it has nothing at all to suggest (see `Suggestions.isEmpty`). It
    * replaces `placeholder`, and shows in the list. Write it as a phrase, without a final period.
    */
@@ -143,6 +149,7 @@ export function Combobox({
   suggestions,
   placeholder,
   inherited,
+  describePickedNote,
   emptyMessage,
   isDisabled,
   isReadOnly,
@@ -156,6 +163,7 @@ export function Combobox({
 }: Props) {
   const [text, setText] = useState(value?.text ?? '')
   const descriptionId = useId()
+  const noteId = useId()
 
   // A value set from outside -- or one whose text arrived later, like a commit's display value --
   // replaces the text the input showed for the previous one. Text the user is typing stays.
@@ -167,6 +175,12 @@ export function Combobox({
 
   const pending = text !== (value?.text ?? '')
   useEffect(() => onPendingChange?.(pending), [pending, onPendingChange])
+  // The note of the value picked, and how it is described, while the input shows its text.
+  const note = !pending && text !== '' ? value?.note : undefined
+  const picked =
+    note !== undefined && describePickedNote
+      ? { note, description: describePickedNote(note) }
+      : null
 
   const query = searchText(text, value)
   const { search } = suggestions
@@ -243,8 +257,23 @@ export function Combobox({
               inherited?.text ?? ((suggestions.isEmpty && emptyMessage) || placeholder)
             }
             className={clsx(styles.input, inherited && styles.inherited)}
-            aria-describedby={inherited && descriptionId}
+            aria-describedby={
+              [inherited && descriptionId, picked && noteId]
+                .filter(Boolean)
+                .join(' ') || undefined
+            }
           />
+          {/* Placed after the text by an unseen copy of it, over the input, which it lets the
+              pointer through to. */}
+          {picked && (
+            <span className={styles.pickedNote} aria-hidden="true">
+              {/* One line of text, in which the space before the note is kept. */}
+              <span className={styles.pickedLine}>
+                <span className={styles.pickedText}>{text}</span>
+                <Note>{picked.note}</Note>
+              </span>
+            </span>
+          )}
           {text !== '' && isClearable && !isDisabled && !isReadOnly && (
             <button
               type="button"
@@ -267,6 +296,11 @@ export function Combobox({
       {inherited && (
         <span id={descriptionId} hidden>
           {inherited.description}
+        </span>
+      )}
+      {picked && (
+        <span id={noteId} hidden>
+          {picked.description}
         </span>
       )}
       {/* Short enough that a page of suggestions scrolls rather than fills the window. */}

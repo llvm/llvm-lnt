@@ -15,6 +15,7 @@ import {
   enumParam,
   listParam,
   optionalNumberParam,
+  optionalStringParam,
   stringParam,
   tabSettings,
   trimmedStringParam,
@@ -181,6 +182,24 @@ describe('useUrlState', () => {
 
     expect(result.current.state).toEqual({ search: 'linux x86' })
     expect(result.current.url).toBe('/x?search=linux+x86')
+  })
+
+  it('reads an optional text, empty as none, and writes one spelled null', () => {
+    const { result } = renderHook(
+      () => {
+        const [state, setState] = useUrlState({ branch: optionalStringParam() })
+        const { pathname, search } = useLocation()
+        return { state, setState, url: pathname + search }
+      },
+      providers({ url: '/x?branch=' }),
+    )
+
+    expect(result.current.state).toEqual({ branch: null })
+    act(() => result.current.setState({ branch: 'null' }))
+    expect(result.current.url).toBe('/x?branch=null')
+    expect(result.current.state).toEqual({ branch: 'null' })
+    act(() => result.current.setState({ branch: null }))
+    expect(result.current.url).toBe('/x')
   })
 
   it('reads an optional number within its range, and drops anything else', () => {

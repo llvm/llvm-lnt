@@ -498,12 +498,15 @@ tests side by side, in the order they are picked. It is a form (see AR2
   After "Remove selected", it moves to the table. When the table takes the
   focus, the page does not scroll. If the user has meanwhile moved the focus
   elsewhere, outside the table, it stays there.
-- "View on graph" opens the Graph page with the regression's suite and the
-  indicator's machine, metric and test selected, and regression annotations
-  showing every state (`regressions=all`; see GR15), which marks this
-  regression's commit on the chart. The Graph page plots only numeric metrics
-  (GR1), so for an indicator on any other metric, the link is disabled and says
-  why (see AR8).
+- "View on graph" opens the Graph page with the regression's suite, the branch
+  of the regression's commit (GR1), the indicator's machine, metric and test
+  selected, and regression annotations showing every state (`regressions=all`;
+  see GR15), which marks this regression's commit on the chart, if it has an
+  ordinal. The link is disabled (see AR8) while the commit is being looked up,
+  and leads to the Graph without a branch for a regression without a commit,
+  or once the lookup has failed. The Graph page
+  plots only numeric metrics (GR1), so for an indicator on any other metric,
+  the link is disabled and says why.
 
 Every change to the indicators needs `triage` scope. Without it, the panel's
 lists and the table's filter can still be used.

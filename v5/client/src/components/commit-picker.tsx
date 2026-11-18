@@ -170,6 +170,7 @@ export function CommitPicker({
         {...handlers}
         suggestions={suggestions}
         placeholder={placeholder}
+        describePickedNote={describeBranch}
         emptyMessage={emptyMessage}
         isDisabled={isDisabled}
         isReadOnly={isReadOnly}
@@ -192,3 +193,6 @@ export function CommitPicker({
 }
 
 const NO_FILTERS: CommitFilters = {}
+
+/** How the branch of the commit picked is described, after its display value (AR15). */
+const describeBranch = (branch: string) => `On branch ${branch}`

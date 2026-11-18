@@ -35,9 +35,12 @@ interface Props {
  */
 export function BaselinePanel({ suites, baselines, onAdd, onRemove, isDisabled, toggle }: Props) {
   const [adding, setAdding] = useState(false)
-  const chips = baselines.map(({ baseline, label }) => ({
+  // The branch of its commit, when it has one, set apart, as a commit picker's suggestion shows it
+  // (GR9, AR15).
+  const chips = baselines.map(({ baseline, label, branch }) => ({
     key: formatBaseline(baseline),
     text: label,
+    detail: branch ?? undefined,
   }))
 
   // Once a baseline is added, the form it was picked in is gone: the focus goes back to "+".

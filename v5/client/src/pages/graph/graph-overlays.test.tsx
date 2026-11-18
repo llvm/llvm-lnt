@@ -637,6 +637,18 @@ describe('the point details (GR11)', () => {
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
   })
 
+  it('closes on a change to the branch (GR11)', async () => {
+    mockWorld({ samples: SAMPLES, branch: { name: 'release/1.x', commits: { m1: [10] } } })
+    renderPage(`${ONE_MACHINE}&test=a`)
+    await waitFor(() => expect(dataTraces()).toHaveLength(1))
+    draw()
+    click('a - m1', 1)
+
+    await pickOption('Branch', 'release/1.x')
+
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+  })
+
   it('closes once its point is no longer drawn', async () => {
     mockWorld({ samples: { ...SAMPLES, 'm1/b': [['c10', 'r1', 3]] } })
     renderPage(`${ONE_MACHINE}&test=a&test=b`)
@@ -1192,6 +1204,29 @@ describe('the baselines (GR9)', () => {
     ])
     const chips = within(baselineChips())
     expect(chips.getByRole('listitem')).toHaveTextContent('llvm › libcxx › m1 › r10')
+  })
+
+  it("shows the branch of a baseline's commit, plotted or not, on its chip and its lines", async () => {
+    mockWorld({
+      branch: { name: 'release/1.x', commits: { m1: [10] } },
+      samples: {
+        'm1/a': [
+          ['c10', 'r1', 1],
+          ['r10', 'r4', 5],
+        ],
+      },
+    })
+    renderPage(`${ONE_MACHINE}&test=a&baseline=llvm/libcxx/m1/r10`)
+
+    await waitFor(() =>
+      expect(baselineLines()).toEqual(['a - baseline llvm › libcxx › m1 › b10: 5']),
+    )
+    expect(within(baselineChips()).getByRole('listitem')).toHaveTextContent(
+      'llvm › libcxx › m1 › b10 · release/1.x',
+    )
+    expect(hoverText(curve('a - baseline llvm › libcxx › m1 › b10') as PlotData, 0)).toContain(
+      'Commit: b10<br>Branch: release/1.x<br>Test: a',
+    )
   })
 
   it("names a baseline's machine by label, keeping two of one label apart (AR23)", async () => {

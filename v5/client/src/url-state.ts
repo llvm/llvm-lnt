@@ -81,6 +81,15 @@ export function optionalNumberParam(min = -Infinity, max = Infinity): Param<numb
   return singleParam<number | null>(null, (value) => parseNumber(value, min, max))
 }
 
+/** A text, or null when the URL leaves it out, or gives it empty. */
+export function optionalStringParam(): Param<string | null> {
+  return {
+    ...singleParam<string | null>(null, (value) => value || null),
+    // Null as no value at all, so that a text spelled `null` is not taken for it.
+    serialize: (value) => (value === null ? [] : [value]),
+  }
+}
+
 /** A parameter repeated once per value (I3's convention). */
 export function listParam(): Param<string[]> {
   // Each value once, in the order first given: a value given twice means nothing more.

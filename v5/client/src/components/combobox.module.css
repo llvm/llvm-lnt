@@ -4,6 +4,8 @@
 
 /* The input, and the clear button laid over its right end. */
 .inputBox {
+  /* The room the input keeps at its right end for the clear button. */
+  --clear-room: 1.75rem;
   position: relative;
   display: flex;
   flex: 1;
@@ -14,9 +16,36 @@
   flex: 1;
   min-width: 0;
   /* Room for the clear button, kept whether or not it is shown, so that the text does not move. */
-  padding-right: 1.75rem;
+  padding-right: var(--clear-room);
   border-right: none;
   border-radius: var(--lnt-radius) 0 0 var(--lnt-radius);
+}
+
+/*
+ * The note of the value picked (see `describePickedNote`), over the input. It has the padding,
+ * border and font size that index.css gives every input, so that an unseen copy of the input's text
+ * before it puts it right after that text. Its line is clipped at the end of the input's text area,
+ * before the clear button.
+ */
+.pickedNote {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  padding: 0 var(--clear-room) 0 var(--lnt-space-2);
+  border: 1px solid transparent;
+  font-size: 0.9rem;
+  white-space: pre;
+  pointer-events: none;
+}
+
+.pickedLine {
+  min-width: 0;
+  overflow: hidden;
+}
+
+.pickedText {
+  visibility: hidden;
 }
 
 /*

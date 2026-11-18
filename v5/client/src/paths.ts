@@ -55,6 +55,11 @@ function withQuery(path: string, params: Param[]): string {
 /** What the Graph page (GR14) is to show, as far as it is given. */
 interface GraphView {
   suite?: SuiteRef
+  /**
+   * The branch plotted (GR14). Null, like undefined, leaves it out, which is what names the
+   * commits without a branch.
+   */
+  branch?: string | null
   machines?: string[]
   metric?: string
   test?: string
@@ -70,6 +75,7 @@ interface GraphView {
 /** The Graph page (GR14), showing `view`. */
 export function graphPath({
   suite,
+  branch,
   machines = [],
   metric,
   test,
@@ -81,6 +87,7 @@ export function graphPath({
   return withQuery('/graph', [
     ['project', suite?.project],
     ['suite', suite?.suite],
+    ['branch', branch ?? undefined],
     // Repeated once per machine, as a setting holding several values is (AR2 "State").
     ...machines.map((machine): Param => ['machine', machine]),
     ['metric', metric],

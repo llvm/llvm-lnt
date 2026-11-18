@@ -92,6 +92,16 @@ describe('Combobox with local suggestions', () => {
     expect(options()).toEqual(['linux-x86_64', 'linux-aarch64'])
   })
 
+  it('shows no note of the value picked in the input, unless asked to (AR23)', async () => {
+    // A machine's name after its label (AR23).
+    const labelled = [{ key: 'linux-1', text: 'Linux', note: 'the-name', aliases: ['linux-1'] }]
+    renderWithProviders(<MachinePicker machines={labelled} initial={labelled[0]} />)
+
+    expect(input()).toHaveValue('Linux')
+    expect(input()).not.toHaveAccessibleDescription()
+    expect(screen.queryByText('the-name')).not.toBeInTheDocument()
+  })
+
   it('picks a suggestion moved to with the arrow keys, on Enter', async () => {
     const user = userEvent.setup()
     renderWithProviders(<MachinePicker />)

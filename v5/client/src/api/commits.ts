@@ -124,6 +124,41 @@ export async function commitChanged(queryClient: QueryClient, suite: SuiteRef): 
   })
 }
 
+/**
+ * A branch of the suite's commits (E3), by name, or null for the commits without a branch, which
+ * behave as one branch of their own (D1).
+ */
+export type BranchName = string | null
+
+/**
+ * The branches of the suite's commits with an ordinal (E3): null first, if some have no branch,
+ * then the names, by code point. Under the suite's commits, so that a change to a commit's branch
+ * or ordinal marks it stale (see `commitChanged`). Listed again whenever a page that reads them
+ * opens, however recently they were, so that a page can tell once they are current (see
+ * `isFetchedAfterMount`). Nothing is asked unless `enabled`.
+ */
+export function useBranches(suite: SuiteRef, enabled = true) {
+  return useQuery({
+    refetchOnMount: 'always',
+    queryKey: [...queryKeys.commits(suite), 'branches'],
+    queryFn: async ({ signal }): Promise<BranchName[]> => {
+      const { items } = await unwrap(
+        api.GET('/api/projects/{project}/suites/{suite}/branches', {
+          params: { path: suite },
+          signal,
+        }),
+      )
+      return items.map((item) => item.name)
+    },
+    enabled,
+  })
+}
+
+/** The `GET /commits` or `GET /series` filter (E3, E9) keeping only the commits of `branch`. */
+export function branchFilter(branch: BranchName): { branch: string } | { has_branch: false } {
+  return branch === null ? { has_branch: false } : { branch }
+}
+
 /** The query key of the commit `value`'s detail, with its neighbours (E3). */
 export function commitKey(suite: SuiteRef, value: string) {
   return [...queryKeys.commits(suite), 'detail', value] as const
