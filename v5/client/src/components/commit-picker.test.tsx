@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { act, screen, waitFor } from '@testing-library/react'
+import { act, screen, waitFor, within } from '@testing-library/react'
 import { HttpResponse } from 'msw'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
@@ -237,7 +237,11 @@ describe('CommitPicker', () => {
       fields: { svn_revision: 'r300', commit_info: null },
     })
 
-    it('shows the branch of a suggestion that has one, but not in the input once picked', async () => {
+    /** Whether the input box shows the branch, after the text of the commit picked. */
+    const showsBranch = () =>
+      within(screen.getByRole('combobox').parentElement!).queryByText('release/19.x') !== null
+
+    it("shows the branch of a suggestion, and of the commit picked, after the input's text", async () => {
       mockCommits(() => cursorPage([RELEASE, PLAIN]))
       const user = userEvent.setup()
       const { input } = renderPicker()
@@ -247,6 +251,31 @@ describe('CommitPicker', () => {
       await user.click(screen.getByRole('option', { name: 'r300 release/19.x' }))
 
       expect(value()).toBe('rel300')
+      // The branch is no part of the text, but of what the input is described by.
+      expect(input).toHaveValue('r300')
+      expect(input).toHaveAccessibleDescription('On branch release/19.x')
+      expect(showsBranch()).toBe(true)
+
+      // Gone once the text is edited, and the search is for the text alone.
+      await user.type(input, '0')
+      expect(input).not.toHaveAccessibleDescription()
+      expect(showsBranch()).toBe(false)
+      await user.type(input, '{Backspace}')
+      expect(input).toHaveAccessibleDescription('On branch release/19.x')
+
+      // A commit without a branch has none.
+      await user.clear(input)
+      await user.type(input, 'abc456{Enter}')
+      await waitFor(() => expect(value()).toBe('abc456'))
+      expect(input).not.toHaveAccessibleDescription()
+      expect(showsBranch()).toBe(false)
+    })
+
+    it('shows the branch of a commit it is given, once looked up', async () => {
+      mockCommits(() => cursorPage([RELEASE]))
+      const { input } = renderPicker({ initial: RELEASE.value })
+
+      await waitFor(() => expect(input).toHaveAccessibleDescription('On branch release/19.x'))
       expect(input).toHaveValue('r300')
     })
 

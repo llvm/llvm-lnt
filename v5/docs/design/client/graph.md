@@ -14,7 +14,7 @@ several metrics at once, each in a panel of its own.
 
 - **Suite selector**: A required dropdown at the top of the page, over the test
   suites defined on the instance, grouped by project (see AR22). All other
-  controls (machines, metrics, test filter, aggregation, regression
+  controls (branch, machines, metrics, test filter, aggregation, regression
   annotations, baselines) are disabled until a suite is selected. Changing the
   suite clears the branch, the machines, the metrics, the selected tests, the
   highlighted commits (GR16) and the chart. The test filter, the aggregation,
@@ -28,9 +28,12 @@ several metrics at once, each in a panel of its own.
   of them have an ordinal, then the branch names. The chart plots one branch at
   a time, since the ordinals of different branches are unrelated (see D1): the
   x-axis (GR3) and the traces (GR2) hold the commits of that branch alone. The
-  selector is shown once the selected suite's branches are listed, and only if
-  one of them has a name: a suite whose commits are on no branch has nothing to
-  pick from. Without a branch in the URL (GR14), or once one that the list does
+  selector is always there, after the suite selector, so that nothing moves
+  when a suite is selected. It is disabled while the suite's branches are being
+  listed, and says so; once they are, it shows the branch plotted. For a suite
+  whose list holds no named branch, it shows "No branch", disabled, and says
+  why on hover and to assistive technology, as it does when the branches could
+  not be listed. Without a branch in the URL (GR14), or once one that the list does
   not hold is dropped (see AR2 "State"), the page plots the list's first entry,
   and writes it to the URL if it is a named branch. Nothing is plotted until
   the branches are listed, which the page does anew each time it is opened,

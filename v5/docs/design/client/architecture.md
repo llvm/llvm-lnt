@@ -345,9 +345,12 @@ picker searches the server, as AR9 describes, rather than fetching every commit
 and filtering locally: a machine can have tens of thousands of commits. The
 search covers the display value the suggestions show only if the schema marks
 the display field `searchable` (see O4). Each suggestion shows the commit's
-branch, when it has one, in muted text after its display value; once one is
-picked, the input shows its display value alone. The search covers the branch
-(see O4), but Enter does not match it (see AR14).
+branch, when it has one, in muted text after its display value. Once one is
+picked, the input shows its display value, followed by its branch in the same
+muted text, which is no part of the input's text: it is shown only while the
+input holds the commit picked unchanged, and assistive technology reads it as
+the input's description. The search covers the branch (see O4), but Enter does
+not match it (see AR14).
 
 A commit the picker is given rather than
 chosen -- restored from the URL, or kept while its filters change -- is looked

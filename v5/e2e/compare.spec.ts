@@ -585,6 +585,12 @@ test("views a bar on the Graph on side B's branch, highlighting side A's commit 
 
     // Side A's commit has no branch: it is not on the x-axis of side B's.
     await expect(await graphLink('c1')).toHaveAttribute('href', `${graph}&highlight=r2`)
+    // Each picker shows its commit's branch after it, if it has one (AR15).
+    const pickerOf = (side: string) =>
+      page.getByRole('region', { name: side }).getByRole('combobox', { name: 'Commit' })
+    await expect(pickerOf('Side B (New)')).toHaveValue('r2')
+    await expect(pickerOf('Side B (New)')).toHaveAccessibleDescription('On branch release/1.x')
+    await expect(pickerOf('Side A (Baseline)')).not.toHaveAccessibleDescription(/branch/)
 
     const link = await graphLink('r1')
     await expect(link).toHaveAttribute('href', `${graph}&highlight=r1&highlight=r2`)

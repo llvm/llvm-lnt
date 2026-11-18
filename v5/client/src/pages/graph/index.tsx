@@ -213,6 +213,13 @@ function GraphPage() {
     (list) => plottedBranch(list, settings.branch) === settings.branch,
     () => update({ branch }),
   )
+  // Why the branch selector offers nothing to pick, when that is worth saying (GR1).
+  let unpickable: string | undefined
+  if (branches?.every((name) => name === null)) {
+    unpickable = "This suite's commits with an ordinal are on no branch."
+  } else if (branches === undefined && branchList.isError) {
+    unpickable = 'The branches could not be listed.'
+  }
   const branchOptions = useMemo(
     () =>
       (branches ?? []).map((name) => ({ value: branchKey(name), label: name ?? 'No branch' })),
@@ -388,15 +395,16 @@ function GraphPage() {
             placeholder="-- Select suite --"
             onChange={(key) => chooseSuite(suiteOfFullName(key))}
           />
-          {/* Only once the suite is known to have a branch to pick. */}
-          {branches?.some((name) => name !== null) && (
-            <Select
-              label="Branch"
-              options={branchOptions}
-              value={branchKey(branch ?? null)}
-              onChange={(key) => update({ branch: branchOfKey(key) })}
-            />
-          )}
+          <Select
+            label="Branch"
+            options={branchOptions}
+            // The branch plotted, once known, and until then, what stands for it.
+            value={branch === undefined ? null : branchKey(branch)}
+            placeholder={branchPending && !branchList.isError ? 'Loading branches...' : 'No branch'}
+            onChange={(key) => update({ branch: branchOfKey(key) })}
+            isDisabled={!branches?.some((name) => name !== null)}
+            title={unpickable}
+          />
           <MachineChips
             // Once the machines are known, only those that exist, as the chart marks them.
             machines={listed ? machines : settings.machine}

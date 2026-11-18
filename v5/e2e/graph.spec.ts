@@ -102,8 +102,12 @@ test("lists the suites under their projects' headings, without the projects that
 
 test('plots a test chosen from scratch', async ({ page }) => {
   await page.goto('/graph')
+  await expect(selectButton(page, 'Branch')).toBeDisabled()
 
   await pickSuite(page, 'Suite', 'libc++', 'Microbenchmarks')
+  // The seeded commits are on no branch (GR1).
+  await expect(selectButton(page, 'Branch')).toContainText('No branch')
+  await expect(selectButton(page, 'Branch')).toBeDisabled()
   await pickSuggestion(page, 'Machines', LINUX)
   // The metric selector stays open while its metrics are checked.
   await pickOption(page, 'Metrics', 'Execution Time')

@@ -92,6 +92,7 @@ describe('the Graph page (GR1)', () => {
 
     expect(await main().findByText('Select a suite first.')).toBeInTheDocument()
     expect(selectButton('Suite')).toHaveTextContent('-- Select suite --')
+    expect(selectButton('Branch')).toBeDisabled()
     expect(screen.getByRole('combobox', { name: 'Machines' })).toBeDisabled()
     expect(selectButton('Metrics')).toBeDisabled()
     expect(screen.getByRole('searchbox', { name: 'Filter tests' })).toBeDisabled()
@@ -397,12 +398,16 @@ const scaffoldsIn = (recorded: Recorded) =>
   recorded.commits.filter((query) => query.get('has_ordinal') === 'true')
 
 describe('the branch (GR1, GR3, GR14)', () => {
-  it("is not offered while the suite's commits are on no branch", async () => {
+  it("offers none while the suite's commits are on no branch, saying why", async () => {
     const recorded = mockWorld()
     renderPage(`${GRAPHED}&test=a`)
 
     await waitFor(() => expect(traces()).toEqual(['a - m1: c10=1 c20=2']))
-    expect(screen.queryByRole('button', { name: / Branch$/ })).not.toBeInTheDocument()
+    expect(selectButton('Branch')).toHaveTextContent('No branch')
+    expect(selectButton('Branch')).toBeDisabled()
+    expect(selectButton('Branch')).toHaveAccessibleDescription(
+      "This suite's commits with an ordinal are on no branch.",
+    )
     expect(branchesOf(seriesIn(recorded))).toEqual(['has_branch=false'])
     expect(branchesOf(scaffoldsIn(recorded))).toEqual(['has_branch=false', 'has_branch=false'])
   })
@@ -473,10 +478,13 @@ describe('the branch (GR1, GR3, GR14)', () => {
     expect(recorded.series).toEqual([])
     expect(layout().annotations).toEqual([])
     expect(currentUrl()).toBe(url)
-    expect(screen.queryByRole('button', { name: / Branch$/ })).not.toBeInTheDocument()
+    expect(selectButton('Branch')).toHaveTextContent('Loading branches...')
+    expect(selectButton('Branch')).toBeDisabled()
     act(() => branches.open())
     await waitFor(() => expect(traces()).toEqual(['a - m1: r10=5 r20=6']))
     expect(currentUrl()).toBe(url)
+    expect(selectButton('Branch')).toHaveTextContent('release/1.x')
+    expect(selectButton('Branch')).toBeEnabled()
   })
 
   it('checks the branch of the URL against the branches listed anew, not those listed before', async () => {
@@ -506,6 +514,8 @@ describe('the branch (GR1, GR3, GR14)', () => {
     expect(await main().findByText(why)).toBeInTheDocument()
     expect(recorded.series).toEqual([])
     expect(layout().annotations).toEqual([])
+    expect(selectButton('Branch')).toBeDisabled()
+    expect(selectButton('Branch')).toHaveAccessibleDescription('The branches could not be listed.')
     server.use(
       mockApi('get', '/api/projects/{project}/suites/{suite}/branches', () =>
         HttpResponse.json({ items: [{ name: null }] }),
