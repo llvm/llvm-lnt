@@ -5,8 +5,8 @@
  *   runs from server/tests/data/libcxx, and the `header-sizes` suite, without runs;
  * - the `llvm` project ("LLVM"), with the `nts` suite and its real runs from server/tests/data/nts;
  * - the `swift` project, without a display name or suites;
- * - a synthetic history of `libcxx/benchmarks`, with regressions and profiles, and machines beyond
- *   the real ones (see synthetic.ts);
+ * - a synthetic history of `libcxx/benchmarks`, with regressions, profiles, machines beyond the
+ *   real ones, and a release branch (see synthetic.ts);
  * - API keys of every scope, one of them revoked and some restricted to whole projects, single
  *   suites or both, for the Admin page to list. Their tokens are thrown away, so that nothing can
  *   authenticate with them.

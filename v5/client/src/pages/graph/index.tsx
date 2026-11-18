@@ -22,6 +22,13 @@ import {
   type SuiteRef,
 } from '../../api/suites'
 import { useTestNames } from '../../api/tests'
+import {
+  branchKey,
+  branchOfKey,
+  branchOptions,
+  hasNamedBranch,
+  plottedBranch,
+} from '../../branches'
 import { ChipList } from '../../components/chip-list'
 import { storeCommitLookup, suggestionOf } from '../../components/commit-lookup'
 import { ControlsPanel } from '../../components/controls-panel'
@@ -125,22 +132,6 @@ const NO_METRICS: Metric[] = []
 const NO_SUITES: Suite[] = []
 const nameOf = (name: string) => name
 
-/** The branch selector's value for a branch: its name, or empty for the commits without one. */
-const branchKey = (branch: BranchName) => branch ?? ''
-
-/** The branch of a value of the branch selector (see `branchKey`). */
-const branchOfKey = (key: string): BranchName => key || null
-
-/**
- * The branch plotted, given the suite's `branches` and the one the URL names (GR1): that one, if
- * the list holds it, and otherwise the list's first entry, which is null, the commits without a
- * branch, if they are listed at all. An empty list, of a suite without commits with an ordinal,
- * leaves nothing to plot, which the commits without a branch stand for.
- */
-function plottedBranch(branches: readonly BranchName[], named: BranchName): BranchName {
-  return branches.includes(named) ? named : (branches[0] ?? null)
-}
-
 /**
  * The Graph page (GR1-GR16), started afresh whenever the user navigates to it -- a link to another
  * graph while on this one, say -- so that its selection is the one the new URL names.
@@ -215,16 +206,12 @@ function GraphPage() {
   )
   // Why the branch selector offers nothing to pick, when that is worth saying (GR1).
   let unpickable: string | undefined
-  if (branches?.every((name) => name === null)) {
+  if (branches && !hasNamedBranch(branches)) {
     unpickable = "This suite's commits with an ordinal are on no branch."
   } else if (branches === undefined && branchList.isError && !branchList.isFetching) {
     unpickable = 'The branches could not be listed.'
   }
-  const branchOptions = useMemo(
-    () =>
-      (branches ?? []).map((name) => ({ value: branchKey(name), label: name ?? 'No branch' })),
-    [branches],
-  )
+  const branchChoices = useMemo(() => branchOptions(branches ?? []), [branches])
 
   const tests = useTestNames(suite, machines, metricNames, { keep: true })
   const filter = useTextFilter(
@@ -405,12 +392,12 @@ function GraphPage() {
           />
           <Select
             label="Branch"
-            options={branchOptions}
+            options={branchChoices}
             // The branch plotted, once known, and until then, what stands for it.
             value={branch === undefined ? null : branchKey(branch)}
             placeholder={branchPlaceholder}
             onChange={(key) => update({ branch: branchOfKey(key) })}
-            isDisabled={!branches?.some((name) => name !== null)}
+            isDisabled={!branches || !hasNamedBranch(branches)}
             title={unpickable}
           />
           <MachineChips

@@ -16,6 +16,20 @@ performance trends across all test suites, grouped by project (see D7).
   (e.g. `?project=libcxx`). Only the sections shown fetch their data.
 - Both controls sit in the page header rather than in a controls panel, an
   exception to AR5.
+- The branch each card shows (DA2) is persisted in the URL as `branch`,
+  repeated once per card that shows another branch than its default, the list's
+  first entry: `{project}/{suite}/{metric}/{branch}`, e.g.
+  `?branch=libcxx/benchmarks/cycles/release/22.x`. The branch is everything
+  after the third `/`, since a branch name may hold one. An entry with fewer
+  than four parts, or with an empty part, is dropped as the URL is read, and of
+  a card named twice, the first entry is kept. An entry is dropped once it is
+  found unusable (AR2 "State"): when no suite shows a card for its suite and
+  metric, once the projects are listed, and when its suite's branches do not
+  hold its branch, or hold it as their first entry, once they are current
+  (see DA2). Picking a card's default removes its entry. The page never writes
+  a default to the URL, not even the named branch a card falls back to, unlike
+  the Graph (GR1). Changing the commit range or the project keeps every entry;
+  those of the suites not shown are left as they are.
 - One section per project, under a heading with the project's label (see
   AR22), linking to the project's suites on the Projects page
   (`/projects/{p}`, see TS1). Projects are in AR22's order. A project with no
@@ -37,22 +51,49 @@ performance trends across all test suites, grouped by project (see D7).
 
 - Each card shows a small time-series chart (~300x160px) with the metric's
   label as the card title, followed by its unit, as AR6 writes it, when it has
-  one.
+  one. A long title wraps.
+- Each card shows the commits of one branch, since the ordinals of different
+  branches are unrelated (see D1). The suite's branches are those of
+  `GET /api/projects/{p}/suites/{s}/branches` (E3), fetched once per suite
+  section for all of its cards, in its order: "No branch", standing for the
+  commits without a branch, when some of them have an ordinal, then the branch
+  names. A card shows the branch the URL names for it (DA1), and otherwise the
+  list's first entry, as the Graph does (GR1). When the list holds a named
+  branch, a branch selector at the top right of the card's title row, over
+  that list, picks the card's branch, without changing the other cards'. The
+  selector is not part of the title's link, nor does picking an option follow
+  the chart's. It is labelled `Branch of {metric label}` for assistive
+  technology only, and a long branch name is cut short in it, shown whole on
+  hover. A suite whose list holds no named branch shows no selector on its
+  cards. The selectors sit on the cards rather than in a controls panel, an
+  exception to AR5.
+- The cards are drawn from the suite's branches as soon as some list of them is
+  at hand, even one fetched before the page was opened: the page lists the
+  branches again each time it is opened. A card whose URL entry such a list
+  does not hold shows its loading state until the list is current, listed
+  since the page was opened, which may hold it. Until the suite's branches are
+  listed at all, the section shows that they are loading in place of its
+  cards, and if they cannot be listed, it says so, with a way to try again (see
+  AR7). If listing them again fails, the cards stay as they are, and a card
+  waiting for a current list says why it has none, with a way to try again.
 - Up to 5 traces per chart, one per most-recently-active machine. The set is chosen
   once per suite rather than per metric: the first 5 machines of
   `GET /api/projects/{p}/suites/{s}/machines?tracked=true&sort=-last_run_at` that
   have runs. The same machines are then requested for every card in that suite's
-  section. Each card fetches its data in one call to
-  `GET /api/projects/{p}/suites/{s}/trends?metric={name}&machine=...&last_n={range}`.
+  section, whatever the branch of each card. Each card fetches its data in one
+  call to
+  `GET /api/projects/{p}/suites/{s}/trends?metric={name}&machine=...&last_n={range}&branch={branch}`,
+  or with `has_branch=false` in place of `branch=` for the commits without a
+  branch.
   Only machines with `tracked: true` are eligible -- untracked machines are ad-hoc or
   retired configurations not tracked in the overview. A suite with no tracked machine
   that has runs says so in place of its cards. A machine with no data for a given
   metric simply has no trace on that card, and a card on which no machine has a trend
-  says so in place of its chart.
+  says so in place of its chart, on its branch when that is a named branch.
 - Each trace is a colored line. A machine has the same color on every card of
   its suite.
 - X-axis: sequential position (evenly spaced, no axis labels) among the
-  commits any of the card's traces has data at, in ordinal order. A machine's
+  commits of the card's branch any of its traces has data at, in ordinal order. A machine's
   line runs straight across the commits where it has no value.
 - Y-axis: the trend item's `value` at each commit for that machine+metric
   combination, a geometric mean across tests. See below for calculation.
@@ -62,8 +103,9 @@ performance trends across all test suites, grouped by project (see D7).
   so a card resolves the display values of its commits through
   `POST /api/projects/{p}/suites/{s}/commits/resolve`.
 - Clicking a sparkline, or the card's title, navigates to the Graph page
-  pre-populated with that suite, metric, and the machines with a trace on the
-  card. Clicking directly on a specific trace -- the one whose hover tooltip
+  pre-populated with that suite, metric, the machines with a trace on the
+  card, and the card's branch, which the link leaves out for the commits
+  without a branch. Clicking directly on a specific trace -- the one whose hover tooltip
   shows -- navigates with just that machine. While a card shows no chart, its
   title is a disabled link (see AR8).
 - Loading state: placeholder skeleton with "Loading..." while data is being

@@ -70,9 +70,8 @@ npm run seed                                      # against the dev server
 npm run seed -- --token <token>                   # with a token of your own
 ```
 
-This creates the `libcxx/benchmarks` and `llvm/nts` suites with their real runs from
-`server/tests/data` and a synthetic `libcxx/benchmarks` history on top, plus a `libcxx/header-sizes`
-suite without runs and a `swift` project without suites. Seeding takes a few seconds.
+This creates a few projects and suites, with real runs from `server/tests/data` and a synthetic
+history on top. Seeding takes a few seconds.
 
 It needs a token with `manage` scope, or `admin` to seed API keys as well: `--token`, or
 `$LNT_SEED_TOKEN`. Without either, it creates an admin key named `seed` for the database in `.env`,

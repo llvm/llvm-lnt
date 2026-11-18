@@ -49,12 +49,15 @@ function draws(page: Page, name: string) {
   )
 }
 
-/** A commit in the middle of LINUX's history: on the x-axis, away from its ends. */
+/**
+ * A commit in the middle of LINUX's history without a branch, which the Graph plots by default: on
+ * the x-axis, away from its ends.
+ */
 async function middleCommit(request: APIRequestContext) {
   const { items } = await json<ListPage<{ value: string }>>(
     request,
     `/api/projects/libcxx/suites/benchmarks/commits?machine=${LINUX}&has_ordinal=true` +
-      '&sort=ordinal&limit=10000',
+      '&has_branch=false&sort=ordinal&limit=10000',
   )
   return items[Math.floor(items.length / 2)].value
 }
@@ -105,9 +108,9 @@ test('plots a test chosen from scratch', async ({ page }) => {
   await expect(selectButton(page, 'Branch')).toBeDisabled()
 
   await pickSuite(page, 'Suite', 'libc++', 'Microbenchmarks')
-  // The seeded commits are on no branch (GR1).
+  // The seeded commits without a branch come first, before release/22.x (GR1).
   await expect(selectButton(page, 'Branch')).toContainText('No branch')
-  await expect(selectButton(page, 'Branch')).toBeDisabled()
+  await expect(selectButton(page, 'Branch')).toBeEnabled()
   await pickSuggestion(page, 'Machines', LINUX)
   // The metric selector stays open while its metrics are checked.
   await pickOption(page, 'Metrics', 'Execution Time')
@@ -137,12 +140,13 @@ test('plots a test chosen from scratch', async ({ page }) => {
 })
 
 test('keeps the x-axis as it is while the data arrives (GR3)', async ({ page, request }) => {
-  // The axis spans every commit of both machines, before anything is plotted.
+  // The axis spans every commit of both machines on the branch plotted, the commits without one,
+  // before anything is plotted.
   const commits = new Set<string>()
   for (const machine of [LINUX, MACOS]) {
     const path =
       `/api/projects/libcxx/suites/benchmarks/commits?machine=${machine}&has_ordinal=true` +
-      '&sort=ordinal&limit=10000'
+      '&has_branch=false&sort=ordinal&limit=10000'
     const list = await json<ListPage<{ value: string }>>(request, path)
     for (const commit of list.items) commits.add(commit.value)
   }

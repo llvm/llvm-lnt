@@ -1,7 +1,9 @@
+import type { ReactNode } from 'react'
 import { act, fireEvent, screen, waitFor, within } from '@testing-library/react'
 import { HttpResponse } from 'msw'
+import { useNavigate } from 'react-router'
 import type { PlotData, PlotHoverEvent, PlotMouseEvent } from 'plotly.js'
-import { describe, expect, it, onTestFinished, vi } from 'vitest'
+import { beforeEach, describe, expect, it, onTestFinished, vi } from 'vitest'
 import { queryKeys } from '../../api/keys'
 import type { Suite } from '../../api/suites'
 import type { ChartProps } from '../../components/chart'
@@ -20,6 +22,7 @@ import {
   currentUrl,
   gate,
   main,
+  mockBranches,
   mockMachines,
   mockResolve,
   mockSuites,
@@ -34,6 +37,9 @@ import { machineColor } from './sparkline'
 
 // The tests check what the cards hand Plotly to draw (see test/chart.tsx).
 vi.mock('../../components/chart', () => import('../../test/chart'))
+
+// Every suite's commits are on no branch, unless a test says otherwise.
+beforeEach(() => mockBranches([null]))
 
 /**
  * libcxx, with metrics of each kind on the Dashboard: one with a unit and its abbreviation, one
@@ -88,12 +94,12 @@ function mockMachineNames(names: string[], { idle = [] }: { idle?: string[] } = 
 }
 
 /** The Dashboard of DASH_SUITE alone, with POINTS for every metric, on m1 and m2. */
-function renderDashboard(url = '/') {
+function renderDashboard(url = '/', extra?: ReactNode) {
   mockSuites([DASH_SUITE])
   mockMachineNames(['m1', 'm2'])
   const trends = mockTrends(() => POINTS)
   mockResolve()
-  return { trends, ...renderPage(url) }
+  return { trends, ...renderPage(url, extra) }
 }
 
 /** The section of the project labelled `project`. */
@@ -501,6 +507,25 @@ describe('the Dashboard', () => {
       await pickOption('Project', 'All projects')
       await waitFor(() => expect(currentUrl()).toBe('/?range=1000'))
     })
+
+    it('keeps the branches of the cards it hides, for when they are shown again', async () => {
+      mockProjects()
+      mockBranches([null, 'release/22.x'])
+      const entry = 'libcxx/benchmarks/cycles/release/22.x'
+      renderPage(`/?project=llvm&branch=${encodeURIComponent(entry)}`)
+
+      await chartOf('Cycles', 'nts')
+      expect(query()).toEqual({ project: ['llvm'], branch: [entry] })
+
+      await pickOption('Project', 'All projects')
+      await waitFor(() => expect(query()).toEqual({ branch: [entry] }))
+      const benchmarks = await main().findByRole('region', { name: 'benchmarks' })
+      await waitFor(() =>
+        expect(selectButton('Branch of Cycles', benchmarks)).toHaveTextContent('release/22.x'),
+      )
+      const nts = main().getByRole('region', { name: 'nts' })
+      expect(selectButton('Branch of Cycles', nts)).toHaveTextContent('No branch')
+    })
   })
 
   describe('the commit range', () => {
@@ -717,5 +742,312 @@ describe('the Dashboard', () => {
       expect(link).toHaveAttribute('aria-hidden', 'true')
       expect((await card('Cycles')).getAllByRole('link')).toHaveLength(1)
     })
+  })
+})
+
+describe("the cards' branches", () => {
+  const RELEASE = 'release/22.x'
+
+  /** The Dashboard of DASH_SUITE at `url`, its suite's branches being `branches`. */
+  function renderBranches(branches: (string | null)[], url = '/', extra?: ReactNode) {
+    mockBranches(branches)
+    return renderDashboard(url, extra)
+  }
+
+  /** The branch filter each card's last trend request asked for, by metric. */
+  function lastFilters(trends: URLSearchParams[]) {
+    const filters: Record<string, string> = {}
+    for (const query of trends) {
+      const branch = query.get('branch')
+      filters[query.get('metric')!] =
+        branch === null ? `has_branch=${query.get('has_branch')}` : `branch=${branch}`
+    }
+    return filters
+  }
+
+  /** A button navigating to `to`, as a link would. */
+  function GoTo({ to }: { to: string }) {
+    const navigate = useNavigate()
+    return <button onClick={() => void navigate(to)}>Go to {to}</button>
+  }
+
+  it("shows the list's first entry, the commits without a branch when listed", async () => {
+    const { trends } = renderBranches([null, RELEASE])
+
+    await chartOf('Cycles')
+    expect(selectButton('Branch of Cycles')).toHaveTextContent('No branch')
+    await waitFor(() =>
+      expect(lastFilters(trends)).toEqual({
+        execution_time: 'has_branch=false',
+        cycles: 'has_branch=false',
+        compile_status: 'has_branch=false',
+      }),
+    )
+    // Nothing is written to the URL for a default.
+    expect(currentUrl()).toBe('/')
+  })
+
+  it('shows the first named branch of a suite whose commits all have one', async () => {
+    const { trends } = renderBranches(['main', RELEASE])
+
+    await chartOf('Cycles')
+    expect(selectButton('Branch of Cycles')).toHaveTextContent('main')
+    await waitFor(() => expect(lastFilters(trends).cycles).toBe('branch=main'))
+    const title = (await card('Cycles')).getByRole('link', { name: 'Cycles' })
+    expect(title).toHaveAttribute(
+      'href',
+      '/graph?project=llvm&suite=libcxx&branch=main&machine=m1&machine=m2&metric=cycles',
+    )
+  })
+
+  it('shows no selector for a suite without named branches', async () => {
+    for (const branches of [[null], []]) {
+      const { trends, unmount } = renderBranches(branches)
+
+      await chartOf('Cycles')
+      expect(main().queryAllByRole('button', { name: /Branch of/ })).toEqual([])
+      expect(lastFilters(trends).cycles).toBe('has_branch=false')
+      unmount()
+    }
+  })
+
+  it('asks for the branch picked on one card only, and keeps it in the URL', async () => {
+    const { trends } = renderBranches([null, RELEASE])
+    await chartOf('Cycles')
+
+    await pickOption('Branch of Cycles', RELEASE)
+
+    await waitFor(() => expect(query()).toEqual({ branch: [`llvm/libcxx/cycles/${RELEASE}`] }))
+    await waitFor(() =>
+      expect(lastFilters(trends)).toEqual({
+        execution_time: 'has_branch=false',
+        cycles: `branch=${RELEASE}`,
+        compile_status: 'has_branch=false',
+      }),
+    )
+    expect(selectButton('Branch of Cycles')).toHaveTextContent(RELEASE)
+    expect(selectButton('Branch of Execution Time')).toHaveTextContent('No branch')
+    // The links to the Graph carry it.
+    const graph =
+      '/graph?project=llvm&suite=libcxx&branch=release%2F22.x&machine=m1&machine=m2&metric=cycles'
+    await waitFor(async () =>
+      expect((await card('Cycles')).getByRole('link', { name: 'Cycles' })).toHaveAttribute(
+        'href',
+        graph,
+      ),
+    )
+    expect(await chartLink('Cycles')).toHaveAttribute('href', graph)
+
+    // Picking the default again leaves it out of the URL.
+    await pickOption('Branch of Cycles', 'No branch')
+    await waitFor(() => expect(currentUrl()).toBe('/'))
+  })
+
+  it('does not follow the title or the chart when an option is picked', async () => {
+    renderBranches([null, RELEASE])
+    await chartOf('Cycles')
+
+    await pickOption('Branch of Cycles', RELEASE)
+
+    await waitFor(() => expect(query()).toEqual({ branch: [`llvm/libcxx/cycles/${RELEASE}`] }))
+    expect(currentUrl()!.startsWith('/?')).toBe(true)
+  })
+
+  it('reads the branch of a card from the URL, and keeps it as the range changes', async () => {
+    const entry = `llvm/libcxx/cycles/${RELEASE}`
+    const { trends } = renderBranches([null, RELEASE], `/?branch=${encodeURIComponent(entry)}`)
+
+    await chartOf('Cycles')
+    expect(selectButton('Branch of Cycles')).toHaveTextContent(RELEASE)
+    expect(lastFilters(trends).cycles).toBe(`branch=${RELEASE}`)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Last 100' }))
+    await waitFor(() => expect(query()).toEqual({ branch: [entry], range: ['100'] }))
+    await waitFor(() =>
+      expect(trends.at(-1)!.get('last_n') === '100' && lastFilters(trends).cycles).toBe(
+        `branch=${RELEASE}`,
+      ),
+    )
+  })
+
+  it('drops malformed entries, and the second entry of a card, from the URL', async () => {
+    const entries = [
+      'llvm/libcxx/cycles',
+      'llvm/libcxx/cycles/',
+      `llvm//cycles/${RELEASE}`,
+      'llvm/libcxx/cycles/main',
+      `llvm/libcxx/cycles/${RELEASE}`,
+    ]
+    const search = entries.map((entry) => `branch=${encodeURIComponent(entry)}`).join('&')
+    renderBranches([null, 'main', RELEASE], `/?${search}`)
+
+    await waitFor(() => expect(query()).toEqual({ branch: ['llvm/libcxx/cycles/main'] }))
+    await chartOf('Cycles')
+    expect(selectButton('Branch of Cycles')).toHaveTextContent('main')
+  })
+
+  it("drops the branches a card's suite does not list, or that are its default", async () => {
+    const entries = [
+      'llvm/libcxx/cycles/gone',
+      'llvm/libcxx/execution_time/main',
+      `llvm/libcxx/compile_status/${RELEASE}`,
+    ]
+    const search = entries.map((entry) => `branch=${encodeURIComponent(entry)}`).join('&')
+    renderBranches(['main', RELEASE], `/?${search}`)
+
+    await waitFor(() =>
+      expect(query()).toEqual({ branch: [`llvm/libcxx/compile_status/${RELEASE}`] }),
+    )
+    await chartOf('Cycles')
+    expect(selectButton('Branch of Cycles')).toHaveTextContent('main')
+  })
+
+  it('drops the branches of cards that no suite shows', async () => {
+    const entries = [
+      `llvm/nope/cycles/${RELEASE}`,
+      `llvm/libcxx/exit_status/${RELEASE}`,
+      `llvm/libcxx/cycles/${RELEASE}`,
+    ]
+    const search = entries.map((entry) => `branch=${encodeURIComponent(entry)}`).join('&')
+    renderBranches([null, RELEASE], `/?${search}`)
+
+    await waitFor(() => expect(query()).toEqual({ branch: [`llvm/libcxx/cycles/${RELEASE}`] }))
+  })
+
+  it('drops what two suites do not list at once', async () => {
+    const OTHER = { ...DASH_SUITE, name: 'other' }
+    mockSuites([DASH_SUITE, OTHER])
+    mockMachineNames(['m1', 'm2'])
+    mockTrends(() => POINTS)
+    mockResolve()
+    mockBranches([null, RELEASE])
+    const entries = [
+      'llvm/libcxx/cycles/gone',
+      `llvm/libcxx/execution_time/${RELEASE}`,
+      'llvm/other/cycles/gone',
+      `llvm/other/execution_time/${RELEASE}`,
+    ]
+    const search = entries.map((entry) => `branch=${encodeURIComponent(entry)}`).join('&')
+    renderPage(`/?${search}`)
+
+    await waitFor(() =>
+      expect(query()).toEqual({
+        branch: [`llvm/libcxx/execution_time/${RELEASE}`, `llvm/other/execution_time/${RELEASE}`],
+      }),
+    )
+  })
+
+  it('waits for a current list for a branch that a cached one does not hold', async () => {
+    const entry = `llvm/libcxx/cycles/${RELEASE}`
+    const back = `/?branch=${encodeURIComponent(entry)}`
+    const { trends } = renderBranches(
+      [null],
+      '/',
+      <>
+        <GoTo to="/nope" />
+        <GoTo to={back} />
+      </>,
+    )
+    await chartOf('Cycles')
+    fireEvent.click(screen.getByRole('button', { name: 'Go to /nope' }))
+    await waitFor(() => expect(currentUrl()).toBe('/nope'))
+    // The branch appears, as the page is left.
+    const slow = gate()
+    mockBranches([null, RELEASE], { wait: () => slow.promise })
+
+    fireEvent.click(screen.getByRole('button', { name: `Go to ${back}` }))
+
+    // The cards the URL names no branch for are drawn at once, from the cached list.
+    await chartOf('Execution Time')
+    expect(await (await card('Cycles')).findByText('Loading...')).toBeInTheDocument()
+    expect(trends.filter((query) => query.get('branch') !== null)).toEqual([])
+    slow.open()
+    await waitFor(() => expect(selectButton('Branch of Cycles')).toHaveTextContent(RELEASE))
+    await waitFor(() => expect(lastFilters(trends).cycles).toBe(`branch=${RELEASE}`))
+    expect(query()).toEqual({ branch: [entry] })
+  })
+
+  it("says why the suite's branches could not be listed, and tries again", async () => {
+    server.use(
+      mockApi('get', '/api/projects/{project}/suites/{suite}/branches', () =>
+        errorResponse(500, 'internal_error', 'The branches broke.'),
+      ),
+    )
+    const { trends } = renderDashboard()
+
+    const region = await main().findByRole('region', { name: 'libcxx' })
+    expect(await within(region).findByRole('alert')).toHaveTextContent(
+      'The branches could not be listed: The branches broke.',
+    )
+    expect(trends).toEqual([])
+    mockBranches([null, RELEASE])
+    fireEvent.click(within(region).getByRole('button', { name: 'Retry' }))
+    await chartOf('Cycles')
+    expect(selectButton('Branch of Cycles')).toHaveTextContent('No branch')
+  })
+
+  it('keeps the cards, and drops nothing, when listing the branches again fails', async () => {
+    const entry = `llvm/libcxx/cycles/${RELEASE}`
+    const back = `/?branch=${encodeURIComponent(entry)}`
+    renderBranches(
+      [null],
+      '/',
+      <>
+        <GoTo to="/nope" />
+        <GoTo to={back} />
+      </>,
+    )
+    await chartOf('Cycles')
+    fireEvent.click(screen.getByRole('button', { name: 'Go to /nope' }))
+    await waitFor(() => expect(currentUrl()).toBe('/nope'))
+    server.use(
+      mockApi('get', '/api/projects/{project}/suites/{suite}/branches', () =>
+        errorResponse(500, 'internal_error', 'The branches broke.'),
+      ),
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: `Go to ${back}` }))
+
+    await chartOf('Execution Time')
+    const cycles = await card('Cycles')
+    expect(await cycles.findByRole('alert')).toHaveTextContent(
+      'The branches could not be listed: The branches broke.',
+    )
+    expect(currentUrl()).toBe(back)
+    mockBranches([null, RELEASE])
+    fireEvent.click(cycles.getByRole('button', { name: 'Retry' }))
+    await waitFor(() => expect(selectButton('Branch of Cycles')).toHaveTextContent(RELEASE))
+  })
+
+  it("says that no machine has a trend on the card's branch, when it is named", async () => {
+    mockBranches([null, RELEASE])
+    mockSuites([DASH_SUITE])
+    mockMachineNames(['m1', 'm2'])
+    mockTrends((query) => (query.get('branch') === null ? [] : POINTS))
+    mockResolve()
+    renderPage(`/?branch=${encodeURIComponent(`llvm/libcxx/cycles/${RELEASE}`)}`)
+
+    expect(
+      await (await card('Execution Time')).findByText('No machine has a trend for this metric.'),
+    ).toBeInTheDocument()
+    mockTrends(() => [])
+    await pickOption('Branch of Execution Time', RELEASE)
+    expect(
+      await (
+        await card('Execution Time')
+      ).findByText('No machine has a trend for this metric on this branch.'),
+    ).toBeInTheDocument()
+  })
+
+  it('shows a long branch name whole on hover', async () => {
+    const long = 'users/someone/a-rather-long-experimental-branch-name'
+    renderBranches([null, long], `/?branch=${encodeURIComponent(`llvm/libcxx/cycles/${long}`)}`)
+
+    await chartOf('Cycles')
+    const button = selectButton('Branch of Cycles')
+    expect(button).toHaveTextContent(long)
+    expect(button.closest('[title]')).toHaveAttribute('title', long)
+    // Only on hover: assistive technology reads the name once.
+    expect(button).not.toHaveAttribute('aria-describedby')
   })
 })

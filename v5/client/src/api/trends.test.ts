@@ -5,7 +5,7 @@ import { mockResolve, mockTrends } from '../test/page'
 import { providers } from '../test/render'
 import { useTrends } from './trends'
 
-const QUERY = { metric: 'execution_time', machines: ['m1'], lastN: 500 }
+const QUERY = { metric: 'execution_time', machines: ['m1'], lastN: 500, branch: null }
 
 function renderTrend() {
   return renderHook(() => useTrends(REF, QUERY), providers())

@@ -5,8 +5,10 @@
  * It continues the history of the real libcxx machines after their newest real commit, starting
  * from the values they measured there, with noise and a few deliberate changes (`EFFECTS`), which
  * the regressions it creates describe. A fleet of synthetic machines (`FLEET`) measures a few of
- * its commits too, so that the suite has as many machines as a busy instance. Everything is derived from fixed seeds, so every run of the
- * seed tool submits exactly the same data.
+ * its commits too, so that the suite has as many machines as a busy instance. A release branch
+ * (`RELEASE_BRANCH`) forks from it a few commits before its newest, so that the suite has a branch
+ * besides the commits without one. Everything is derived from fixed seeds, so every run of the seed
+ * tool submits exactly the same data.
  */
 
 import { createHash } from 'node:crypto'
@@ -161,6 +163,20 @@ const COMMITS = 40
 const ORDINAL_STEP = 37
 const TAGGED_COMMIT = 19
 export const TAG = 'seed-milestone'
+/**
+ * A release branch, forked after the synthetic commit `RELEASE_FORK`: its `k`th commit has the
+ * fork's ordinal plus `k`, as `git rev-list --count` gives it, so that its ordinals fall between
+ * those of the commits without a branch, without taking any of theirs. Its commits are not in
+ * llvm-project, so their repository links lead nowhere.
+ */
+export const RELEASE_BRANCH = 'release/22.x'
+const RELEASE_FORK = 33
+const RELEASE_COMMITS = 6
+/** The machines that measure the release branch. */
+const RELEASE_MACHINES = [LINUX, MACOS]
+/** Every test of the release branch is this much faster, so that its lines visibly differ. */
+const RELEASE_FACTOR = 0.93
+
 /** An ad-hoc A/B experiment on the newest commit: a commit with no ordinal (D1). */
 export const EXPERIMENT = 'experiment-faster-format'
 
@@ -401,6 +417,28 @@ export function libcxxSynthetic(realRuns: Submission[]): {
           fields: fleet.fields,
         },
       })
+    }
+    // The release branch's `i - RELEASE_FORK`th commit, if any: submitted after the fleet's runs,
+    // and measured half an hour before the real machines' runs at `i`, so that those stay the ones
+    // submitted and measured last.
+    const k = i - RELEASE_FORK
+    if (k >= 1 && k <= RELEASE_COMMITS) {
+      const ordinal = ordinalOf(RELEASE_FORK) + k
+      const release: Submission['commit'] = {
+        value: createHash('sha1').update(`${RELEASE_BRANCH}/${k}`).digest('hex'),
+        ordinal,
+        branch: RELEASE_BRANCH,
+        fields: {
+          svn_revision: `r${ordinal}`,
+          commit_info: `[${RELEASE_BRANCH}] Cherry-pick ${k} of ${RELEASE_COMMITS}`,
+        },
+      }
+      for (const [index, machine] of RELEASE_MACHINES.entries()) {
+        const factor = (test: string) => RELEASE_FACTOR * effectsAt(RELEASE_FORK, machine, test)
+        addRun(machine, release, `libcxx/${machine}/${RELEASE_BRANCH}/${k}`, factor, {
+          measuredAt: measuredAt(i, 0, index * 5 - 30),
+        })
+      }
     }
     // Some commits are measured twice, so that runs need aggregating.
     const repetitions = i % 5 === 0 ? 2 : 1

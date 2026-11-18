@@ -1,7 +1,7 @@
 /**
  * The Dashboard (DA1-DA2), against the seeded history of `libcxx/benchmarks`: tracked machines
  * with a trend on every metric but `peak_memory`, which no run reports, and an untracked one left
- * out.
+ * out. Its commits are on no branch, but for those of `release/22.x`, which two machines measure.
  *
  * Other tests create projects of their own, which the Dashboard lists too, so every check is scoped
  * to the section of the project or the suite it is about, which their labels name (AR22).
@@ -9,11 +9,11 @@
 
 import type { Locator, Page } from '@playwright/test'
 import { suitePath } from '../client/src/paths.ts'
-import { HARDENED, LINUX, MACOS, UNTRACKED } from '../tools/synthetic.ts'
+import { HARDENED, LINUX, MACOS, RELEASE_BRANCH, UNTRACKED } from '../tools/synthetic.ts'
 import { expect, test } from './fixtures.ts'
 import { ownSuite, withOwnSuite, type OwnRun } from './own-suite.ts'
 import { plotOf, pointOf, tracesOf } from './plot.ts'
-import { pickOption, selectButton } from './select.ts'
+import { openSelect, pickOption, selectButton } from './select.ts'
 
 const LIBCXX_METRICS = [
   'Execution Time',
@@ -276,4 +276,67 @@ test('drops a project that does not exist from the URL', async ({ page }) => {
   await expect(page).toHaveURL('/')
   await expect(selectButton(page, 'Project')).toContainText('All projects')
   await expect(benchmarks(page)).toBeVisible()
+})
+
+test('shows a card on the branch picked, and opens the Graph on it', async ({ page }) => {
+  await page.goto('/')
+  const cycles = card(page, 'Cycles Elapsed')
+  await expect(tracesOf(cycles)).toHaveCount(5)
+  // The commits without a branch come first (DA2).
+  await expect(selectButton(cycles, 'Branch of Cycles Elapsed')).toHaveText(/^No branch/)
+
+  await pickOption(cycles, 'Branch of Cycles Elapsed', RELEASE_BRANCH)
+
+  const entry = `libcxx/benchmarks/cycles/${RELEASE_BRANCH}`
+  await expect(page).toHaveURL(`/?branch=${encodeURIComponent(entry)}`)
+  // The release branch is measured by two machines only; the other cards stay as they are.
+  await expect(tracesOf(cycles)).toHaveCount(2)
+  const description = cycles.getByText(/^Latest values: /)
+  for (const machine of [LINUX, MACOS]) await expect(description).toContainText(machine)
+  const executionTime = card(page, 'Execution Time')
+  await expect(selectButton(executionTime, 'Branch of Execution Time')).toHaveText(/^No branch/)
+  await expect(tracesOf(executionTime)).toHaveCount(5)
+
+  await cycles.getByRole('link', { name: 'Cycles Elapsed', exact: true }).click()
+  await expect(page).toHaveURL(/\/graph\?project=libcxx&suite=benchmarks&branch=release%2F22\.x&/)
+  await expect(selectButton(page, 'Branch')).toContainText(RELEASE_BRANCH)
+
+  // Back on the Dashboard, the card shows the branch it did.
+  await page.goBack()
+  await expect(selectButton(cycles, 'Branch of Cycles Elapsed')).toHaveText(
+    new RegExp(`^${RELEASE_BRANCH}`),
+  )
+  await expect(tracesOf(cycles)).toHaveCount(2)
+})
+
+test("does not follow the chart's link when an option over it is picked", async ({ page }) => {
+  // libc++ alone, the card at the top of the page, so that the list opens below the selector.
+  await page.goto('/?project=libcxx')
+  const cycles = card(page, 'Cycles Elapsed')
+  await expect(tracesOf(cycles)).toHaveCount(5)
+  await cycles.evaluate((element) => element.scrollIntoView({ block: 'start' }))
+  const option = page.getByRole('option', { name: RELEASE_BRANCH, exact: true })
+  await openSelect(cycles, 'Branch of Cycles Elapsed', option)
+  // The option is drawn over the chart.
+  const over = (await option.boundingBox())!
+  const chart = (await plotOf(cycles).boundingBox())!
+  expect(over.y + over.height / 2).toBeGreaterThan(chart.y)
+  expect(over.y + over.height / 2).toBeLessThan(chart.y + chart.height)
+  expect(over.x + over.width / 2).toBeGreaterThan(chart.x)
+  expect(over.x + over.width / 2).toBeLessThan(chart.x + chart.width)
+
+  await option.click()
+
+  await expect(tracesOf(cycles)).toHaveCount(2)
+  expect(new URL(page.url()).pathname).toBe('/')
+  await expect(page).toHaveURL(/[?&]branch=/)
+})
+
+test('shows no branch selector on the cards of a suite without branches', async ({ page }) => {
+  await page.goto('/')
+  const nts = section(page, 'LLVM', 'nts')
+  // Once some card is drawn.
+  await expect(tracesOf(nts).first()).toBeAttached()
+
+  await expect(nts.getByRole('button', { name: /Branch of/ })).toHaveCount(0)
 })

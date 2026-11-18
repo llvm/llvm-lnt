@@ -9,6 +9,26 @@
   text-align: left;
 }
 
+/* A compact dropdown (see `Select`'s `compact`): smaller, and no wider than its container, its
+   value cut short when it does not fit. */
+.compact {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.compact .button {
+  min-width: 0;
+  max-width: 100%;
+  padding: 0 var(--lnt-space-1);
+  font-size: 0.8rem;
+}
+
+.compact .value {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 /* Only there to carry a title: it takes no part in the layout. */
 .titled {
   display: contents;
