@@ -18,7 +18,7 @@ import {
   COMPARED,
   comparison,
   mockWorld,
-  NOISY,
+  CHANGES,
   runBox,
   showBox,
 } from './compare-world'
@@ -28,7 +28,7 @@ vi.mock('../../components/chart', () => import('../../test/chart'))
 
 describe('the chart (CP3)', () => {
   it('plots a bar per compared test that can be, by ratio', async () => {
-    mockWorld(NOISY)
+    mockWorld(CHANGES)
     renderPage(COMPARED)
     await comparison()
 
@@ -40,7 +40,7 @@ describe('the chart (CP3)', () => {
   })
 
   it('draws no band, whatever the margin and the filters', async () => {
-    mockWorld(NOISY)
+    mockWorld(CHANGES)
     renderPage(`${COMPARED}&margin=50&min_delta_pct=0`)
     await comparison()
 
@@ -57,7 +57,7 @@ describe('the chart (CP3)', () => {
   })
 
   it('says when there is nothing to plot', async () => {
-    mockWorld(NOISY)
+    mockWorld(CHANGES)
     renderPage(`${COMPARED}&hidden_test=a&hidden_test=d`)
     await comparison()
 
@@ -66,7 +66,7 @@ describe('the chart (CP3)', () => {
   })
 
   it('labels the y-axis with the percentage changes of the range zoomed to, until reset', async () => {
-    mockWorld(NOISY)
+    mockWorld(CHANGES)
     renderPage(COMPARED)
     await comparison()
     const ticks = () => chart().layout.yaxis?.ticktext
@@ -86,7 +86,7 @@ describe('the chart (CP3)', () => {
   })
 
   it('keeps a zoom across settings, until the comparison is replaced', async () => {
-    mockWorld(NOISY)
+    mockWorld(CHANGES)
     renderPage(COMPARED)
     await comparison()
     const user = userEvent.setup()
@@ -127,7 +127,7 @@ describe('the chart (CP3)', () => {
   })
 
   it('plots only the tests the filter keeps', async () => {
-    mockWorld(NOISY)
+    mockWorld(CHANGES)
     renderPage(COMPARED)
     await comparison()
 
@@ -137,7 +137,7 @@ describe('the chart (CP3)', () => {
   })
 
   it('highlights the row of the bar hovered, and outlines the bar of the row hovered', async () => {
-    mockWorld(NOISY)
+    mockWorld(CHANGES)
     renderPage(COMPARED)
     await comparison()
     const row = (test: string) => screen.getByRole('cell', { name: test }).closest('tr')

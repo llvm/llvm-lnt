@@ -16,7 +16,7 @@ import {
   comparison,
   listedTests,
   mockWorld,
-  NOISY,
+  CHANGES,
   ROWS,
   runBox,
   showBox,
@@ -118,7 +118,7 @@ describe('the comparison table (CP2)', () => {
 
 describe('hidden tests (CP2)', () => {
   it('hides a test from the comparison, but not from the table', async () => {
-    mockWorld(NOISY)
+    mockWorld(CHANGES)
     renderPage(COMPARED)
     await comparison()
     const user = userEvent.setup()
@@ -138,7 +138,7 @@ describe('hidden tests (CP2)', () => {
   })
 
   it('hides a test with a click on its row, and leaves it hidden whatever the filters', async () => {
-    mockWorld(NOISY)
+    mockWorld(CHANGES)
     // a changes by less than 1%.
     renderPage(`${COMPARED}&min_delta_pct=1`)
     await comparison()
@@ -161,7 +161,7 @@ describe('hidden tests (CP2)', () => {
   })
 
   it('hides a range of the rows as they are sorted, with Shift held', async () => {
-    mockWorld(NOISY)
+    mockWorld(CHANGES)
     renderPage(COMPARED)
     await comparison()
     const user = userEvent.setup()
@@ -176,7 +176,7 @@ describe('hidden tests (CP2)', () => {
   })
 
   it('hides or shows every row from the header', async () => {
-    mockWorld(NOISY)
+    mockWorld(CHANGES)
     renderPage(`${COMPARED}&test_filter=a`)
     await comparison()
     const user = userEvent.setup()
@@ -190,7 +190,7 @@ describe('hidden tests (CP2)', () => {
   })
 
   it('shows a test alone with a double-click, and every test again with another', async () => {
-    mockWorld(NOISY)
+    mockWorld(CHANGES)
     renderPage(COMPARED)
     await comparison()
     const user = userEvent.setup()
@@ -202,7 +202,7 @@ describe('hidden tests (CP2)', () => {
   })
 
   it('never changes a test the filter hides on a double-click', async () => {
-    mockWorld(NOISY)
+    mockWorld(CHANGES)
     // c is hidden and d is not, and the filter hides both.
     renderPage(`${COMPARED}&test_filter=^[ab]$&test_filter_regex=true&hidden_test=c`)
     await comparison()
@@ -215,7 +215,7 @@ describe('hidden tests (CP2)', () => {
   })
 
   it('restores the hidden tests of the URL, forgetting those the comparison does not hold', async () => {
-    mockWorld(NOISY)
+    mockWorld(CHANGES)
     renderPage(`${COMPARED}&hidden_test=d&hidden_test=zzz`)
     await comparison()
 
@@ -224,7 +224,7 @@ describe('hidden tests (CP2)', () => {
   })
 
   it('keeps the hidden tests while a side has no run selected', async () => {
-    mockWorld(NOISY)
+    mockWorld(CHANGES)
     renderPage(`${COMPARED}&hidden_test=b`)
     await comparison()
     const user = userEvent.setup()
@@ -241,7 +241,7 @@ describe('hidden tests (CP2)', () => {
   })
 
   it('offers nothing to copy when every row is hidden', async () => {
-    mockWorld(NOISY)
+    mockWorld(CHANGES)
     renderPage(COMPARED)
     await comparison()
 
@@ -280,7 +280,7 @@ describe('hidden tests (CP2)', () => {
 
 describe('optional columns (CP2)', () => {
   it('adds the columns of a statistic from the Columns menu, which stays open', async () => {
-    mockWorld(NOISY)
+    mockWorld(CHANGES)
     renderPage(COMPARED)
     await comparison()
     const user = userEvent.setup()
@@ -309,7 +309,7 @@ describe('optional columns (CP2)', () => {
   })
 
   it('says what the statistics are computed over in the menu, not on their headers', async () => {
-    mockWorld(NOISY)
+    mockWorld(CHANGES)
     renderPage(`${COMPARED}&columns=samples&columns=pvalue`)
     await comparison()
 
@@ -327,7 +327,7 @@ describe('optional columns (CP2)', () => {
   })
 
   it("shows each side's statistics, empty on the geomean and N/A without samples", async () => {
-    mockWorld(NOISY)
+    mockWorld(CHANGES)
     renderPage(`${COMPARED}&columns=samples&columns=mean&columns=pvalue`)
 
     const rows = await comparison()
@@ -342,7 +342,7 @@ describe('optional columns (CP2)', () => {
   })
 
   it('sorts by a statistic, back to the default sort once its column is hidden', async () => {
-    mockWorld(NOISY)
+    mockWorld(CHANGES)
     renderPage(`${COMPARED}&columns=mean&sort=-mean_a`)
     expect(await listedTests()).toEqual(['a', 'b', 'd', 'c'])
     const user = userEvent.setup()
@@ -387,7 +387,8 @@ describe('optional columns (CP2)', () => {
     expect(rows[0].split(' | ').slice(-3, -1)).toEqual(['', ''])
   })
 
-  it('shows an interval too wide to represent as infinite', async () => {
+  it('shows an interval too wide to represent as infinite, and copies it so', async () => {
+    const writeText = mockClipboard()
     mockWorld({
       runs: CLASSIFIED.runs,
       samples: { '1': [['t', 1]], '2': [['t', 1]], '3': [['t', 1e-300]], '5': [['t', 1e300]] },
@@ -396,10 +397,14 @@ describe('optional columns (CP2)', () => {
 
     const row = (await comparison()).find((entry) => entry.startsWith('t |'))
     expect(row?.split(' | ').at(-2)).toBe('0.00% [-100.00%, +∞%]')
+    fireEvent.click(screen.getByRole('button', { name: 'Copy as CSV' }))
+    await waitFor(() => expect(writeText).toHaveBeenCalled())
+    const line = writeText.mock.calls[0][0].split('\r\n')[2].split(',')
+    expect(line.slice(6, 9)).toEqual(['0', '-100', 'Infinity'])
   })
 
   it('sorts by a statistic from its header, and keeps the sort when another column goes', async () => {
-    mockWorld(NOISY)
+    mockWorld(CHANGES)
     renderPage(`${COMPARED}&columns=samples&columns=mean`)
     await comparison()
     const user = userEvent.setup()
@@ -416,7 +421,7 @@ describe('optional columns (CP2)', () => {
   })
 
   it('is used from the keyboard, finding a statistic by its name', async () => {
-    mockWorld(NOISY)
+    mockWorld(CHANGES)
     renderPage(COMPARED)
     await comparison()
     const user = userEvent.setup()
@@ -432,7 +437,7 @@ describe('optional columns (CP2)', () => {
   })
 
   it('drops a sort by a column that is not shown', async () => {
-    mockWorld(NOISY)
+    mockWorld(CHANGES)
     renderPage(`${COMPARED}&sort=mean_a`)
     await comparison()
 
@@ -441,7 +446,7 @@ describe('optional columns (CP2)', () => {
 
   it('copies the statistics shown as CSV', async () => {
     const writeText = mockClipboard()
-    mockWorld(NOISY)
+    mockWorld(CHANGES)
     renderPage(`${COMPARED}&columns=samples&hidden_test=a&hidden_test=b&hidden_test=c`)
     await comparison()
 
@@ -482,7 +487,7 @@ describe('Copy as CSV (CP2)', () => {
 
   it('copies the compared rows, in the order they are sorted in, with the geomean first', async () => {
     const writeText = mockClipboard()
-    mockWorld(NOISY)
+    mockWorld(CHANGES)
     renderPage(`${COMPARED}&hidden_test=b`)
     await comparison()
 

@@ -12,8 +12,11 @@ import { testRuns, type ComparisonRow } from './comparison'
 import type { Settings } from './settings'
 import type { Side } from './use-side'
 
-/** The columns of the table the details show a test's values with: all but the test's own. */
-const VALUE_COLUMNS = tableColumns([]).filter((column) => column.id !== 'test')
+/**
+ * The columns of the table the details show a test's values with: all but the test's own, and none
+ * of the optional ones, such as the CI, whose confidence is then never read.
+ */
+const VALUE_COLUMNS = tableColumns([], NaN).filter((column) => column.id !== 'test')
 
 /**
  * The runs that `side`'s samples for `test` come from, with those samples (CP2), from the samples

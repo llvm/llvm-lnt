@@ -14,6 +14,7 @@ import {
   enumListParam,
   enumParam,
   listParam,
+  numberParam,
   optionalNumberParam,
   optionalStringParam,
   stringParam,
@@ -203,10 +204,10 @@ describe('useUrlState', () => {
   })
 
   it('reads an optional number within its range, and drops anything else', () => {
-    const KNOBS = { pct: optionalNumberParam(0), pval: optionalNumberParam(0, 1) }
+    const FILTERS = { pct: optionalNumberParam(0), pval: optionalNumberParam(0, 1) }
     const { result } = renderHook(
       () => {
-        const [state, setState] = useUrlState(KNOBS)
+        const [state, setState] = useUrlState(FILTERS)
         const { pathname, search } = useLocation()
         return { state, setState, url: pathname + search }
       },
@@ -217,6 +218,26 @@ describe('useUrlState', () => {
     expect(result.current.url).toBe('/x?pct=2.5')
     act(() => result.current.setState({ pct: null, pval: 0.05 }))
     expect(result.current.url).toBe('/x?pval=0.05')
+  })
+
+  it('reads a number within its range, its default when absent or unusable', () => {
+    const MARGIN = { margin: numberParam(5, 0) }
+    const { result } = renderHook(
+      () => {
+        const [state, setState] = useUrlState(MARGIN)
+        const { pathname, search } = useLocation()
+        return { state, setState, url: pathname + search }
+      },
+      providers({ url: '/x?margin=-1' }),
+    )
+
+    expect(result.current.state).toEqual({ margin: 5 })
+    expect(result.current.url).toBe('/x')
+    act(() => result.current.setState({ margin: 0 }))
+    expect(result.current.url).toBe('/x?margin=0')
+    expect(result.current.state).toEqual({ margin: 0 })
+    act(() => result.current.setState({ margin: 5 }))
+    expect(result.current.url).toBe('/x')
   })
 
   it('keeps the hash', () => {

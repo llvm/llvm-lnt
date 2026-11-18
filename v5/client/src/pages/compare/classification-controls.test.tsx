@@ -4,13 +4,14 @@ import { describe, expect, it, vi } from 'vitest'
 import { currentUrl, query, renderPage } from '../../test/page'
 import { pickOption } from '../../test/select'
 import { SEARCH_DELAY_MS } from '../../components/suggestions'
+import { SUITE } from '../../test/fixtures'
 import {
   CLASSIFIED,
   COMPARED,
   comparison,
   listedTests,
   mockWorld,
-  NOISY,
+  CHANGES,
   showBox,
   statusOf,
 } from './compare-world'
@@ -47,6 +48,29 @@ describe('the classification (CP1, CP2)', () => {
     ])
   })
 
+  it('classifies a change by whether bigger is better', async () => {
+    const biggerIsBetter = { ...SUITE.metrics[0], bigger_is_better: true }
+    mockWorld({ ...CLASSIFIED, suites: [{ ...SUITE, metrics: [biggerIsBetter] }] })
+    renderPage(COMPARED)
+
+    expect(await statusOf('up')).toBe('Improved')
+    expect(await statusOf('down')).toBe('Regressed')
+    expect(await statusOf('flat')).toBe('Unchanged')
+  })
+
+  it('swaps improved and regressed with the sides', async () => {
+    mockWorld(CLASSIFIED)
+    renderPage(COMPARED)
+    expect(await statusOf('up')).toBe('Regressed')
+
+    await userEvent.setup().click(screen.getByRole('button', { name: 'Swap sides' }))
+
+    await waitFor(async () => expect(await statusOf('up')).toBe('Improved'))
+    expect(await statusOf('down')).toBe('Regressed')
+    expect(await statusOf('flat')).toBe('Unchanged')
+    expect(statusTitle('up')).toMatch(/^90% CI: -33\.11% \[/)
+  })
+
   it('says on hover what the status says of the change, or why it has no interval', async () => {
     mockWorld(CLASSIFIED)
     renderPage(COMPARED)
@@ -64,7 +88,7 @@ describe('the classification (CP1, CP2)', () => {
   })
 
   it('classifies every test as inconclusive with a single run on a side', async () => {
-    mockWorld(NOISY)
+    mockWorld(CHANGES)
     renderPage(COMPARED)
 
     expect(await statusOf('d')).toBe('Inconclusive')
@@ -110,6 +134,14 @@ describe('the classification (CP1, CP2)', () => {
     mockWorld(CLASSIFIED)
     renderPage(`${COMPARED}&margin=40`)
     expect(await statusOf('up')).toBe('Regressed')
+    // Explained on hover over its label, and to assistive technology.
+    expect(screen.getByText('Confidence')).toHaveAttribute(
+      'title',
+      expect.stringMatching(/^The confidence level/),
+    )
+    expect(screen.getByRole('button', { name: /Confidence/ })).toHaveAccessibleDescription(
+      /^The confidence level of the interval/,
+    )
 
     await pickOption('Confidence', '99%')
 
@@ -173,7 +205,7 @@ describe('Hide unchanged and Hide inconclusive (CP1)', () => {
   })
 
   it('says so when both leave no row', async () => {
-    mockWorld(NOISY)
+    mockWorld(CHANGES)
     renderPage(`${COMPARED}&test_filter=a&hide_unchanged=true&hide_inconclusive=true`)
     expect(
       await screen.findByText('Every matching test is unchanged or inconclusive.'),
@@ -279,7 +311,7 @@ describe('the filters (CP1)', () => {
   })
 
   it('apply a value typed as the panel closes, before typing pauses', async () => {
-    mockWorld(NOISY)
+    mockWorld(CHANGES)
     renderPage(`${COMPARED}&min_delta_pct=1`)
     await comparison()
     const user = userEvent.setup()
@@ -298,7 +330,7 @@ describe('the filters (CP1)', () => {
   })
 
   it('apply only the value typed once typing pauses, and none once disabled meanwhile', async () => {
-    mockWorld(NOISY)
+    mockWorld(CHANGES)
     renderPage(`${COMPARED}&min_delta_pct=1`)
     await comparison()
     const user = userEvent.setup()
@@ -319,7 +351,7 @@ describe('the filters (CP1)', () => {
   })
 
   it("disable a filter's value while the filter is disabled", async () => {
-    mockWorld(NOISY)
+    mockWorld(CHANGES)
     renderPage(COMPARED)
     await comparison()
     const user = userEvent.setup()
@@ -349,7 +381,7 @@ describe('the filters (CP1)', () => {
   })
 
   it("keep a disabled filter's value as the panel closes", async () => {
-    mockWorld(NOISY)
+    mockWorld(CHANGES)
     renderPage(COMPARED)
     await comparison()
     const user = userEvent.setup()
@@ -373,7 +405,7 @@ describe('the filters (CP1)', () => {
   })
 
   it('start collapsed', async () => {
-    mockWorld(NOISY)
+    mockWorld(CHANGES)
     renderPage(COMPARED)
     await comparison()
 
@@ -385,7 +417,7 @@ describe('the filters (CP1)', () => {
   })
 
   it('keep applying the last valid value while the text is not one', async () => {
-    mockWorld(NOISY)
+    mockWorld(CHANGES)
     renderPage(`${COMPARED}&max_pvalue=0.05`)
     await comparison()
     const user = userEvent.setup()
@@ -401,7 +433,7 @@ describe('the filters (CP1)', () => {
   })
 
   it('leave a filter disabled when the URL gives it a value it does not accept', async () => {
-    mockWorld(NOISY)
+    mockWorld(CHANGES)
     renderPage(`${COMPARED}&max_pvalue=2&min_abs=abc&min_delta_pct=-1`)
     await comparison()
 

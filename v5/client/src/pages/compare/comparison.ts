@@ -183,7 +183,8 @@ function twoTailed(t: number, df: number): number {
  * The two-sided critical value of Student's t-distribution with `df` degrees of freedom at
  * `confidence`, a fraction between 0 and 1 excluded: the `t` whose two-tailed p-value is
  * `1 - confidence`. Found by bisection on `x = df / (df + t²)`, which the p-value increases with,
- * to a relative precision of about 1e-12, far beyond what could change a status.
+ * to a relative precision of about 1e-12 on `x`: `t`'s grows with `df`, to about 1e-7 at a
+ * million degrees of freedom, still far below what could change a status.
  */
 export function criticalT(confidence: number, df: number): number {
   const alpha = 1 - confidence

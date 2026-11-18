@@ -197,7 +197,10 @@ export const COMPARED =
   '/compare?project_a=llvm&suite_a=libcxx&machine_a=m1&commit_a=c1&project_b=llvm&suite_b=libcxx&machine_b=m1&commit_b=c2' +
   '&metric=execution_time'
 
-/** The comparison of COMPARED: a is regressed, b is on side A only, c on side B only. */
+/**
+ * The comparison of COMPARED: a doubles, but is inconclusive, with only 1 run on side B, b is on
+ * side A only, c on side B only.
+ */
 export const ROWS = [
   'Geomean | 2 | 4 | 2 | +100.00% | 2.0000 | Regressed',
   'a | 2 | 4 | 2 | +100.00% | 2.0000 | Inconclusive',
@@ -205,8 +208,11 @@ export const ROWS = [
   'c | N/A | 5 | N/A | N/A | N/A | N/A',
 ]
 
-/** A comparison in which a changes by 0.5% and d by 50%, b and c being on one side only. */
-export const NOISY: World = {
+/**
+ * A comparison in which a changes by 0.5% and d by 50%, b and c being on one side only, all
+ * inconclusive, with only 1 run on side B.
+ */
+export const CHANGES: World = {
   samples: {
     '1': [
       ['a', 100],

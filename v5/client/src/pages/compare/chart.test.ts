@@ -15,12 +15,18 @@ import { MAX_SHADOWS } from './shadow-specs'
 /** A change with only one run on side A. */
 const ONE_RUN: Change = { kind: 'runs', sides: 'A' }
 
+/** A change whose 90% confidence interval of the ratio is `[low, high]`. */
+function within(low: number, high: number): Change {
+  const [l, h] = [Math.log(low), Math.log(high)]
+  return { kind: 'interval', confidence: 90, estimate: (l + h) / 2, low: l, high: h, pValue: 0 }
+}
+
 /** A compared row of `test`, valued `a` and `b`, with the ratio and Delta % they give. */
 function row(
   test: string,
   a: number | null,
   b: number | null,
-  status: Status = 'regressed',
+  status: Status = 'inconclusive',
   change: Change = ONE_RUN,
 ) {
   const statistics = { ...statisticsOf([]), runs: 0 }
@@ -109,9 +115,9 @@ describe('chartExtent', () => {
 
 describe('barTrace', () => {
   const bars = chartBars([
-    row('<b>', 2, 1, 'improved'),
-    row('slow', 1, 2, 'regressed'),
-    row('same', 1, 1.001, 'inconclusive'),
+    row('<b>', 2, 1, 'improved', within(0.4, 0.6)),
+    row('slow', 1, 2, 'regressed', within(1.8, 2.2)),
+    row('same', 1, 1.001),
     row('flat', 1, 1.0001, 'unchanged', {
       kind: 'interval',
       confidence: 95,
@@ -142,7 +148,7 @@ describe('barTrace', () => {
       '1',
       '-50.00%',
       '',
-      '<br>Status: Improved<br>Only 1 run on side A: a CI needs at least 2 runs on each side' +
+      '<br>Status: Improved<br>90% CI: -51.01% [-60.00%, -40.00%], beyond the margin' +
         '<br><i>Click for details</i>',
     ])
   })
@@ -187,10 +193,10 @@ describe('shadowTrace', () => {
     expect(new Set(looks.map((look) => look.color)).size).toBe(MAX_SHADOWS)
     expect(new Set(looks.map((look) => look.symbol)).size).toBe(MAX_SHADOWS)
     const everyStatus = [
-      row('i', 2, 1, 'improved'),
-      row('r', 1, 2),
-      row('u', 1, 1, 'unchanged'),
-      row('n', 1, 1, 'inconclusive'),
+      row('i', 2, 1, 'improved', within(0.4, 0.6)),
+      row('r', 1, 2, 'regressed', within(1.8, 2.2)),
+      row('u', 1, 1, 'unchanged', within(0.99, 1.01)),
+      row('n', 1, 1),
     ]
     const statuses = (barTrace(chartBars(everyStatus)).marker as { color: string[] }).color
     expect(looks.some((look) => statuses.includes(look.color))).toBe(false)

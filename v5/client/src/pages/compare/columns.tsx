@@ -315,15 +315,15 @@ function optionalColumns(key: OptionalKey, confidence: number): CompareColumn[] 
  * The table's columns with the optional ones `shown`, in the order of `OPTIONAL_KEYS`, between Ratio
  * and Status, the CI at `confidence`, a percentage, if it is shown.
  */
-export function tableColumns(shown: readonly OptionalKey[], confidence = 90): CompareColumn[] {
+export function tableColumns(shown: readonly OptionalKey[], confidence: number): CompareColumn[] {
   const optional = OPTIONAL_KEYS.filter((key) => shown.includes(key)).flatMap((key) =>
     optionalColumns(key, confidence),
   )
   return [...COLUMNS.slice(0, -1), ...optional, ...COLUMNS.slice(-1)]
 }
 
-/** Every column of the table, whichever optional ones are shown. */
-const ALL_COLUMNS = tableColumns(OPTIONAL_KEYS)
+/** Every column of the table, whichever optional ones are shown, at any confidence. */
+const ALL_COLUMNS = tableColumns(OPTIONAL_KEYS, NaN)
 
 /** Every column the table can sort by, as `sort` names them (CP7). */
 export const SORTABLE = ALL_COLUMNS.map((column) => column.id)

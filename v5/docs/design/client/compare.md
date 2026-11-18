@@ -110,11 +110,14 @@ Global controls, shared by both sides:
 - **Sample aggregation**: how a test's samples within one run are combined (see
   CP2 "Aggregation pipeline"): median, mean, min or max, median by default.
 - **Test filter**: a text filter on test names, with regex mode (see AR9).
-- **Margin**: a percentage, at least 0, 5 by default: how large a change has to
-  be to matter, either way. Its label has a help tooltip saying how it
-  classifies the tests (see CP2 "Status classification").
+- **Margin**: a percentage `m`, at least 0, 5 by default: how large a change
+  has to be to matter, as a ratio: beyond a factor of `1 + m` either way, so
+  that 5% means above ×1.05 or below ÷1.05 (-4.76%). Its label has a help
+  tooltip saying so, and how it classifies the tests (see CP2 "Status
+  classification").
 - **Confidence**: a dropdown of the confidence levels of the intervals that
-  classify the tests: 80%, 90%, 95% or 99%, 90% by default.
+  classify the tests: 80%, 90%, 95% or 99%, 90% by default. Its label has a
+  help tooltip saying what it is.
 - **Hide unchanged**, **Hide inconclusive**: checkboxes that remove the rows
   whose status is Unchanged, or Inconclusive, from the table and the chart.
 - **Filters**: a button opening a panel below it, over the page, which holds
@@ -129,8 +132,8 @@ Global controls, shared by both sides:
     the value.
   - **P-value at most** (0.05 by default, between 0 and 1): the test's p-value
     (see CP2 "Computation Reference") is at most the value. A test without a
-    p-value, such as one with fewer than 2 runs on a side, fails it, which its
-    help tooltip says.
+    p-value, with fewer than 2 runs on a side or a run's value of 0 or less,
+    fails it, which its help tooltip says.
   - **Absolute at least** (0 by default, at least 0): max(|Value A|,
     |Value B|), in the metric's unit, is at least the value. For measurements
     too small to be meaningful, which more runs would not make conclusive.
@@ -199,14 +202,14 @@ all use these rows.
   N/A. Ties are broken by test name, ascending.
 - **Status colors**: green for improved, red for regressed, amber for
   inconclusive, and grey otherwise. The four colors differ from each other, and
-  amber has a contrast of at least 3:1 against the page's background. The
-  status of a test whose status is not N/A has a tooltip saying what its status
-  says of its change: its confidence interval, formatted as the CI column
+  amber has a contrast of at least 3:1 against the page's background.
+- **Status tooltip**: a test's status, unless N/A, says on hover what it says
+  of the test's change: its confidence interval, formatted as the CI column
   shows it, and whether it lies beyond, within or across an edge of the margin,
-  as in `90% CI: +3.10% [-1.20%, +7.60%], straddles an edge of the margin`, or
-  why it has none, as in `Only 1 run on side A: a CI needs at least 2 runs on
-  each side`, or that a run's value is 0 or negative. The geomean summary
-  row's status has no tooltip.
+  as in `90% CI: +3.10% [-1.20%, +7.60%], straddles an edge of the margin`;
+  or why it has none: `Only 1 run on side A: a CI needs at least 2 runs on
+  each side` (or side B, or each side), or that a run's value is 0 or
+  negative. The geomean summary row's status has no tooltip.
 - **Sample count tooltips**: Value A and Value B have a tooltip saying how many
   samples and runs the value was computed from, e.g. "6 samples across 2
   runs". Delta, Delta % and Ratio show both sides: "A:
@@ -226,7 +229,8 @@ all use these rows.
   Delta, Delta %, Ratio, the optional columns shown, and Status, except that
   the CI column is written as three: `CI estimate %`, then `{c}% CI low %` and
   `{c}% CI high %`, where `{c}` is the confidence level, each a percentage
-  change. Numbers are written at full precision, and an N/A cell is left empty.
+  change. Numbers are written at full precision, a CI bound too large to be
+  represented as `Infinity`, and an N/A cell is left empty.
   The button briefly shows whether the copy succeeded. It is hidden when there
   is no compared row.
 - **Optional columns**: a "Columns" button on the summary message row opens a
@@ -348,7 +352,7 @@ A margin of 0 makes this a plain significance test: a test is improved or
 regressed when its interval does not hold 1, and unchanged only when neither
 side varies and the two are equal. When a test has both fewer than 2 runs on a
 side and a run's value that is 0 or negative, its status's tooltip (see "Status
-colors") gives the latter, which more runs would not remedy.
+tooltip") gives the latter, which more runs would not remedy.
 
 **Geomean summary row.** Computed over the N compared rows where both sides
 have a value and both values are non-zero:
@@ -399,7 +403,7 @@ plotted are left out (see Computation Reference).
 Interactivity:
 - **Hover**: tooltip showing test name, exact ratio, the values of both sides,
   Delta %, the status, what the status's tooltip says (see CP2 "Status
-  colors"), and a last line saying that clicking the bar shows its details. It
+  tooltip"), and a last line saying that clicking the bar shows its details. It
   also highlights the bar's table row (see CP5).
 - **Details**: clicking a bar opens a popover beside it, which behaves as a
   Graph point's does (GR11), and whose accessible name is the test name. Where
@@ -651,10 +655,11 @@ be dismissed.
   of at least 3:1 against the page's background. Colors alone cannot keep five
   lines apart for every reader, which the markers do. The chart has no legend:
   the chips serve as one.
-- Hovering a point of a line shows the same information as a main bar, with a
-  line naming its shadow as its chip does, without its test count, but without
-  the status and what it says of the change, which a shadow does not have, and
-  without the line about clicking: a point of a line has no details (see CP3).
+- Hovering a point of a line shows the test name, a line naming its shadow as
+  its chip does, without its test count, and the exact ratio, the values of
+  both sides and Delta %, as a main bar does (see CP3). A shadow has no status,
+  and a point of a line has no details, so neither the status nor the line
+  about clicking is shown.
   Table-to-chart hover highlighting targets the main bars only, and hovering a
   point of a line highlights no row.
 - If side A's suite and a shadow's suite don't both offer the selected metric,

@@ -33,7 +33,7 @@ const FILTERS: Filter[] = [
   {
     key: 'deltaPct',
     label: '|Delta %| at least',
-    help: 'Shows only the tests whose absolute Delta % is at least this.',
+    help: 'Leaves out the tests that can be compared whose absolute Delta % is below this.',
     min: 0,
     max: Infinity,
     initial: 1,
@@ -42,8 +42,9 @@ const FILTERS: Filter[] = [
     key: 'pValue',
     label: 'P-value at most',
     help:
-      "Shows only the tests whose p-value, from Welch's t-test on the runs' values, is at most " +
-      'this. Tests with fewer than 2 runs on a side have none, and are not shown.',
+      "Leaves out the tests that can be compared whose p-value, from Welch's t-test on the logs " +
+      "of the runs' values, is above this, and those without one: with fewer than 2 runs on a " +
+      "side, or a run's value of 0 or less.",
     min: 0,
     max: 1,
     initial: 0.05,
@@ -52,7 +53,8 @@ const FILTERS: Filter[] = [
     key: 'abs',
     label: 'Absolute at least',
     help:
-      "Shows only the tests whose larger absolute value, in the metric's unit, is at least this.",
+      'Leaves out the tests that can be compared whose two values are both below this in ' +
+      "absolute value, in the metric's unit.",
     min: 0,
     max: Infinity,
     initial: 0,
@@ -60,9 +62,13 @@ const FILTERS: Filter[] = [
 ]
 
 const MARGIN_HELP =
-  "Changes smaller than this, either way, don't matter. A test is unchanged when the confidence " +
-  'interval of its change lies within the margin, improved or regressed when it lies beyond it, ' +
-  'and inconclusive otherwise.'
+  'How large a change must be to matter, as a ratio: with 5%, beyond ×1.05 or ÷1.05. A test is ' +
+  'unchanged when the confidence interval of its change lies within the margin, improved or ' +
+  'regressed when it lies beyond it, and inconclusive otherwise.'
+
+const CONFIDENCE_HELP =
+  "The confidence level of the interval of each test's change, which the margin classifies the " +
+  'test by. A higher one leaves more tests inconclusive.'
 
 const CONFIDENCE_OPTIONS = CONFIDENCES.map((value) => ({ value, label: `${value}%` }))
 
@@ -97,6 +103,7 @@ export function ClassificationControls({ settings, update }: Props) {
       <MarginInput value={settings.margin} onChange={(margin) => update({ margin })} />
       <Select
         label="Confidence"
+        help={CONFIDENCE_HELP}
         options={CONFIDENCE_OPTIONS}
         value={settings.confidence}
         onChange={(confidence) => update({ confidence })}
