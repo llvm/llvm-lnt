@@ -64,9 +64,46 @@
   border-radius: var(--lnt-radius);
 }
 
+/* The card's title, and its branch selector, if any, at the top right. */
+.titleRow {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--lnt-space-2);
+  margin-bottom: var(--lnt-space-1);
+}
+
+/* A long title wraps, rather than be cut short. */
 .title {
-  margin: 0 0 var(--lnt-space-1);
+  flex: 1;
+  min-width: 0;
+  margin: 0;
   font-size: 0.95rem;
+}
+
+/* Compact, and at most a little under half the card, a long branch name cut short. */
+.branch {
+  display: flex;
+  min-width: 0;
+  max-width: 45%;
+}
+
+/* The dropdown's root, within it. */
+.branch div {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.branch button {
+  min-width: 0;
+  max-width: 100%;
+  padding: 0 var(--lnt-space-1);
+  font-size: 0.8rem;
+}
+
+.branch button > :first-child {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .unit {

@@ -1,6 +1,6 @@
 import { replaceEqualDeep, useQuery } from '@tanstack/react-query'
 import { api, unwrap, type Schemas } from './client'
-import { withCommits } from './commits'
+import { branchFilter, withCommits, type BranchName } from './commits'
 import { queryKeys } from './keys'
 import type { SuiteRef } from './suites'
 
@@ -11,6 +11,8 @@ interface TrendQuery {
   machines: string[]
   /** How many of the most recent commits with data the trend covers (E9). */
   lastN: number
+  /** The branch whose commits the trend covers, once it is known. */
+  branch: BranchName | undefined
 }
 
 /**
@@ -19,12 +21,15 @@ interface TrendQuery {
  */
 async function fetchTrend(
   suite: SuiteRef,
-  { metric, machines, lastN }: TrendQuery,
+  { metric, machines, lastN, branch }: TrendQuery & { branch: BranchName },
   signal: AbortSignal,
 ) {
   const trend = await unwrap(
     api.GET('/api/projects/{project}/suites/{suite}/trends', {
-      params: { path: suite, query: { metric, machine: machines, last_n: lastN } },
+      params: {
+        path: suite,
+        query: { metric, machine: machines, last_n: lastN, ...branchFilter(branch) },
+      },
       signal,
     }),
   )
@@ -51,11 +56,17 @@ function keepUnchanged(previous: Trend | undefined, next: Trend): Trend {
   return items === previous.items && sameCommits ? previous : { ...next, items }
 }
 
-/** The trend of `metric` on `machines` (E9), with the commits it names resolved. */
+/**
+ * The trend of `metric` on `machines`, on a branch (E9), with the commits it names resolved.
+ * Nothing is asked, and nothing cached is given, while the branch is not known: its key, without a
+ * branch, is not that of the commits without one.
+ */
 export function useTrends(suite: SuiteRef, query: TrendQuery) {
+  const { branch } = query
   return useQuery({
+    enabled: branch !== undefined,
     queryKey: [...queryKeys.trends(suite), query],
-    queryFn: ({ signal }) => fetchTrend(suite, query, signal),
+    queryFn: ({ signal }) => fetchTrend(suite, { ...query, branch: branch! }, signal),
     structuralSharing: (previous, next) =>
       keepUnchanged(previous as Trend | undefined, next as Trend),
   })
