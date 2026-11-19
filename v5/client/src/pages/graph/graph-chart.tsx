@@ -16,6 +16,7 @@ import type { Scaffold } from '../../api/scaffold'
 import type { Measurement, Series } from '../../api/series'
 import type { Suite } from '../../api/suites'
 import { colorOfName } from '../../chart-colors'
+import { traceMode, useMarkers } from '../../chart-markers'
 import { Chart, type PlotGeometry } from '../../components/chart'
 import dialog from '../../components/chart-dialog.module.css'
 import { sameElements } from '../../same-elements'
@@ -25,20 +26,17 @@ import type { BaselineState } from './baselines'
 import {
   baselineTraces,
   circlesAt,
-  commitsInView,
   graphLayout,
   highlightCircles,
   highlightShape,
   layoutAxis,
   markerHeight,
-  MARKED_COMMITS,
   panelAxes,
   panelsReset,
   panelTitle,
   plotlyTrace,
   regressionMarkers,
   regressionShapes,
-  traceMode,
   withEmphasis,
   type BaselineLine,
   type Circled,
@@ -412,20 +410,9 @@ export function GraphChart({
     scaffold.branch ?? null,
     ...machines.filter((machine) => listed.has(machine)),
   ])
-  // Where the plot draws, to place the points' samples and the details over it, and the x-axis it
-  // was drawn with.
-  const [drawnAt, setDrawnAt] = useState<{ geometry: PlotGeometry; revision: string } | null>(
-    null,
-  )
-  const geometry = drawnAt?.geometry ?? null
-  // The points have markers while few enough commits are in view (GR1): all of them, until the plot
-  // is drawn with this x-axis. A draw changes how many only with the zoom, so that drawing the
-  // markers or not asks for no other draw.
-  const inView =
-    drawnAt?.revision === revision
-      ? commitsInView(drawnAt.geometry, commits.length)
-      : commits.length
-  const markers = inView <= MARKED_COMMITS
+  // Where the plot draws, to place the points' samples and the details over it, and whether the
+  // points have markers, while few enough commits are in view (GR1).
+  const { geometry, markers, onDraw } = useMarkers(commits.length, revision)
   const [traceStore] = useState(() => new TraceStore())
 
   // Everything drawn, and what each curve is. Each kind is built apart, so that what changes one
@@ -685,7 +672,7 @@ export function GraphChart({
         onHover={onHover}
         onUnhover={onUnhover}
         onClick={onClick}
-        onDraw={(where) => setDrawnAt({ geometry: where, revision })}
+        onDraw={onDraw}
         onRelayout={close}
         // Plotly resets the panel double-clicked, which is all of a single one.
         doubleClickReset={panels.length > 1 ? doubleClickReset : undefined}

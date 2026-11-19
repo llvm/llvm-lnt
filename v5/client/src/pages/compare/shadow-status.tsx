@@ -19,8 +19,9 @@ interface Props {
 
 /**
  * What could not be loaded of the shadows (CP8), and their chips, which name them, count the tests
- * their lines plot, once they can, show their colours and markers, and dismiss them. A shadow just
- * pinned gives the focus to its chip's button, since side B, as it is, can no longer be pinned.
+ * their lines plot, once they can, show their colours, markers and dash patterns, and dismiss
+ * them. A shadow just pinned gives the focus to its chip's button, since side B, as it is, can no
+ * longer be pinned.
  */
 export function ShadowStatus({
   shadows: { shadows, failures, dismiss },
@@ -52,12 +53,21 @@ export function ShadowStatus({
         <ChipList
           label="Shadows"
           chips={shadows.map(({ key, label }, i) => {
-            const { color, marker } = shadowLook(i)
+            const { color, marker, dash } = shadowLook(i)
             const { points } = lines[i]
             return {
               key,
               mark: (
                 <span className={styles.shadowMark} style={{ color }} aria-hidden="true">
+                  <svg className={styles.shadowStroke}>
+                    <line
+                      x1="0"
+                      y1="50%"
+                      x2="100%"
+                      y2="50%"
+                      strokeDasharray={dash === 'solid' ? 'none' : dash}
+                    />
+                  </svg>
                   {marker.char}
                 </span>
               ),

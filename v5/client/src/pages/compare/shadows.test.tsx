@@ -23,13 +23,14 @@ import {
 // The tests check what the page hands Plotly to draw (see test/chart.tsx).
 vi.mock('../../components/chart', () => import('../../test/chart'))
 
-/** The shadows' lines drawn: each one's points' log2 ratios, their tests, and its colour. */
+/** The shadows' lines drawn: each one's points' log2 ratios, their tests, and its look. */
 function lines() {
   return (chart().data.slice(1) as PlotData[]).map((trace) => ({
     y: trace.y as number[],
     tests: (trace.customdata as unknown as string[][]).map((point) => point[0]),
     color: trace.line.color,
     symbol: trace.marker.symbol,
+    dash: trace.line.dash as string,
   }))
 }
 
@@ -72,6 +73,14 @@ const chips = () =>
   within(screen.getByRole('list', { name: 'Shadows' }))
     .queryAllByRole('listitem')
     .map((chip) => chip.textContent?.replace(/×$/, ''))
+/** The stroke of a chip whose line is dashed as `dash` says: the same, but solid for none. */
+const strokeOf = (dash: string) => (dash === 'solid' ? 'none' : dash)
+
+/** The dash pattern of each chip's stroke. */
+const chipDashes = () =>
+  within(screen.getByRole('list', { name: 'Shadows' }))
+    .queryAllByRole('listitem')
+    .map((chip) => chip.querySelector('line')?.getAttribute('stroke-dasharray'))
 const noChips = () => screen.queryByRole('list', { name: 'Shadows' }) === null
 const dismissButton = (label: string) =>
   screen.getByRole('button', { name: `Dismiss the shadow ${label}` })
@@ -128,7 +137,7 @@ describe('the shadows (CP8)', () => {
     expect(pinButton()).toBeEnabled()
   })
 
-  it('pins another shadow once side B changes, each with its colour, marker and chip', async () => {
+  it('pins another shadow once side B changes, each with its look and chip', async () => {
     mockWorld(WORLD)
     renderPage(SHADOWED)
     await waitFor(() => expect(line()).toBeDefined())
@@ -147,6 +156,8 @@ describe('the shadows (CP8)', () => {
     expect(lines().map(({ color, symbol }) => ({ color, symbol }))).toEqual(
       [0, 1].map((i) => ({ color: shadowLook(i).color, symbol: shadowLook(i).marker.symbol })),
     )
+    expect(lines().map(({ dash }) => dash)).toEqual([0, 1].map((i) => shadowLook(i).dash))
+    expect(chipDashes()).toEqual(lines().map(({ dash }) => strokeOf(dash)))
   })
 
   it('pins at most five shadows', async () => {
@@ -218,7 +229,7 @@ describe('the shadows (CP8)', () => {
     expect(pinButton()).toHaveFocus()
   })
 
-  it('shifts the colours and markers of the shadows after one dismissed', async () => {
+  it('shifts the colours, markers and dashes of the shadows after one dismissed', async () => {
     mockWorld({
       ...WORLD,
       runs: { ...WORLD.runs, 'm2/c1': ['5'] },
@@ -231,7 +242,12 @@ describe('the shadows (CP8)', () => {
     await waitFor(() => expect(lines()).toHaveLength(2))
     expect(query().shadow).toEqual(['llvm/libcxx/m1/c2', 'llvm/libcxx/m2/c2'])
     expect(chips()).toEqual(['●Shadow: llvm › libcxx › m1 › c2 · 3 tests', '▲Shadow: llvm › libcxx › m2 › c2 · 3 tests'])
-    expect(lines()[1]).toMatchObject({ y: [-1, 1, 1], color: shadowLook(1).color })
+    expect(lines()[1]).toMatchObject({
+      y: [-1, 1, 1],
+      color: shadowLook(1).color,
+      dash: shadowLook(1).dash,
+    })
+    expect(chipDashes()).toEqual(lines().map(({ dash }) => strokeOf(dash)))
     expect(dismissButton('llvm › libcxx › m2 › c2')).toHaveFocus()
   })
 

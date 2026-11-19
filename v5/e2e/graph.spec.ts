@@ -563,7 +563,7 @@ test("draws a long history's points without markers until zoomed in, and they ke
   request,
   tokenFor,
 }, testInfo) => {
-  // One more commit than are marked in view (MARKED_COMMITS in chart.ts).
+  // One more commit than are marked in view (MARKED_POSITIONS in chart-markers.ts).
   const runs = Array.from({ length: 201 }, (_, i) => ({
     machine: 'm1',
     commit: `c${i}`,

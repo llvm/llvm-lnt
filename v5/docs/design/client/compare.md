@@ -627,10 +627,11 @@ they are listed. While there is a comparison and all the shadow's samples have
 loaded, the name is followed by " · {N} tests" in muted text, where N is the
 number of tests its line plots (see "Rendering"), even 0. The tests of a line
 may differ from the bars' (see "Rendering"), and the count lets the user notice.
-The chip shows the shadow's color and marker (see "Rendering"), and has a
-dismiss (×) button. Dismissing a shadow gives the focus to the dismiss button of
-the chip after it, or else before it, or to the pin button once none is left;
-while there is no comparison, and so no pin button, it goes back to the page.
+The chip shows the shadow's color, marker and dash pattern (see "Rendering"), as
+a stroke of its line with its marker on it, and has a dismiss (×) button.
+Dismissing a shadow gives the focus to the dismiss button of the chip after it,
+or else before it, or to the pin button once none is left; while there is no
+comparison, and so no pin button, it goes back to the page.
 Chips are shown whether or not there is a comparison, so that shadows can always
 be dismissed.
 
@@ -643,13 +644,18 @@ be dismissed.
   necessarily above its bar. The X-axis is wide enough for whichever of the
   bars and the lines has the most tests. The lines are drawn over the bars, in
   the order the shadows were pinned.
-- Each shadow has a color and a marker of its own, given by its position among
-  the shadows, so that dismissing a shadow changes those of the shadows after
-  it. The colors differ from each other, from the status colors of the bars and
-  from the outline of a bar whose row is hovered (see CP5), and have a contrast
-  of at least 3:1 against the page's background. Colors alone cannot keep five
-  lines apart for every reader, which the markers do. The chart has no legend:
-  the chips serve as one.
+- Each shadow has a color, a marker and a dash pattern of its own, given by its
+  position among the shadows, so that dismissing a shadow changes those of the
+  shadows after it. The colors differ from each other, from the status colors
+  of the bars and from the outline of a bar whose row is hovered (see CP5), and
+  have a contrast of at least 3:1 against the page's background. Colors alone
+  cannot keep five lines apart for every reader; their dash patterns do, as do
+  their markers while drawn. The chart has no legend: the chips serve as one.
+- Each point of a line has a marker, as long as at most 200 tests of the x-axis
+  are in view, as on the Graph (see GR1): beyond, the markers merge into a
+  thick band, and the lines are drawn alone while more than 200 are in view, as
+  when zoomed out. A line with a single point keeps its marker. A point without
+  a marker can still be hovered.
 - Hovering a point of a line shows the test name, a line naming its shadow as
   its chip does, without its test count, and the exact ratio, the values of
   both sides and Delta %, as a main bar does (see CP3). A shadow has no status,

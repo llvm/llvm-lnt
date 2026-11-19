@@ -8,7 +8,13 @@ import { HttpResponse } from 'msw'
 import type { PlotData } from 'plotly.js'
 import type { Schemas } from '../../api/client'
 import type { SuiteSchema } from '../../api/suites'
-import type { Interval } from './comparison'
+import {
+  statisticsOf,
+  type Change,
+  type ComparisonRow,
+  type Interval,
+  type Status,
+} from './comparison'
 import {
   BARE_SUITE,
   SUITE,
@@ -283,6 +289,34 @@ export function logInterval(low: number, high: number, pValue = 0.5): Interval {
 /** A change whose 90% confidence interval of the ratio runs from `low` to `high`. */
 export function interval(low: number, high: number, pValue = 0.5): Interval {
   return logInterval(Math.log(low), Math.log(high), pValue)
+}
+
+/** A change with only one run on side A. */
+const ONE_RUN: Change = { kind: 'runs', sides: 'A' }
+
+/** A compared row of `test`, valued `a` and `b`, with the ratio and Delta % they give. */
+export function comparedRow(
+  test: string,
+  a: number | null,
+  b: number | null,
+  status: Status = 'inconclusive',
+  change: Change = ONE_RUN,
+) {
+  const statistics = { ...statisticsOf([]), runs: 0 }
+  const ratio = a !== null && b !== null && a !== 0 ? b / a : null
+  return {
+    test,
+    a,
+    b,
+    delta: a !== null && b !== null ? b - a : null,
+    deltaPct: ratio === null ? null : ((b! - a!) / Math.abs(a!)) * 100,
+    ratio,
+    status,
+    change,
+    margin: 5,
+    statisticsA: statistics,
+    statisticsB: statistics,
+  } satisfies ComparisonRow
 }
 
 /** What the page last handed its chart (see test/chart.tsx). */

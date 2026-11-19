@@ -4,8 +4,8 @@
  * chart.
  */
 
-import type { Layout, PlotData } from 'plotly.js'
-import { markerOf } from '../../chart-markers'
+import type { Dash, Layout, PlotData } from 'plotly.js'
+import { markerOf, MAX_DISPLAYED_MARKERS, traceMode } from '../../chart-markers'
 import { noDataAnnotations } from '../../components/plot-annotations'
 import { compareStrings, escapeHtml, formatNumber } from '../../format'
 import { formatDeltaPct, formatRatio, intervalIs, noIntervalReason } from './columns'
@@ -60,14 +60,26 @@ const STATUS_COLORS: Record<Status, string> = {
 /**
  * The colours of the shadows' lines (CP8), by their position among the shadows: apart from those
  * of the statuses, from the outline of a bar (CP5) and from each other, each with a contrast of at
- * least 3:1 against the page's background. Each shadow also has a marker of its own, since
- * colours alone cannot keep five lines apart for every reader.
+ * least 3:1 against the page's background. Each shadow also has a dash pattern of its own, and a
+ * marker while its points have them, since colours alone cannot keep five lines apart for every
+ * reader.
  */
 export const SHADOW_COLORS = ['#7c3aed', '#552200', '#0369a1', '#86198f', '#312e81'] as const
 
-/** The colour and the marker of the `index`th shadow. */
+/**
+ * The dash patterns of the shadows' lines (CP8), by their position among the shadows: `solid`, or
+ * the lengths of their dashes and gaps, which Plotly and the shadows' chips both draw, so that a
+ * chip's stroke is dashed as its line is.
+ */
+export const SHADOW_DASHES = ['solid', '6px,4px', '2px,3px', '7px,3px,2px,3px', '14px,5px'] as const
+
+/** The colour, the marker and the dash pattern of the `index`th shadow. */
 export function shadowLook(index: number) {
-  return { color: SHADOW_COLORS[index % SHADOW_COLORS.length], marker: markerOf(index) }
+  return {
+    color: SHADOW_COLORS[index % SHADOW_COLORS.length],
+    marker: markerOf(index),
+    dash: SHADOW_DASHES[index % SHADOW_DASHES.length],
+  }
 }
 
 /** A main bar's status, with its confidence interval or why it has none, as a line of a tooltip. */
@@ -123,23 +135,25 @@ export function barTrace(bars: readonly Bar<ComparisonRow>[]): Partial<PlotData>
 
 /**
  * The comparison of the `index`th shadow, which `label` names on a line of the tooltips after the
- * test's, as a thin line through its points, sorted by their own ratios, in its colour and with
- * its marker (CP8).
+ * test's, as a thin line through its points, sorted by their own ratios, in its colour and dash
+ * pattern, with its marker at each point while they have `markers` (CP8).
  */
 export function shadowTrace(
   points: readonly Bar[],
   index: number,
   label: string,
+  markers: boolean,
 ): Partial<PlotData> {
-  const { color, marker } = shadowLook(index)
+  const { color, marker, dash } = shadowLook(index)
   return {
     type: 'scatter',
-    mode: 'lines+markers',
+    mode: traceMode(points.length, markers),
     name: `shadow ${index + 1}`,
     // A point of a line has no details, nor a status (CP8).
     ...plotted(points, { label }),
-    line: { color, width: 1.5 },
-    marker: { color, size: 6, symbol: marker.symbol },
+    // Plotly takes lengths as well as the names of its own patterns, which are all its types allow.
+    line: { color, width: 1.5, dash: dash as Dash },
+    marker: { color, size: 6, symbol: marker.symbol, maxdisplayed: MAX_DISPLAYED_MARKERS },
   }
 }
 

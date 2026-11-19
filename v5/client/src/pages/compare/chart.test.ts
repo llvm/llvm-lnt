@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { MAX_DISPLAYED_MARKERS } from '../../chart-markers'
 import { hoverText } from '../../test/hover-text'
 import {
   barTrace,
@@ -7,50 +8,22 @@ import {
   compareLayout,
   ratioTicks,
   SHADOW_COLORS,
+  shadowLook,
   shadowTrace,
 } from './chart'
-import { statisticsOf, type Change, type ComparisonRow, type Status } from './comparison'
-import { interval } from './compare-world'
+import { comparedRow, interval } from './compare-world'
 import { MAX_SHADOWS } from './shadow-specs'
-
-/** A change with only one run on side A. */
-const ONE_RUN: Change = { kind: 'runs', sides: 'A' }
-
-/** A compared row of `test`, valued `a` and `b`, with the ratio and Delta % they give. */
-function row(
-  test: string,
-  a: number | null,
-  b: number | null,
-  status: Status = 'inconclusive',
-  change: Change = ONE_RUN,
-) {
-  const statistics = { ...statisticsOf([]), runs: 0 }
-  const ratio = a !== null && b !== null && a !== 0 ? b / a : null
-  return {
-    test,
-    a,
-    b,
-    delta: a !== null && b !== null ? b - a : null,
-    deltaPct: ratio === null ? null : ((b! - a!) / Math.abs(a!)) * 100,
-    ratio,
-    status,
-    change,
-    margin: 5,
-    statisticsA: statistics,
-    statisticsB: statistics,
-  } satisfies ComparisonRow
-}
 
 describe('chartBars', () => {
   it('keeps the rows with a positive ratio, by ratio, ties by name', () => {
     const bars = chartBars([
-      row('d', 1, 3),
-      row('b', 2, 1),
-      row('c', 1, 2),
-      row('a', 2, 4),
-      row('one-sided', 1, null),
-      row('zero', 0, 1),
-      row('opposite', -1, 1),
+      comparedRow('d', 1, 3),
+      comparedRow('b', 2, 1),
+      comparedRow('c', 1, 2),
+      comparedRow('a', 2, 4),
+      comparedRow('one-sided', 1, null),
+      comparedRow('zero', 0, 1),
+      comparedRow('opposite', -1, 1),
     ])
     expect(bars.map((bar) => bar.test)).toEqual(['b', 'a', 'c', 'd'])
   })
@@ -98,23 +71,23 @@ describe('ratioTicks', () => {
 
 describe('chartExtent', () => {
   it('spans the bars from 0', () => {
-    expect(chartExtent(chartBars([row('a', 1, 2), row('b', 1, 1.5)]))).toEqual([0, 1])
-    expect(chartExtent(chartBars([row('a', 2, 1)]))).toEqual([-1, 0])
+    expect(chartExtent(chartBars([comparedRow('a', 1, 2), comparedRow('b', 1, 1.5)]))).toEqual([0, 1])
+    expect(chartExtent(chartBars([comparedRow('a', 2, 1)]))).toEqual([-1, 0])
   })
 
   it("spans every shadow's points too", () => {
-    const bars = chartBars([row('a', 1, 2)])
-    const shadows = [chartBars([row('a', 1, 4)]), chartBars([row('b', 2, 1)])]
+    const bars = chartBars([comparedRow('a', 1, 2)])
+    const shadows = [chartBars([comparedRow('a', 1, 4)]), chartBars([comparedRow('b', 2, 1)])]
     expect(chartExtent(bars, shadows)).toEqual([-1, 2])
   })
 })
 
 describe('barTrace', () => {
   const bars = chartBars([
-    row('<b>', 2, 1, 'improved', interval(0.4, 0.6)),
-    row('slow', 1, 2, 'regressed', interval(1.8, 2.2)),
-    row('same', 1, 1.001),
-    row('flat', 1, 1.0001, 'unchanged', interval(0.99, 1.02, 1)),
+    comparedRow('<b>', 2, 1, 'improved', interval(0.4, 0.6)),
+    comparedRow('slow', 1, 2, 'regressed', interval(1.8, 2.2)),
+    comparedRow('same', 1, 1.001),
+    comparedRow('flat', 1, 1.0001, 'unchanged', interval(0.99, 1.02, 1)),
   ])
 
   it('draws a bar per test at its log2 ratio, coloured by status', () => {
@@ -154,11 +127,12 @@ describe('barTrace', () => {
 })
 
 describe('shadowTrace', () => {
-  const points = chartBars([row('a', 1, 2), row('b', 2, 1)])
+  const points = chartBars([comparedRow('a', 1, 2), comparedRow('b', 2, 1)])
 
   it('draws a line through the points, with the tooltip of a bar naming the shadow', () => {
-    const trace = shadowTrace(points, 0, 'Shadow: s › m › c')
+    const trace = shadowTrace(points, 0, 'Shadow: s › m › c', true)
     expect(trace).toMatchObject({ type: 'scatter', mode: 'lines+markers', x: [0, 1], y: [-1, 1] })
+    expect(trace.marker).toMatchObject({ maxdisplayed: MAX_DISPLAYED_MARKERS })
     expect(hoverText(trace, 0)).toBe(
       '<b>b</b><br>Shadow: s › m › c<br>Ratio: 0.5000<br>A: 2<br>B: 1<br>Delta %: -50.00%' +
         '<extra></extra>',
@@ -168,26 +142,28 @@ describe('shadowTrace', () => {
   })
 
   it('escapes the label, and keeps it out of the template', () => {
-    const trace = shadowTrace(points, 0, 'Shadow: s › <m&> › %{x}')
+    const trace = shadowTrace(points, 0, 'Shadow: s › <m&> › %{x}', true)
     expect((trace.customdata as unknown as string[][])[1][5]).toBe(
       '<br>Shadow: s › &lt;m&amp;&gt; › %{x}',
     )
     expect(trace.hovertemplate).not.toContain('%{x}')
   })
 
-  it('gives each of the shadows a colour and a marker of its own, apart from the statuses', () => {
+  it('gives each of the shadows a colour, a marker and a dash of its own, apart from the statuses', () => {
     const looks = SHADOW_COLORS.map((_, i) => {
-      const { marker, line } = shadowTrace(points, i, '')
+      const { marker, line } = shadowTrace(points, i, '', true)
       expect(line?.color).toBe((marker as { color: string }).color)
-      return marker as { color: string; symbol: string }
+      return { ...(marker as { color: string; symbol: string }), dash: line?.dash }
     })
     expect(new Set(looks.map((look) => look.color)).size).toBe(MAX_SHADOWS)
     expect(new Set(looks.map((look) => look.symbol)).size).toBe(MAX_SHADOWS)
+    expect(new Set(looks.map((look) => look.dash)).size).toBe(MAX_SHADOWS)
+    expect(looks.map((look) => look.dash)).toEqual(looks.map((_, i) => shadowLook(i).dash))
     const everyStatus = [
-      row('i', 2, 1, 'improved', interval(0.4, 0.6)),
-      row('r', 1, 2, 'regressed', interval(1.8, 2.2)),
-      row('u', 1, 1, 'unchanged', interval(0.99, 1.01)),
-      row('n', 1, 1),
+      comparedRow('i', 2, 1, 'improved', interval(0.4, 0.6)),
+      comparedRow('r', 1, 2, 'regressed', interval(1.8, 2.2)),
+      comparedRow('u', 1, 1, 'unchanged', interval(0.99, 1.01)),
+      comparedRow('n', 1, 1),
     ]
     const statuses = (barTrace(chartBars(everyStatus)).marker as { color: string[] }).color
     expect(looks.some((look) => statuses.includes(look.color))).toBe(false)
