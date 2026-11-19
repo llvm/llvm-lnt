@@ -27,7 +27,7 @@ from uuid import UUID
 
 import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy import Engine, func, insert, select, update
+from sqlalchemy import Engine, event, func, insert, select, update
 
 from conftest import (
     code_of,
@@ -49,6 +49,7 @@ from lnt_v5.suites.tables import NAME_LENGTH, SuiteTables
 
 REGRESSIONS = REGRESSIONS_PATH.format(project="nts", suite="nts")
 LOOKUP = INDICATOR_LOOKUP_PATH.format(project="nts", suite="nts")
+RESOLVE = f"{REGRESSIONS}/resolve"
 RUNS = RUNS_PATH.format(project="nts", suite="nts")
 COMMITS = COMMITS_PATH.format(project="nts", suite="nts")
 MACHINES = MACHINES_PATH.format(project="nts", suite="nts")
@@ -167,6 +168,10 @@ def found(api_client: TestClient, **body: Any) -> set[tuple[str, str, str, str]]
         (item["regression_uuid"], item["machine"], item["test"], item["metric"])
         for item in response.json()["items"]
     }
+
+
+def resolve(api_client: TestClient, uuids: list[str]) -> Any:
+    return api_client.post(RESOLVE, json={"regressions": uuids})
 
 
 def remove_metric(api_client: TestClient, manage: dict[str, str], metric: str) -> Any:
@@ -1747,6 +1752,138 @@ class TestIndicatorLookupPagination:
         response = lookup(api_client, state=["confirmed", "detected"], limit=2, cursor=cursor)
 
         assert response.status_code == 200, response.text
+
+
+class TestResolve:
+    """E8's batch resolve: the regressions behind a set of UUIDs, as the list returns them."""
+
+    def test_returns_each_regression_as_the_list_does(
+        self, api_client: TestClient, create: Callable[..., Any], data: None
+    ) -> None:
+        created = create(
+            title="slower",
+            bug="https://bugs/1",
+            commit="abc123",
+            indicators=[LINUX_ONE, DARWIN_ONE],
+        )
+        listing = api_client.get(REGRESSIONS).json()["items"]
+
+        body = resolve(api_client, [created["uuid"], "nope"]).json()
+
+        assert body == {"results": {created["uuid"]: listing[0]}, "not_found": ["nope"]}
+        assert listing[0]["commit"] == "abc123"
+        assert listing[0]["machine_count"] == 2
+
+    def test_carries_no_notes_or_indicators(
+        self, api_client: TestClient, create: Callable[..., Any]
+    ) -> None:
+        uuid = create(notes="long")["uuid"]
+
+        item = resolve(api_client, [uuid]).json()["results"][uuid]
+
+        assert "notes" not in item
+        assert "indicators" not in item
+
+    def test_resolves_nothing_rather_than_failing(
+        self, api_client: TestClient, suite: SuiteTables
+    ) -> None:
+        assert resolve(api_client, ["nope"]).json() == {"results": {}, "not_found": ["nope"]}
+
+    def test_matches_a_uuid_in_either_case(
+        self, api_client: TestClient, create: Callable[..., Any]
+    ) -> None:
+        uuid = create()["uuid"]
+
+        body = resolve(api_client, [uuid.upper()]).json()
+
+        assert list(body["results"]) == [uuid]
+        assert body["not_found"] == []
+
+    def test_deduplicates_the_request_and_keeps_its_order(
+        self, api_client: TestClient, create: Callable[..., Any]
+    ) -> None:
+        first, second = create()["uuid"], create()["uuid"]
+
+        body = resolve(api_client, [second, "nope", first.upper(), second, "nope"]).json()
+
+        assert list(body["results"]) == [second, first]
+        assert body["not_found"] == ["nope"]
+
+    def test_reports_a_value_no_regression_could_have_as_not_found(
+        self, api_client: TestClient, suite: SuiteTables
+    ) -> None:
+        assert resolve(api_client, ["x" * 500]).json() == {
+            "results": {},
+            "not_found": ["x" * 500],
+        }
+
+    def test_refuses_a_value_holding_a_nul(
+        self, api_client: TestClient, suite: SuiteTables
+    ) -> None:
+        response = resolve(api_client, ["a\x00b"])
+
+        assert response.status_code == 400
+        assert code_of(response) == "invalid_request"
+
+    def test_accepts_as_many_values_as_a_page_may_hold(
+        self, api_client: TestClient, create: Callable[..., Any]
+    ) -> None:
+        uuid = create()["uuid"]
+
+        body = resolve(api_client, [uuid, *(f"u{index}" for index in range(MAX_LIMIT - 1))]).json()
+
+        assert list(body["results"]) == [uuid]
+        assert len(body["not_found"]) == MAX_LIMIT - 1
+
+    def test_refuses_more_values_than_a_page_may_hold(
+        self, api_client: TestClient, suite: SuiteTables
+    ) -> None:
+        response = resolve(api_client, [f"u{index}" for index in range(MAX_LIMIT + 1)])
+
+        assert response.status_code == 400
+        assert code_of(response) == "invalid_request"
+
+    @pytest.mark.parametrize(
+        "body", [{}, {"regressions": []}, {"regressions": ["x"], "nonsense": 1}]
+    )
+    def test_refuses_a_body_that_does_not_validate(
+        self, api_client: TestClient, suite: SuiteTables, body: Any
+    ) -> None:
+        response = api_client.post(RESOLVE, json=body)
+
+        assert response.status_code == 400
+        assert code_of(response) == "invalid_request"
+
+    def test_needs_no_credential(self, api_client: TestClient, suite: SuiteTables) -> None:
+        # A POST, but a `read`-scoped one: it reads and changes nothing (E8, I5).
+        assert resolve(api_client, ["x"]).status_code == 200
+
+    def test_sends_one_statement_whatever_the_request_size(
+        self, api_client: TestClient, suite: SuiteTables
+    ) -> None:
+        engine: Engine = api_client.app.state.engine  # type: ignore[attr-defined]
+        seen: list[str] = []
+
+        def record(connection: object, cursor: object, statement: str, *rest: object) -> None:
+            if f"{suite.namespace}.regression " in statement:
+                seen.append(statement)
+
+        event.listen(engine, "before_cursor_execute", record)
+        try:
+            resolve(api_client, ["a"])
+            resolve(api_client, ["a", "b", "c"])
+        finally:
+            event.remove(engine, "before_cursor_execute", record)
+
+        assert len(seen) == 2, seen
+        assert seen[0] == seen[1]
+
+    def test_is_404_for_a_suite_that_is_not_there(self, api_client: TestClient) -> None:
+        response = api_client.post(
+            f"{suite_path('nope')}/regressions/resolve", json={"regressions": ["x"]}
+        )
+
+        assert response.status_code == 404
 
 
 class TestCascades:
