@@ -30,6 +30,7 @@ import {
 import clsx from 'clsx'
 import { errorMessage } from '../api/client'
 import { FieldLabel } from './field-label'
+import { NAVIGATION_KEYS } from './navigation-keys'
 import { Note } from './note'
 import { Popover } from './popover'
 import { sectioned } from './sectioned'
@@ -334,16 +335,16 @@ const LIST_LAYOUT = { estimatedRowSize: 30, loaderSize: 30 }
  * The list of suggestions, and the item loading more of them, while there are more or they are on
  * their way.
  */
-function List({
+export function List({
   suggestions,
   renderSuggestion,
-  virtualized,
+  virtualized = false,
   emptyMessage,
 }: {
   suggestions: Suggestions
-  renderSuggestion: ((suggestion: Suggestion) => ReactNode) | undefined
-  virtualized: boolean
-  emptyMessage: string | undefined
+  renderSuggestion?: (suggestion: Suggestion) => ReactNode
+  virtualized?: boolean
+  emptyMessage?: string
 }) {
   const { unsectioned, sections } = useMemo(
     () => sectioned(suggestions.items, (item) => item.section),
@@ -424,9 +425,6 @@ function EmptyState({
   else if (suggestions.isEmpty && emptyMessage !== undefined) message = `${emptyMessage}.`
   return <div className={styles.status}>{message}</div>
 }
-
-/** The keys that move the highlight among the suggestions. */
-const NAVIGATION_KEYS = new Set(['ArrowDown', 'ArrowUp', 'PageDown', 'PageUp', 'Home', 'End'])
 
 /**
  * The input and its button. The list opens when the user types, as well as on ArrowDown and from

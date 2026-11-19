@@ -259,9 +259,9 @@ Not paginated: the response is bounded by the size of the request.
 
 `GET /api/projects/{project}/suites/{suite}/branches` lists the branches that
 the suite's commits with an ordinal are on, for a client to offer a choice of
-one, such as the Graph's (see GR1) or a Dashboard card's (see DA2). Commits
-without an ordinal are not considered: no series or trend places them. It takes
-no filters.
+one, such as the Graph's (see GR1) or a Dashboard card's (see DA2), or to
+suggest one (see DT3). Commits without an ordinal are not considered: no series
+or trend places them. It takes no filters.
 
 ```json
 {"items": [{"name": null}, {"name": "main"}, {"name": "release/19.x"}]}

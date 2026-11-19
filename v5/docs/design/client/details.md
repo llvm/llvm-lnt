@@ -322,6 +322,13 @@ the setting is set and the commit has an ordinal, the row says after the number 
 it has no effect (see O10). It can still be edited, since it takes effect again if the
 ordinal is cleared.
 
+The branch's input also suggests the suite's named branches (see AR14), from `GET branches`
+(E3), listed anew each time it opens. That list covers only the commits with an ordinal, which
+is enough: a branch only matters once its commits are ordered. Below the input, a muted `New
+branch` note shows while the trimmed text is not empty, not the commit's branch, and not one of
+the suggestions. If the branches cannot be listed, the note's place says so, with a way to try
+again (see AR7).
+
 ### Navigation
 
 Previous / next buttons allow navigating to the previous or next commit on the same branch

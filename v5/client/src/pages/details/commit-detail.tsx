@@ -1,4 +1,4 @@
-import { useCallback, useMemo } from 'react'
+import { useCallback, useId, useMemo, useRef, type RefObject } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useParams } from 'react-router'
 import { VisuallyHidden } from 'react-aria-components'
@@ -8,6 +8,7 @@ import {
   commitChanged,
   commitKey,
   storeCommit,
+  useBranches,
   useCommit,
 } from '../../api/commits'
 import { queryKeys } from '../../api/keys'
@@ -17,7 +18,7 @@ import { fetchRuns } from '../../api/runs'
 import { fullName, refOf, type Suite, type SuiteRef } from '../../api/suites'
 import { useCursorPager } from '../../api/use-cursor-pager'
 import { useCursorPages, type CursorPages } from '../../api/use-cursor-pages'
-import { useScopeGate } from '../../auth/scope'
+import { useScopeGate, type ScopeGate } from '../../auth/scope'
 import { Badge } from '../../components/badge'
 import { ButtonLink } from '../../components/button-link'
 import { ControlsPanel } from '../../components/controls-panel'
@@ -25,12 +26,14 @@ import { DataTable, type Column } from '../../components/data-table'
 import { ErrorMessage, Loaded, Loading } from '../../components/feedback'
 import { FieldRow } from '../../components/field-row'
 import { InfoBox, InfoRow } from '../../components/info-box'
-import { InlineEdit } from '../../components/inline-edit'
+import { InlineEdit, type EditorProps } from '../../components/inline-edit'
 import { InactivityRow } from '../../components/inactivity-row'
 import { CursorPager } from '../../components/pagination'
 import { CommitRepositoryLink } from '../../components/repository-link'
 import { machineColumn, runColumns } from '../../components/run-columns'
 import { SearchInput } from '../../components/search-input'
+import type { Suggestion } from '../../components/suggestions'
+import { TextCombobox } from '../../components/text-combobox'
 import { useTextFilter } from '../../components/use-text-filter'
 import { WithSchema } from '../../components/with-schema'
 import { isIntegerIn, plural } from '../../format'
@@ -180,11 +183,10 @@ function CommitInfo({ schema, commit }: { schema: Suite; commit: CommitDetail })
         />
       </InfoRow>
       <InfoRow label="Branch">
-        <InlineEdit
-          label="Branch"
-          value={commit.branch}
+        <BranchEdit
+          suite={refOf(schema)}
+          branch={commit.branch}
           gate={manage}
-          maxLength={BRANCH_LENGTH}
           onSave={(branch) => update({ branch })}
         />
       </InfoRow>
@@ -224,6 +226,133 @@ function CommitInfo({ schema, commit }: { schema: Suite; commit: CommitDetail })
         />
       ))}
     </InfoBox>
+  )
+}
+
+/**
+ * The suite's named branches, which the branch's input suggests (DT3): undefined until they are
+ * listed anew, once the input has opened, rather than taken from an earlier list. Why they could
+ * not be is kept only once that listing, or the last try again, has failed.
+ */
+function useSuggestedBranches(suite: SuiteRef) {
+  const { data, error, isFetchedAfterMount, isSuccess, isError, isFetching, refetch } =
+    useBranches(suite)
+  const current = isFetchedAfterMount && isSuccess
+  const names = useMemo(
+    () => (current ? data.filter((name) => name !== null) : undefined),
+    [current, data],
+  )
+  return {
+    names,
+    error: isFetchedAfterMount && isError && !isFetching ? error : null,
+    retry: () => void refetch(),
+  }
+}
+
+/**
+ * Whether `text`, trimmed, would start a new branch, which the `New branch` note says (DT3): it is
+ * not empty, nor the commit's `branch`, nor one of the suite's branches, once they are listed.
+ */
+function startsNewBranch(names: string[] | undefined, branch: string | null, text: string) {
+  const term = text.trim()
+  return names !== undefined && term !== '' && term !== branch && !names.includes(term)
+}
+
+/**
+ * The commit's branch, edited in place as any text, with the suite's existing branches suggested,
+ * and a note below the input when its text is none of them (DT3).
+ */
+function BranchEdit({
+  suite,
+  branch,
+  gate,
+  onSave,
+}: {
+  suite: SuiteRef
+  branch: string | null
+  gate: ScopeGate
+  onSave: (branch: string | null) => Promise<unknown>
+}) {
+  const noteId = useId()
+  // Where Retry leaves the focus, as the button goes while the branches are listed again.
+  const inputRef = useRef<HTMLInputElement>(null)
+  const shared = { suite, branch, noteId }
+  return (
+    <InlineEdit
+      label="Branch"
+      value={branch}
+      gate={gate}
+      editor={(props) => <BranchInput {...props} {...shared} inputRef={inputRef} />}
+      below={(text) => (
+        <BranchNote {...shared} text={text} onRetry={() => inputRef.current?.focus()} />
+      )}
+      onSave={onSave}
+    />
+  )
+}
+
+interface BranchProps {
+  suite: SuiteRef
+  /** The commit's branch. */
+  branch: string | null
+  /** The id of the `New branch` note. */
+  noteId: string
+}
+
+function BranchInput({
+  suite,
+  branch,
+  noteId,
+  inputRef,
+  label,
+  text,
+  setText,
+  saving,
+}: EditorProps & BranchProps & { inputRef: RefObject<HTMLInputElement | null> }) {
+  const { names, error } = useSuggestedBranches(suite)
+  // Nothing to suggest once listing them has failed, which the note says.
+  const suggestions = useMemo(
+    () => names?.map((name): Suggestion => ({ key: name, text: name })) ?? (error ? [] : undefined),
+    [names, error],
+  )
+  return (
+    <TextCombobox
+      label={label}
+      text={text}
+      onChange={setText}
+      suggestions={suggestions}
+      maxLength={BRANCH_LENGTH}
+      describedBy={startsNewBranch(names, branch, text) ? noteId : undefined}
+      isReadOnly={saving}
+      inputRef={inputRef}
+    />
+  )
+}
+
+/**
+ * `New branch` while `text` would start one, or why the suite's branches could not be listed, with
+ * a way to try again (DT3), which `onRetry` is told of.
+ */
+function BranchNote({
+  suite,
+  branch,
+  noteId,
+  text,
+  onRetry,
+}: BranchProps & { text: string; onRetry: () => void }) {
+  const { names, error, retry } = useSuggestedBranches(suite)
+  if (error !== null) {
+    const again = () => {
+      retry()
+      onRetry()
+    }
+    return <ErrorMessage context="Could not list the branches" error={error} onRetry={again} />
+  }
+  if (!startsNewBranch(names, branch, text)) return null
+  return (
+    <span id={noteId} className={styles.note}>
+      New branch
+    </span>
   )
 }
 

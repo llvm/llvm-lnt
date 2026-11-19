@@ -382,10 +382,20 @@ export function editButton(field: string) {
   return screen.getByRole('button', { name: `Edit ${field}` })
 }
 
+/**
+ * The input of the field `field`, open for editing: a text input, or a combobox for a field that
+ * suggests values (AR14).
+ */
+export function fieldInput(field: string) {
+  return (
+    screen.queryByRole('textbox', { name: field }) ?? screen.getByRole('combobox', { name: field })
+  )
+}
+
 /** Edit the field `field`, typing `text`, and save it. */
 export function save(field: string, text: string) {
   fireEvent.click(editButton(field))
-  const input = screen.getByRole('textbox', { name: field })
+  const input = fieldInput(field)
   fireEvent.change(input, { target: { value: text } })
   fireEvent.submit(input)
 }
