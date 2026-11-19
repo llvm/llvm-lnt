@@ -1808,7 +1808,7 @@ describe('the highlighted commits (GR16)', () => {
 })
 
 describe('the markers of the points (GR1)', () => {
-  /** 201 commits on each machine: one more than are marked in view (MARKED_COMMITS). */
+  /** 201 commits on each machine: one more than are marked in view (MARKED_POSITIONS). */
   const ORDINALS = Array.from({ length: 201 }, (_, i) => i + 1)
   const LONG = {
     commits: { m1: ORDINALS, m2: ORDINALS },

@@ -1,5 +1,6 @@
 import { useCallback, useMemo, useState, type ReactNode } from 'react'
 import type { PlotMouseEvent, PlotRelayoutEvent } from 'plotly.js'
+import { useMarkers } from '../../chart-markers'
 import { Chart, type PlotGeometry } from '../../components/chart'
 import { ChartDialog } from '../../components/chart-dialog'
 import dialog from '../../components/chart-dialog.module.css'
@@ -86,15 +87,22 @@ export function CompareChart({
   details,
 }: Props) {
   const bars = useMemo(() => chartBars(rows), [rows])
+
+  // How many tests the x-axis has: as many as the bars or the longest line (CP8).
+  const width = Math.max(bars.length, ...shadows.map((line) => line.points?.length ?? 0))
+  // Where the plot draws, to place a bar's outline and details over it, and whether the shadows'
+  // points have markers, while few enough tests are in view (CP8).
+  const { geometry, markers, onDraw } = useMarkers(width, revision)
+
   // The traces, and the bars the first draws: Plotly reports an event with the trace it drew, which
   // may be one drawn before the latest render, while it is drawing again.
   const trace = useMemo(() => barTrace(bars), [bars])
   const lines = useMemo(
     () =>
       shadows.flatMap(({ points, label }, i) =>
-        points?.length ? [shadowTrace(points, i, `Shadow: ${label}`)] : [],
+        points?.length ? [shadowTrace(points, i, `Shadow: ${label}`, markers)] : [],
       ),
-    [shadows],
+    [shadows, markers],
   )
   const drawn = useMemo(
     () => ({ data: [trace, ...lines], barsOf: new WeakMap<object, Bar[]>([[trace, bars]]) }),
@@ -123,9 +131,6 @@ export function CompareChart({
     [low, high, revision, empty],
   )
 
-  // Where the plot draws, to outline a bar over it. Nothing drawn depends on it, so that a draw
-  // does not ask for another.
-  const [geometry, setGeometry] = useState<PlotGeometry | null>(null)
   const indexOf = useMemo(() => new Map(bars.map((bar, i) => [bar.test, i])), [bars])
   const emphasized = useStoreValue(emphasis, (test) =>
     test === null ? undefined : indexOf.get(test),
@@ -202,7 +207,7 @@ export function CompareChart({
         onUnhover={() => hovered.set(null)}
         onClick={onClick}
         onRelayout={onRelayout}
-        onDraw={setGeometry}
+        onDraw={onDraw}
       />
       {geometry !== null && emphasized !== undefined && (
         <Outline geometry={geometry} bar={bars[emphasized]} index={emphasized} />

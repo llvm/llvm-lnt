@@ -1,8 +1,8 @@
-import { fireEvent, screen, waitFor, within } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { HttpResponse } from 'msw'
 import { act } from 'react'
-import type { PlotHoverEvent, PlotMouseEvent, PlotRelayoutEvent } from 'plotly.js'
+import type { PlotData, PlotHoverEvent, PlotMouseEvent, PlotRelayoutEvent } from 'plotly.js'
 import { describe, expect, it, vi } from 'vitest'
 import { formatTimestamp, shortUuid } from '../../format'
 import { cursorPage, sample, uuidOf } from '../../test/fixtures'
@@ -11,17 +11,23 @@ import { gate, main, query, renderPage, search } from '../../test/page'
 import { pickOption } from '../../test/select'
 import { server } from '../../test/server'
 import type { PlotGeometry } from '../../components/chart'
+import { ValueStore } from '../../value-store'
+import { chartBars } from './chart'
+import { CompareChart } from './compare-chart'
+import type { ComparisonRow } from './comparison'
 import {
   barsOf,
   chart,
   CHANGES,
   CLASSIFIED,
   COMPARED,
+  comparedRow,
   comparison,
   mockWorld,
   runBox,
   showBox,
 } from './compare-world'
+import type { ShadowLine } from './shadows'
 
 // The tests check what the page hands Plotly to draw (see test/chart.tsx).
 vi.mock('../../components/chart', () => import('../../test/chart'))
@@ -602,5 +608,99 @@ describe('the details of a bar (CP3)', () => {
     expect(click(0, 0, { button: 1 })).toBe(false)
 
     expect(dialog()).not.toBeInTheDocument()
+  })
+})
+
+describe("the markers of the shadows' points (CP8)", () => {
+  /** `count` compared rows, the first's ratio 1, each a little higher than the one before. */
+  const rowsOf = (count: number) =>
+    Array.from({ length: count }, (_, i) => comparedRow(`t${i}`, 1, 1 + i / 1000))
+
+  /** The 201 tests of LONG in the plot, as its area is: just under a pixel per test. */
+  const FULL: PlotGeometry = {
+    area: { left: 0, top: 0, width: 200, height: 100 },
+    x: (value) => (200 / 201) * value,
+    y: (value) => value,
+    yAxes: new Map(),
+  }
+  /** Zoomed in on tests 10 to 12. */
+  const ZOOMED: PlotGeometry = { ...FULL, x: (value) => 100 * (value - 10) }
+
+  /** One test more than are marked in view (MARKED_POSITIONS). */
+  const LONG = chartBars(rowsOf(201))
+  /** A line of LONG, and one of a single point, which keeps its marker. */
+  const SHADOWS: ShadowLine[] = [
+    { label: 'long', points: LONG },
+    { label: 'single', points: LONG.slice(0, 1) },
+  ]
+
+  /** Render the chart of `rows` and SHADOWS, returning how to render it again with other rows. */
+  function renderChart(rows: ComparisonRow[], revision = 'r') {
+    const props = {
+      shadows: SHADOWS,
+      emphasis: new ValueStore<string | null>(null),
+      hovered: new ValueStore<string | null>(null),
+      details: () => null,
+    }
+    const { rerender } = render(<CompareChart {...props} rows={rows} revision={revision} />)
+    return (next: { rows?: ComparisonRow[]; revision?: string }) =>
+      rerender(
+        <CompareChart
+          {...props}
+          rows={next.rows ?? rows}
+          revision={next.revision ?? revision}
+        />,
+      )
+  }
+
+  const draw = (geometry: PlotGeometry) => act(() => chart().onDraw?.(geometry))
+  /** How each shadow's line is drawn. */
+  const modes = () => (chart().data.slice(1) as PlotData[]).map((trace) => trace.mode)
+
+  it('draws lines alone while more than 200 tests are in view, but a single point keeps its marker', () => {
+    renderChart(rowsOf(201))
+    expect(modes()).toEqual(['lines', 'lines+markers'])
+    draw(FULL)
+    expect(modes()).toEqual(['lines', 'lines+markers'])
+
+    draw(ZOOMED)
+    expect(modes()).toEqual(['lines+markers', 'lines+markers'])
+    draw(FULL)
+    expect(modes()).toEqual(['lines', 'lines+markers'])
+  })
+
+  it('counts the tests of the longest line, though fewer are compared', () => {
+    renderChart(rowsOf(2))
+    draw(FULL)
+    expect(modes()).toEqual(['lines', 'lines+markers'])
+  })
+
+  it('keeps counting on the zoom drawn when other tests are compared', () => {
+    const update = renderChart(rowsOf(201))
+    draw(ZOOMED)
+
+    // A zoom kept moves nothing, so that the chart reports no draw.
+    update({ rows: rowsOf(300) })
+    expect(modes()).toEqual(['lines+markers', 'lines+markers'])
+  })
+
+  it('draws no markers while the last test is at the edge of the plot, though rounded beyond', () => {
+    renderChart(rowsOf(150))
+    // Not zoomed, with no markers, Plotly ends the axis at the last point of the longer line,
+    // placing it to a hundredth of a pixel: here, at 200.01, past the plot's edge at 200.
+    draw({ ...FULL, x: (value) => Math.round(value * 100.005) / 100 })
+    expect(modes()).toEqual(['lines', 'lines+markers'])
+  })
+
+  it('counts the tests in view as drawn for this comparison, not for one replaced', () => {
+    const replace = renderChart(rowsOf(201))
+    draw(ZOOMED)
+    expect(modes()).toEqual(['lines+markers', 'lines+markers'])
+
+    // Replacing the comparison resets the zoom: every test is in view until the chart is drawn.
+    replace({ revision: 'another' })
+    expect(modes()).toEqual(['lines', 'lines+markers'])
+    draw(ZOOMED)
+    expect(modes()).toEqual(['lines+markers', 'lines+markers'])
   })
 })
