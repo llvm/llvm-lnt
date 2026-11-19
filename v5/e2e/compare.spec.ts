@@ -92,7 +92,7 @@ test('compares the runs of two commits the URL names', async ({ page, request })
   // Every test has a value on both sides, so each has a status other than N/A. Status is the
   // column after the checkboxes and the six others.
   const statuses = await column(comparison, 7)
-  const comparable = ['Improved', 'Regressed', 'Noise', 'Unchanged']
+  const comparable = ['Improved', 'Regressed', 'Unchanged', 'Inconclusive']
   expect(statuses.slice(1).every((status) => comparable.includes(status))).toBe(true)
   await expect(page.getByRole('list', { name: 'Summary' })).toContainText('Only in A 0')
   // A bar per compared test.
@@ -105,6 +105,37 @@ test('compares the runs of two commits the URL names', async ({ page, request })
   const cells = rows(comparison).nth(1).locator('td')
   expect(await positionOf(cells.nth(0))).toBe('static')
   expect(await positionOf(cells.nth(1))).toBe('static')
+})
+
+test('classifies the tests of commits measured more than once from their runs (CP2)', async ({
+  page,
+  request,
+}) => {
+  // The newest commit LINUX measured twice, against the experiment, measured twice too.
+  const path = `/api/projects/libcxx/suites/benchmarks/commits?machine=${LINUX}&sort=-ordinal`
+  const { items } = await json<Schemas['CommitCursorPage']>(request, path)
+  let twice: string | undefined
+  for (const { value } of items) {
+    const runs = await json<Schemas['RunCursorPage']>(
+      request,
+      `/api/projects/libcxx/suites/benchmarks/runs?machine=${LINUX}&commit=${value}`,
+    )
+    if (runs.items.length > 1) {
+      twice = value
+      break
+    }
+  }
+  expect(twice).toBeDefined()
+  await page.goto(
+    `/compare?project_a=libcxx&suite_a=benchmarks&machine_a=${LINUX}&commit_a=${twice}` +
+      `&project_b=libcxx&suite_b=benchmarks&machine_b=${LINUX}&commit_b=${EXPERIMENT}` +
+      '&metric=execution_time',
+  )
+
+  const comparison = table(page, 'Comparison')
+  await expect(rows(comparison).first()).toContainText('Geomean')
+  const statuses = (await column(comparison, 7)).slice(1)
+  expect(statuses.some((status) => status !== 'Inconclusive')).toBe(true)
 })
 
 test("gives each side's commit card from its ⓘ, and links the changes from A to B (CP1)", async ({
@@ -296,7 +327,7 @@ test('scrolls the table rather than the page when its columns do not fit', async
 }) => {
   // Both sides have profiles, so that the Profile column is shown.
   const [, newest] = await newestCommits(request)
-  const statistics = ['samples', 'mean', 'median', 'min', 'max', 'stddev', 'cv', 'pvalue']
+  const statistics = ['samples', 'mean', 'median', 'min', 'max', 'stddev', 'cv', 'ci', 'pvalue']
   await page.goto(
     `/compare?project_a=libcxx&suite_a=benchmarks&machine_a=${LINUX}&commit_a=${newest.value}` +
       `&project_b=libcxx&suite_b=benchmarks&machine_b=${LINUX}&commit_b=${EXPERIMENT}` +
@@ -320,7 +351,7 @@ test('scrolls the table rather than the page when its columns do not fit', async
   const row = rows(comparison).nth(1)
   const cells = row.locator('td')
   const [check, name] = [cells.nth(0), cells.nth(1)]
-  const status = row.getByText(/^(Improved|Regressed|Noise|Unchanged)$/)
+  const status = row.getByText(/^(Improved|Regressed|Unchanged|Inconclusive)$/)
   // The tests' names are not squeezed to make room for the other columns.
   expect((await name.boundingBox())!.width).toBeGreaterThanOrEqual(200)
 
@@ -354,7 +385,7 @@ test("shows a bar's details over the table's sticky columns (CP2, CP3)", async (
 }) => {
   // Side B's two runs make the details tall enough to reach the table.
   const [, newest] = await newestCommits(request)
-  const statistics = ['samples', 'mean', 'median', 'min', 'max', 'stddev', 'cv', 'pvalue']
+  const statistics = ['samples', 'mean', 'median', 'min', 'max', 'stddev', 'cv', 'ci', 'pvalue']
   await page.goto(
     `/compare?project_a=libcxx&suite_a=benchmarks&machine_a=${LINUX}&commit_a=${newest.value}` +
       `&project_b=libcxx&suite_b=benchmarks&machine_b=${LINUX}&commit_b=${EXPERIMENT}` +

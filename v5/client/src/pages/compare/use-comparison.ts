@@ -10,15 +10,18 @@ import type { SampleState } from '../../api/runs'
 import { useSameElements } from '../../same-elements'
 import type { Metric } from '../../schema'
 import {
+  changes,
   compareRows,
   joinSides,
+  MIN_RUNS,
+  runValues,
   sideSamples,
   sideValues,
   type ComparedTest,
   type ComparisonRow,
 } from './comparison'
 import { chosenRuns } from './loading'
-import { noiseSettings, type Settings } from './settings'
+import { confidenceOf, type Settings } from './settings'
 import type { Side, Sides } from './use-side'
 
 type Sample = Schemas['Sample']
@@ -50,9 +53,9 @@ function useRunSamplesOf(
 
 /**
  * The side's samples for each test, once its selected runs' samples have arrived and `metric` is
- * known, and its value of each, with the aggregations `settings` holds. The samples are the same
- * for as long as the side's runs' are, so that they are not combined again when only another
- * side's change.
+ * known, each run's value of each test, and the side's value of each, with the aggregations
+ * `settings` holds. The samples are the same for as long as the side's runs' are, so that they are
+ * not combined again when only another side's change.
  */
 function useSideComparison(
   side: Side,
@@ -65,11 +68,9 @@ function useSideComparison(
     () => (runSamples && metric !== undefined ? sideSamples(runSamples, metric) : undefined),
     [runSamples, metric],
   )
-  const values = useMemo(
-    () => samples && sideValues(samples, sampleAgg, runAgg),
-    [samples, sampleAgg, runAgg],
-  )
-  return { samples, values }
+  const perRun = useMemo(() => samples && runValues(samples, sampleAgg), [samples, sampleAgg])
+  const values = useMemo(() => perRun && sideValues(perRun, runAgg), [perRun, runAgg])
+  return { samples, perRun, values }
 }
 
 export interface Comparison {
@@ -77,6 +78,11 @@ export interface Comparison {
   tests: ComparedTest[] | undefined
   /** Their rows, or none until then. */
   rows: ComparisonRow[]
+  /**
+   * Whether both sides have at least 2 selected runs, which a p-value needs: otherwise no test has
+   * one, and the P-value filter does not apply (CP1).
+   */
+  pValues: boolean
   /** Side A's value of each test, which the shadows are compared with too (CP8). */
   valuesA: ReadonlyMap<string, number> | undefined
   biggerIsBetter: boolean
@@ -90,20 +96,27 @@ export function useComparison(
 ): Comparison {
   const sideA = useSideComparison(a, states, metric?.name, settings)
   const sideB = useSideComparison(b, states, metric?.name, settings)
-  const { samples: samplesA, values: valuesA } = sideA
-  const { samples: samplesB, values: valuesB } = sideB
+  const { samples: samplesA, perRun: perRunA, values: valuesA } = sideA
+  const { samples: samplesB, perRun: perRunB, values: valuesB } = sideB
   const tests = useMemo(
     () => (samplesA && samplesB ? joinSides(samplesA, samplesB) : undefined),
     [samplesA, samplesB],
   )
+  // The tests' changes, which changing the margin does not compute again (CP2).
+  const confidence = confidenceOf(settings)
+  const changed = useMemo(
+    () => tests && perRunA && perRunB && changes(tests, perRunA, perRunB, confidence),
+    [tests, perRunA, perRunB, confidence],
+  )
   const biggerIsBetter = metric?.bigger_is_better ?? false
-  const { pct, pval, floor } = noiseSettings(settings)
+  const { margin } = settings
   const rows = useMemo(
     () =>
-      tests && valuesA && valuesB
-        ? compareRows(tests, valuesA, valuesB, { biggerIsBetter, noise: { pct, pval, floor } })
+      tests && valuesA && valuesB && changed
+        ? compareRows(tests, valuesA, valuesB, changed, { biggerIsBetter, margin })
         : NO_ROWS,
-    [tests, valuesA, valuesB, biggerIsBetter, pct, pval, floor],
+    [tests, valuesA, valuesB, changed, biggerIsBetter, margin],
   )
-  return { tests, rows, valuesA, biggerIsBetter }
+  const pValues = chosenRuns(a).length >= MIN_RUNS && chosenRuns(b).length >= MIN_RUNS
+  return { tests, rows, pValues, valuesA, biggerIsBetter }
 }

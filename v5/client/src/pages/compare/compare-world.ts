@@ -8,6 +8,7 @@ import { HttpResponse } from 'msw'
 import type { PlotData } from 'plotly.js'
 import type { Schemas } from '../../api/client'
 import type { SuiteSchema } from '../../api/suites'
+import type { Interval } from './comparison'
 import {
   BARE_SUITE,
   SUITE,
@@ -74,7 +75,7 @@ const SAMPLES: Record<string, [test: string, value: number][]> = {
 export const SUITES = [SUITE, OTHER_SUITE, MILLIS_SUITE]
 
 /** Every suite's runs and samples are the same: their machines, commits and tests. */
-interface World {
+export interface World {
   suites?: SuiteSchema[]
   runs?: Record<string, string[]>
   samples?: Record<string, [string, number][]>
@@ -197,16 +198,22 @@ export const COMPARED =
   '/compare?project_a=llvm&suite_a=libcxx&machine_a=m1&commit_a=c1&project_b=llvm&suite_b=libcxx&machine_b=m1&commit_b=c2' +
   '&metric=execution_time'
 
-/** The comparison of COMPARED: a is regressed, b is on side A only, c on side B only. */
+/**
+ * The comparison of COMPARED: a doubles, but is inconclusive, with only 1 run on side B, b is on
+ * side A only, c on side B only.
+ */
 export const ROWS = [
   'Geomean | 2 | 4 | 2 | +100.00% | 2.0000 | Regressed',
-  'a | 2 | 4 | 2 | +100.00% | 2.0000 | Regressed',
+  'a | 2 | 4 | 2 | +100.00% | 2.0000 | Inconclusive',
   'b | 2 | N/A | N/A | N/A | N/A | N/A',
   'c | N/A | 5 | N/A | N/A | N/A | N/A',
 ]
 
-/** A comparison in which a changes by 0.5% and d by 50%, b and c being on one side only. */
-export const NOISY: World = {
+/**
+ * A comparison in which a changes by 0.5% and d by 50%, b and c being on one side only, all
+ * inconclusive, with only 1 run on side B.
+ */
+export const CHANGES: World = {
   samples: {
     '1': [
       ['a', 100],
@@ -225,6 +232,59 @@ export const NOISY: World = {
   },
 }
 
+/**
+ * A comparison in which both sides of COMPARED have 2 runs, side B's being 3 and 5 (CP2 "Status
+ * classification"): `up` regresses, `down` improves, `flat` is unchanged, `wild` straddles the
+ * margin, `one` has 1 run on side A, `neg` a negative run value, and `only` is on side A only.
+ */
+export const CLASSIFIED: World = {
+  runs: { ...RUNS, 'm1/c2': ['3', '5'] },
+  samples: {
+    '1': [
+      ['up', 100],
+      ['down', 10],
+      ['flat', 100],
+      ['wild', 100],
+      ['one', 10],
+      ['neg', 2],
+      ['only', 1],
+    ],
+    '2': [
+      ['up', 102],
+      ['down', 10.1],
+      ['flat', 100.2],
+      ['wild', 200],
+      ['neg', -1],
+    ],
+    '3': [
+      ['up', 150],
+      ['down', 5],
+      ['flat', 100.1],
+      ['wild', 110],
+      ['one', 10],
+      ['neg', 1],
+    ],
+    '5': [
+      ['up', 152],
+      ['down', 5.05],
+      ['flat', 100.3],
+      ['wild', 300],
+      ['one', 10.1],
+      ['neg', 1],
+    ],
+  },
+}
+
+/** A change whose 90% confidence interval runs from `low` to `high`, both logarithms of ratios. */
+export function logInterval(low: number, high: number, pValue = 0.5): Interval {
+  return { kind: 'interval', confidence: 90, estimate: (low + high) / 2, low, high, pValue }
+}
+
+/** A change whose 90% confidence interval of the ratio runs from `low` to `high`. */
+export function interval(low: number, high: number, pValue = 0.5): Interval {
+  return logInterval(Math.log(low), Math.log(high), pValue)
+}
+
 /** What the page last handed its chart (see test/chart.tsx). */
 export const chart = () => chartProps(screen.getByRole('img', { name: /^Ratio of B to A/ }))
 
@@ -235,6 +295,17 @@ export const barsOf = () => (chart().data[0] as PlotData).y as number[]
 export async function comparison() {
   return rowsOf(await table('Comparison')).map((row) => row.replace(/^ \| /, ''))
 }
+
+/** The tests the comparison table lists, in order, without the geomean. */
+export const listedTests = async () =>
+  (await comparison()).slice(1).map((row) => row.split(' | ')[0])
+
+/** The status of `test`'s row, if the table shows it. */
+export const statusShown = async (test: string) =>
+  (await comparison())
+    .find((row) => row.startsWith(`${test} |`))
+    ?.split(' | ')
+    .at(-1)
 
 /** The controls of `side`, whose fields are named without it: "Suite", "Machine", "Commit". */
 export function sideOf(side: 'A' | 'B') {

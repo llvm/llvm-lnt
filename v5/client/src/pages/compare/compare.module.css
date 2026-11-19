@@ -117,23 +117,30 @@
   color: var(--lnt-muted);
 }
 
-/* "Hide noise", and the button opening the noise knobs (CP1). */
-.noiseControls {
+/* The margin, the confidence, the hide checkboxes and the button opening the filters (CP1). */
+.classification {
   display: flex;
   flex-wrap: wrap;
-  align-items: center;
+  align-items: flex-end;
   gap: var(--lnt-space-3);
 }
 
-.checkbox,
-.knobLabel {
+/* The margin's input, followed by its unit. */
+.margin {
   display: inline-flex;
   align-items: center;
   gap: var(--lnt-space-1);
 }
 
-/* The noise knobs' panel: a knob per row, its checkbox and label, then its value. */
-.knobs {
+.checkbox,
+.filterLabel {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--lnt-space-1);
+}
+
+/* The filters' panel: a filter per row, its checkbox and label, then its value. */
+.filters {
   display: grid;
   grid-template-columns: auto auto;
   align-items: center;
@@ -142,7 +149,8 @@
   outline: none;
 }
 
-.knobValue {
+/* The margin's input, and each filter's value. */
+.numberInput {
   width: 5rem;
 }
 
@@ -342,7 +350,11 @@
   font-size: 0.9rem;
 }
 
-/* The colours of the statuses (CP2, CP4): green for improved, red for regressed, grey otherwise. */
+/*
+ * The colours of the statuses (CP2, CP4): green for improved, red for regressed, amber for
+ * inconclusive, grey otherwise, with a darker amber for inconclusive's text than for its marks:
+ * the chart's bars and the summary bar's dots.
+ */
 .improved {
   --status-color: var(--lnt-success);
 }
@@ -351,7 +363,11 @@
   --status-color: var(--lnt-danger);
 }
 
-.noise,
+.inconclusive {
+  --status-color: var(--lnt-warning-text);
+  --status-mark: var(--lnt-warning);
+}
+
 .unchanged,
 .na,
 .onlyA,
@@ -389,5 +405,5 @@
   width: 0.6rem;
   height: 0.6rem;
   border-radius: 50%;
-  background: var(--status-color);
+  background: var(--status-mark, var(--status-color));
 }

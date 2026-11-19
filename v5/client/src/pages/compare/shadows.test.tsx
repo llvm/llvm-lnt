@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event'
 import type { PlotData, PlotHoverEvent, PlotMouseEvent } from 'plotly.js'
 import { describe, expect, it, vi } from 'vitest'
 import { uuidOf } from '../../test/fixtures'
+import { hoverText } from '../../test/hover-text'
 import { errorResponse, mockApi } from '../../test/mock-api'
 import { query, renderPage } from '../../test/page'
 import { pick, pickOption, selectButton } from '../../test/select'
@@ -119,8 +120,9 @@ describe('the shadows (CP8)', () => {
     await pick('Machine', 'm2', sideOf('B'))
     await waitFor(() => expect(line()?.tests).toEqual(['b', 'c', 'a']))
     expect(line()?.y).toEqual([-1, 1, 2])
-    expect((chart().data[1] as PlotData).hovertemplate).toContain('%{customdata[5]}')
-    expect((chart().data[1] as PlotData).customdata[0]).toContain('Shadow: llvm › libcxx › m1 › c2')
+    expect(hoverText(chart().data[1], 0)).toMatch(
+      /^<b>b<\/b><br>Shadow: llvm › libcxx › m1 › c2<br>/,
+    )
     // The bars are the main comparison's.
     expect(barsOf()).toEqual([-1, 1, 1])
     expect(pinButton()).toBeEnabled()

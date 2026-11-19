@@ -15,12 +15,12 @@ describe('SummaryBar', () => {
   it('explains the denominator of each share on hover', () => {
     render(<SummaryBar counts={counts({ regressed: 1, onlyA: 1, zeroBaseline: 1 })} />)
 
-    const share = 'Out of the 1 test improved, regressed, noise or unchanged.'
+    const share = 'Out of the 1 test improved, regressed, unchanged or inconclusive.'
     expect(categories()).toEqual([
       ['Improved 0 (0%)', share],
       ['Regressed 1 (100%)', share],
-      ['Noise 0 (0%)', share],
       ['Unchanged 0 (0%)', share],
+      ['Inconclusive 0 (0%)', share],
       ['Only in A 1', null],
       ['Only in B 0', null],
       ['Zero baseline 1', null],

@@ -124,6 +124,8 @@ interface Props<Value extends string> {
   isPending?: boolean
   /** Keep the label for assistive technology only, where the page already says what it is. */
   hideLabel?: boolean
+  /** What the dropdown is for, said on hover over its label, and given to assistive technology. */
+  help?: string
   /**
    * Smaller, and no wider than its container lets it be, a long value cut short, such as beside a
    * title rather than among other controls.
@@ -155,11 +157,14 @@ export function Select<Value extends string>({
   title,
   isPending,
   hideLabel,
+  help,
   compact,
   listPicksOnly,
   ref,
 }: Props<Value>) {
   const titleId = useId()
+  const helpId = useId()
+  const describedBy = [title === undefined ? [] : titleId, help === undefined ? [] : helpId].flat()
   // Whether the list is open. React Aria reports a pick before it closes the list.
   const open = useRef(false)
   const { unsectioned, sections } = useMemo(
@@ -197,12 +202,12 @@ export function Select<Value extends string>({
         {...({ disabledBehavior: 'selection' } satisfies { disabledBehavior: DisabledBehavior })}
       >
         <ForgetRefusedFocus refused={refused} />
-        <FieldLabel label={label} hidden={hideLabel} />
+        <FieldLabel label={label} hidden={hideLabel} help={help} />
         <Button
           ref={ref}
           className={styles.button}
           isPending={isPending}
-          aria-describedby={title === undefined ? undefined : titleId}
+          aria-describedby={describedBy.length === 0 ? undefined : describedBy.join(' ')}
         >
           {/* An option picked under a heading shows what names it without the heading. */}
           <SelectValue<Option<Value>> className={styles.value}>
@@ -213,6 +218,7 @@ export function Select<Value extends string>({
           <span aria-hidden="true">▾</span>
         </Button>
         {title !== undefined && <VisuallyHidden id={titleId}>{title}</VisuallyHidden>}
+        {help !== undefined && <VisuallyHidden id={helpId}>{help}</VisuallyHidden>}
         <Popover className={shared.popover} maxHeight={320}>
           <ListBox className={shared.list}>
             <Collection items={unsectioned}>{optionItem}</Collection>

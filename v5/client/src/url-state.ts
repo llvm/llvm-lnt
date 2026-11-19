@@ -72,10 +72,15 @@ export function booleanParam(defaultValue: boolean): Param<boolean> {
   )
 }
 
+/** A number between `min` and `max`, both included, which is `defaultValue` when the URL leaves it out. */
+export function numberParam(defaultValue: number, min = -Infinity, max = Infinity): Param<number> {
+  return singleParam(defaultValue, (value) => parseNumber(value, min, max))
+}
+
 /**
  * A number between `min` and `max` that the URL may leave out, which is null, such as the value
- * of an optional knob that the URL holds only while it is enabled (CP7). A value that is not such
- * a number is unusable.
+ * of an optional filter that the URL holds only while it is enabled (CP7). A value that is not
+ * such a number is unusable.
  */
 export function optionalNumberParam(min = -Infinity, max = Infinity): Param<number | null> {
   return singleParam<number | null>(null, (value) => parseNumber(value, min, max))

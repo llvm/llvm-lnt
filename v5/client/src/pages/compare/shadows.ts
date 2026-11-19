@@ -21,11 +21,11 @@ import { sameElements, useSameElements, useSameElementsEach } from '../../same-e
 import type { Metric } from '../../schema'
 import { chartBars, type Bar } from './chart'
 import {
-  compareRows,
+  runValues,
   sideSamples,
   sideValues,
+  valueRow,
   type ComparisonRow,
-  type NoiseSettings,
 } from './comparison'
 import { hasFailed, sidesRuns } from './loading'
 import { offeredMetrics } from './metrics'
@@ -184,9 +184,6 @@ export function useShadows(
 /** The samples of a shadow that has none for the metric compared. */
 const NO_SAMPLES: Sample[][] = []
 
-/** No noise knob enabled: the shadows' lines need no statuses. */
-const NO_NOISE: NoiseSettings = { pct: null, pval: null, floor: null }
-
 /** A shadow's line: its points, sorted by their ratios, once they are known, and what names it. */
 export interface ShadowLine {
   label: string
@@ -205,7 +202,7 @@ export function useShadowLines(
   schemaA: Suite | undefined,
   metric: Metric | undefined,
   { sample_agg: sampleAgg, run_agg: runAgg }: Pick<Settings, 'sample_agg' | 'run_agg'>,
-  { tests, valuesA, biggerIsBetter }: Comparison,
+  { tests, valuesA }: Comparison,
   plotted: readonly ComparisonRow[],
 ): ShadowLine[] {
   const name = metric?.name
@@ -224,7 +221,7 @@ export function useShadowLines(
     () =>
       runSamples.map((samples) =>
         samples && name !== undefined
-          ? sideValues(sideSamples(samples, name), sampleAgg, runAgg)
+          ? sideValues(runValues(sideSamples(samples, name), sampleAgg), runAgg)
           : undefined,
       ),
     [runSamples, name, sampleAgg, runAgg],
@@ -232,11 +229,12 @@ export function useShadowLines(
   const bars = useMemo(
     () =>
       values.map((ofShadow) =>
+        // Without statistics or statuses, which a shadow does not have (CP8).
         tests && valuesA && ofShadow
-          ? chartBars(compareRows(tests, valuesA, ofShadow, { biggerIsBetter, noise: NO_NOISE }))
+          ? chartBars(tests.map(({ test }) => valueRow(test, valuesA, ofShadow)))
           : undefined,
       ),
-    [values, tests, valuesA, biggerIsBetter],
+    [values, tests, valuesA],
   )
   // The same for as long as the labels are, so that the chart is not drawn again whenever a run's
   // samples change state.

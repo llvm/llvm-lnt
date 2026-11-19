@@ -13,7 +13,7 @@ const isComparable = (category: Category) => (COMPARABLE as readonly string[]).i
 export function SummaryBar({ counts }: { counts: Record<Category, number> }) {
   const comparable = COMPARABLE.reduce((sum, category) => sum + counts[category], 0)
   const shareTitle =
-    `Out of the ${plural(comparable, 'test')} improved, regressed, noise or unchanged.`
+    `Out of the ${plural(comparable, 'test')} improved, regressed, unchanged or inconclusive.`
   return (
     <ul className={styles.summary} aria-label="Summary">
       {CATEGORIES.map((category) => {

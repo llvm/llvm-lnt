@@ -58,9 +58,11 @@ within the UI causes a full page reload.
   selected test that the new test lists don't have is deselected only once
   every machine's test list has loaded. If a request fails for a value that
   turns out to be unusable, the page does not report the failure: it drops the
-  value anyway. A setting holding several values repeats its parameter once per
-  value, as the API does (see I3). The inputs of a form, such as what a panel is
-  about to create or add, are not settings, and are not kept in the URL.
+  value anyway. A query parameter the page does not use is ignored, and left in
+  the URL as it is. A setting holding several values repeats its parameter once
+  per value, as the API does (see I3). The inputs of a form, such as what a
+  panel is about to create or add, are not settings, and are not kept in the
+  URL.
 
 
 ## AR3: Page Hierarchy
@@ -260,8 +262,9 @@ An input whose text is invalid -- an invalid regex in a test filter, a name or a
 repository URL the schema editor rejects (TS7), a project name the Projects tab
 rejects (AD3), an ordinal that is not an
 integer its column can hold (DT3), a machine name that I1 rejects or an empty
-one (DT1), or a field value that its type does not allow (DT1) -- shows a red
-halo (red border and glow) for as long as its text stays invalid.
+one (DT1), a field value that its type does not allow (DT1), or a margin or a
+filter's value on the Compare page that is not a number in range (CP1) -- shows
+a red halo (red border and glow) for as long as its text stays invalid.
 
 
 ## AR12: Inline Editing

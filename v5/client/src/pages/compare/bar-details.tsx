@@ -7,13 +7,13 @@ import dialog from '../../components/chart-dialog.module.css'
 import { RunSamplesTable } from '../../components/run-samples-table'
 import { graphPath } from '../../paths'
 import type { Metric } from '../../schema'
-import { tableColumns } from './columns'
+import { BASE_COLUMNS } from './columns'
 import { testRuns, type ComparisonRow } from './comparison'
 import type { Settings } from './settings'
 import type { Side } from './use-side'
 
 /** The columns of the table the details show a test's values with: all but the test's own. */
-const VALUE_COLUMNS = tableColumns([]).filter((column) => column.id !== 'test')
+const VALUE_COLUMNS = BASE_COLUMNS.filter((column) => column.id !== 'test')
 
 /**
  * The runs that `side`'s samples for `test` come from, with those samples (CP2), from the samples

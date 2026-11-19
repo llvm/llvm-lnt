@@ -1,12 +1,15 @@
 /**
  * What the Compare page computes from the samples of its two sides (CP2 "Computation Reference",
- * CP4), in three steps that depend on different settings, so that the page computes each again only
- * when its own settings change:
+ * CP4), in steps that depend on different settings, so that the page computes each again only when
+ * its own settings change:
  *
- * 1. `joinSides`: the tests of the comparison, and what depends only on the samples -- each side's
- *    statistics and the p-value of Welch's t-test between them.
- * 2. `sideValues`: a side's value of each test, through the aggregation pipeline.
- * 3. `compareRows`: the rows, from the two sides' values: Delta, Delta %, Ratio and Status.
+ * 1. `joinSides`: the tests of the comparison, and each side's statistics, which depend only on the
+ *    samples.
+ * 2. `runValues`: each run's value of each test, with the sample aggregation.
+ * 3. `sideValues`: a side's value of each test, from its runs' values, with the run aggregation.
+ * 4. `changes`: each test's change, from Welch's t-test between the logs of the two sides' runs'
+ *    values, with its confidence interval at the confidence chosen (see `changeOf`).
+ * 5. `compareRows`: the rows: Delta, Delta %, Ratio, and the status, with the margin chosen.
  */
 
 import { aggregate, mean, type Aggregation } from '../../aggregation'
@@ -118,8 +121,8 @@ const LANCZOS = [
 ]
 
 /**
- * `ln(Γ(z))`, by the Lanczos approximation, for `z >= 0.5`: every argument Welch's t-test gives it,
- * whose degrees of freedom are at least 1.
+ * `ln(Γ(z))`, by the Lanczos approximation, for `z >= 0.5`: every argument the t-distribution
+ * gives it here, whose degrees of freedom are at least 1 (see `changeOf`).
  */
 function lnGamma(z: number): number {
   const x = z - 1
@@ -137,18 +140,22 @@ function fractionTerm(n: number, a: number, b: number, x: number): number {
     : -((a + m) * (a + b + m) * x) / ((a + 2 * m) * (a + 2 * m + 1))
 }
 
+/** `ln(B(a, b))`, the logarithm of the beta function. */
+function lnBeta(a: number, b: number): number {
+  return lnGamma(a) + lnGamma(b) - lnGamma(a + b)
+}
+
 /**
  * The regularized incomplete beta function `I_x(a, b)`, from its continued fraction, evaluated by
  * the modified Lentz method (as Numerical Recipes' `betacf` does), on whichever side of the mean
- * `x` falls for it to converge quickly.
+ * `x` falls for it to converge quickly. `lnB` is `lnBeta(a, b)`, for a caller evaluating it at
+ * many `x` to compute only once.
  */
-function incompleteBeta(x: number, a: number, b: number): number {
+function incompleteBeta(x: number, a: number, b: number, lnB = lnBeta(a, b)): number {
   if (x <= 0) return 0
   if (x >= 1) return 1
-  if (x > (a + 1) / (a + b + 2)) return 1 - incompleteBeta(1 - x, b, a)
-  const front = Math.exp(
-    a * Math.log(x) + b * Math.log(1 - x) - Math.log(a) - lnGamma(a) - lnGamma(b) + lnGamma(a + b),
-  )
+  if (x > (a + 1) / (a + b + 2)) return 1 - incompleteBeta(1 - x, b, a, lnB)
+  const front = Math.exp(a * Math.log(x) + b * Math.log(1 - x) - Math.log(a) - lnB)
   const TINY = 1e-30
   const nonZero = (value: number) => (Math.abs(value) < TINY ? TINY : value)
   let d = 1 / nonZero(1 + fractionTerm(1, a, b, x))
@@ -165,24 +172,110 @@ function incompleteBeta(x: number, a: number, b: number): number {
 }
 
 /**
- * The two-tailed p-value of Welch's t-test between `a` and `b` (CP1 "P-value above"), or null
- * when it is skipped: with fewer than 2 values on either side, or when both have no variance and
- * the same mean. When both have no variance but different means, the change is deterministic, and
- * the p-value is 0.
+ * The two-tailed p-value of `t` in Student's t-distribution with `df` degrees of freedom: how
+ * likely a value at least as far from 0 is.
  */
-export function welchTTest(a: readonly number[], b: readonly number[]): number | null {
-  if (a.length < 2 || b.length < 2) return null
-  const meanA = mean(a)
-  const meanB = mean(b)
-  // The variance of each side's mean.
-  const spreadA = variance(a, meanA) / a.length
-  const spreadB = variance(b, meanB) / b.length
-  if (spreadA === 0 && spreadB === 0) return meanA === meanB ? null : 0
-  const t = (meanA - meanB) / Math.sqrt(spreadA + spreadB)
-  // The Welch-Satterthwaite degrees of freedom.
-  const df =
-    (spreadA + spreadB) ** 2 / (spreadA ** 2 / (a.length - 1) + spreadB ** 2 / (b.length - 1))
+function twoTailed(t: number, df: number): number {
   return incompleteBeta(df / (df + t * t), df / 2, 0.5)
+}
+
+/**
+ * The two-sided critical value of Student's t-distribution with `df` degrees of freedom at
+ * `confidence`, a fraction between 0 and 1 excluded: the `t` whose two-tailed p-value is
+ * `1 - confidence`. Found by bisection on `x = df / (df + t²)`, which the p-value increases with,
+ * to a relative precision of about 1e-12 on `x`: `t`'s grows with `df`, to about 1e-7 at a
+ * million degrees of freedom, still far below what could change a status.
+ */
+export function criticalT(confidence: number, df: number): number {
+  const alpha = 1 - confidence
+  const lnB = lnBeta(df / 2, 0.5)
+  let low = 0
+  let high = 1
+  while (high - low > 1e-12 * low) {
+    const x = (low + high) / 2
+    if (x === low || x === high) break
+    if (incompleteBeta(x, df / 2, 0.5, lnB) < alpha) low = x
+    else high = x
+  }
+  const x = (low + high) / 2
+  return Math.sqrt((df * (1 - x)) / x)
+}
+
+/** How many runs with a value each side needs for a test's change to have an interval. */
+export const MIN_RUNS = 2
+
+/**
+ * Why a test's change has no confidence interval (CP2 "Status classification"): a run's value that
+ * is not positive, which has no logarithm, or fewer than 2 runs on side A, on side B or on both.
+ */
+export type NoInterval = { kind: 'nonPositive' } | { kind: 'runs'; sides: 'A' | 'B' | 'both' }
+
+/**
+ * The confidence interval of a test's change (CP2 "Computation Reference"), as the logarithms of
+ * the ratio B / A: its estimate, the ratio of the geometric means of the two sides' runs' values,
+ * and its bounds.
+ */
+export interface Interval {
+  kind: 'interval'
+  /** The confidence level, as a percentage. */
+  confidence: number
+  estimate: number
+  low: number
+  high: number
+  /**
+   * The two-tailed p-value of Welch's t-test between the same values. Without variance, the change
+   * is exact: 0 when there is one, 1 when there is none.
+   */
+  pValue: number
+}
+
+/** A test's change: its confidence interval, or why it has none. */
+export type Change = Interval | NoInterval
+
+/**
+ * The change between `a` and `b`, two sides' runs' values for a test, with its confidence interval
+ * at `confidence`, a percentage, from Welch's t-test between their logarithms (CP2 "Computation
+ * Reference"), unless a value is not positive, or a side has fewer than 2 of them, checked in this
+ * order.
+ */
+export function changeOf(a: readonly number[], b: readonly number[], confidence: number): Change {
+  if (a.some((value) => !(value > 0)) || b.some((value) => !(value > 0))) {
+    return { kind: 'nonPositive' }
+  }
+  if (a.length < MIN_RUNS || b.length < MIN_RUNS) {
+    const sides = a.length < MIN_RUNS ? (b.length < MIN_RUNS ? 'both' : 'A') : 'B'
+    return { kind: 'runs', sides }
+  }
+  const logA = a.map(Math.log)
+  const logB = b.map(Math.log)
+  const meanA = mean(logA)
+  const meanB = mean(logB)
+  const estimate = meanB - meanA
+  // The variance of each side's mean.
+  const spreadA = variance(logA, meanA) / a.length
+  const spreadB = variance(logB, meanB) / b.length
+  const spread = spreadA + spreadB
+  const interval = (half: number, pValue: number): Interval => ({
+    kind: 'interval',
+    confidence,
+    estimate,
+    low: estimate - half,
+    high: estimate + half,
+    pValue,
+  })
+  if (spread === 0) return interval(0, estimate === 0 ? 1 : 0)
+  const standardError = Math.sqrt(spread)
+  // The Welch-Satterthwaite degrees of freedom, at least `min(nA, nB) - 1`, and so at least 1.
+  const df = spread ** 2 / (spreadA ** 2 / (a.length - 1) + spreadB ** 2 / (b.length - 1))
+  return interval(
+    criticalT(confidence / 100, df) * standardError,
+    twoTailed(estimate / standardError, df),
+  )
+}
+
+/** The p-value of a change, or null when it has no interval. */
+export function pValueOf(change: Change): number | null {
+  return change.kind === 'interval' ? change.pValue : null
 }
 
 /** What a side's samples for a test give, whatever the aggregation. */
@@ -196,12 +289,6 @@ export interface ComparedTest {
   test: string
   statisticsA: SideStatistics
   statisticsB: SideStatistics
-  /**
-   * The p-value of Welch's t-test between the two sides' samples, or null where it is skipped (see
-   * `welchTTest`). It is computed for every test, the zero baselines included, for the P-value
-   * column, which shows it whether or not the knob applies (CP2 "Optional columns").
-   */
-  pValue: number | null
 }
 
 /**
@@ -213,59 +300,73 @@ export function joinSides(a: SideSamples, b: SideSamples): ComparedTest[] {
   return tests.map((test) => {
     const ofA = a.get(test) ?? []
     const ofB = b.get(test) ?? []
-    const pooledA = ofA.flat()
-    const pooledB = ofB.flat()
     return {
       test,
-      statisticsA: { ...statisticsOf(pooledA), runs: ofA.length },
-      statisticsB: { ...statisticsOf(pooledB), runs: ofB.length },
-      pValue: welchTTest(pooledA, pooledB),
+      statisticsA: { ...statisticsOf(ofA.flat()), runs: ofA.length },
+      statisticsB: { ...statisticsOf(ofB.flat()), runs: ofB.length },
     }
   })
 }
 
-/**
- * A side's value of each test (CP2 "Aggregation pipeline"): `sampleAgg` combines the test's
- * samples within each run, then `runAgg` combines the runs' values.
- */
-export function sideValues(
-  side: SideSamples,
-  sampleAgg: Aggregation,
-  runAgg: Aggregation,
-): Map<string, number> {
-  const values = new Map<string, number>()
+/** Each run's value of each test, of the runs that have samples of it, in the runs' order. */
+export type RunValues = Map<string, number[]>
+
+/** Each run's value of each test (CP2 "Aggregation pipeline"): `sampleAgg` combines its samples. */
+export function runValues(side: SideSamples, sampleAgg: Aggregation): RunValues {
+  const values: RunValues = new Map()
   for (const [test, perRun] of side) {
-    values.set(
-      test,
-      aggregate(
-        perRun.map((ofRun) => aggregate(ofRun, sampleAgg)),
-        runAgg,
-      ),
-    )
+    values.set(test, perRun.map((ofRun) => aggregate(ofRun, sampleAgg)))
   }
   return values
 }
 
+/** A side's value of each test (CP2 "Aggregation pipeline"): `runAgg` combines its runs' values. */
+export function sideValues(perRun: RunValues, runAgg: Aggregation): Map<string, number> {
+  const values = new Map<string, number>()
+  for (const [test, ofRuns] of perRun) values.set(test, aggregate(ofRuns, runAgg))
+  return values
+}
+
+/** The change of each test, at `confidence`, a percentage, from its runs' values on each side. */
+export function changes(
+  tests: readonly ComparedTest[],
+  a: RunValues,
+  b: RunValues,
+  confidence: number,
+): Map<string, Change> {
+  return new Map(
+    tests.map(({ test }) => [test, changeOf(a.get(test) ?? [], b.get(test) ?? [], confidence)]),
+  )
+}
+
 /** The statuses of a test whose sides can be compared, which CP4 gives the share of. */
-export const COMPARABLE = ['improved', 'regressed', 'noise', 'unchanged'] as const
+export const COMPARABLE = ['improved', 'regressed', 'unchanged', 'inconclusive'] as const
 
 /** The statuses of CP2, in the order the table sorts them and CP4 lists the comparable ones. */
 export const STATUSES = [...COMPARABLE, 'na'] as const
 
 export type Status = (typeof STATUSES)[number]
 
-/** The noise knobs of CP1: Delta % below, P-value above and Absolute below. */
-export type NoiseKnob = 'pct' | 'pval' | 'floor'
+/** The status of a test whose sides can be compared, from its change (CP2). */
+export function statusOf(change: Change, margin: number, biggerIsBetter: boolean): Status {
+  return change.kind === 'interval'
+    ? statusOfBounds(change, { margin, biggerIsBetter })
+    : 'inconclusive'
+}
 
-/** Each knob's threshold, or null while it is disabled. */
-export type NoiseSettings = Record<NoiseKnob, number | null>
-
-/** A knob that classified a test as noise: the test's value it judged, and its threshold. */
-export interface NoiseReason {
-  knob: NoiseKnob
-  /** |Delta %|, the p-value, or max(|Value A|, |Value B|), as the knob reads it. */
-  value: number
-  threshold: number
+/**
+ * The status of a change from `low` to `high`, logarithms of ratios, against the margin, a
+ * percentage: that of an interval, or of a point (`low = high`), as the geomean row's is.
+ */
+function statusOfBounds(
+  { low, high }: { low: number; high: number },
+  { margin, biggerIsBetter }: RowOptions,
+): Status {
+  // The margin's band, [1 / (1 + m), 1 + m], is symmetric around 0 in log space.
+  const edge = Math.log1p(margin / 100)
+  if (low > edge) return biggerIsBetter ? 'improved' : 'regressed'
+  if (high < -edge) return biggerIsBetter ? 'regressed' : 'improved'
+  return low >= -edge && high <= edge ? 'unchanged' : 'inconclusive'
 }
 
 /** The values a row of the table shows, the geomean summary row's included. */
@@ -279,76 +380,88 @@ export interface Values {
   status: Status
 }
 
+/** A test of the comparison, with each side's value of it and how they differ. */
+type ValueRow = { test: string } & Omit<Values, 'status'>
+
 /** A row of the comparison table. */
 export interface ComparisonRow extends ComparedTest, Values {
-  /** The knobs that classified the test as noise: its status is noise exactly if there are any. */
-  noise: NoiseReason[]
+  /** The test's change, from its runs' values, whatever its status. */
+  change: Change
+  /** The margin, as a percentage, its status was classified against, which its tooltip names. */
+  margin: number
+}
+
+/** How `a` and `b`, each side's value of a test, differ (CP2 "Per-test derived columns"). */
+function derive(
+  a: number | null,
+  b: number | null,
+): Pick<Values, 'delta' | 'deltaPct' | 'ratio'> {
+  if (a === null || b === null) return { delta: null, deltaPct: null, ratio: null }
+  const delta = b - a
+  if (a === 0) return { delta, deltaPct: null, ratio: null }
+  // Over |a|, so that Delta % has the sign of Delta, even with a negative baseline.
+  return { delta, deltaPct: (delta / Math.abs(a)) * 100, ratio: b / a }
 }
 
 /** The values of a row that has nothing to compare: N/A throughout. */
 const NOTHING: Values = { a: null, b: null, delta: null, deltaPct: null, ratio: null, status: 'na' }
 
-/** Delta's status, from its sign and the metric's `bigger_is_better` (CP2 steps 2 to 6). */
-function statusOfDelta(delta: number, biggerIsBetter: boolean): Status {
-  if (delta === 0) return 'unchanged'
-  return delta > 0 === biggerIsBetter ? 'improved' : 'regressed'
-}
-
-/** The knobs that classify a test as noise, from its values and its p-value. */
-function noiseOf(
-  a: number,
-  b: number,
-  deltaPct: number,
-  pValue: number | null,
-  settings: NoiseSettings,
-): NoiseReason[] {
-  const reasons: NoiseReason[] = []
-  const { pct, pval, floor } = settings
-  if (pct !== null && Math.abs(deltaPct) < pct) {
-    reasons.push({ knob: 'pct', value: Math.abs(deltaPct), threshold: pct })
-  }
-  if (pval !== null && pValue !== null && pValue > pval) {
-    reasons.push({ knob: 'pval', value: pValue, threshold: pval })
-  }
-  const largest = Math.max(Math.abs(a), Math.abs(b))
-  if (floor !== null && largest < floor) {
-    reasons.push({ knob: 'floor', value: largest, threshold: floor })
-  }
-  return reasons
-}
-
 export interface RowOptions {
   biggerIsBetter: boolean
-  noise: NoiseSettings
+  /** The margin, as a percentage (CP1). */
+  margin: number
 }
 
-/** The row of `test`, given each side's value of it. */
-function rowOf(
-  test: ComparedTest,
-  a: number | null,
-  b: number | null,
-  { biggerIsBetter, noise: settings }: RowOptions,
-): ComparisonRow {
-  if (a === null || b === null) return { ...test, ...NOTHING, a, b, noise: [] }
-  const delta = b - a
-  if (a === 0) return { ...test, ...NOTHING, a, b, delta, noise: [] }
-  // Over |a|, so that Delta % has the sign of Delta, even with a negative baseline.
-  const deltaPct = (delta / Math.abs(a)) * 100
-  const noise = noiseOf(a, b, deltaPct, test.pValue, settings)
-  const status = noise.length > 0 ? 'noise' : statusOfDelta(delta, biggerIsBetter)
-  return { ...test, a, b, delta, deltaPct, ratio: b / a, status, noise }
+/** `test`, with each side's value of it (see `sideValues`), and how they differ. */
+export function valueRow(
+  test: string,
+  valuesA: ReadonlyMap<string, number>,
+  valuesB: ReadonlyMap<string, number>,
+): ValueRow {
+  const a = valuesA.get(test) ?? null
+  const b = valuesB.get(test) ?? null
+  return { test, a, b, ...derive(a, b) }
 }
 
-/** The rows of `tests`, from each side's values (see `sideValues`). */
+/**
+ * The rows of `tests`, from each side's values (see `sideValues`) and each test's change (see
+ * `changes`). A test's status is N/A when a side has no value or the baseline is 0, and comes from
+ * its change otherwise.
+ */
 export function compareRows(
   tests: readonly ComparedTest[],
   valuesA: ReadonlyMap<string, number>,
   valuesB: ReadonlyMap<string, number>,
-  options: RowOptions,
+  changesOf: ReadonlyMap<string, Change>,
+  { biggerIsBetter, margin }: RowOptions,
 ): ComparisonRow[] {
-  return tests.map((test) =>
-    rowOf(test, valuesA.get(test.test) ?? null, valuesB.get(test.test) ?? null, options),
-  )
+  return tests.map((test) => {
+    const row = valueRow(test.test, valuesA, valuesB)
+    const change = changesOf.get(test.test)!
+    const status = row.ratio === null ? 'na' : statusOf(change, margin, biggerIsBetter)
+    return { ...test, ...row, status, change, margin }
+  })
+}
+
+/** The filters of CP1: |Delta %| at least, P-value at most and Absolute at least. */
+export type FilterKey = 'deltaPct' | 'pValue' | 'abs'
+
+/** Each filter's threshold, or null while it is disabled. */
+export type Filters = Record<FilterKey, number | null>
+
+/**
+ * Whether `row` passes the enabled `filters` (CP1). A test that cannot be compared passes every
+ * filter; one that can passes a filter only when the filter's value is defined for it and meets
+ * the threshold.
+ */
+export function passesFilters(row: ComparisonRow, { deltaPct, pValue, abs }: Filters): boolean {
+  if (row.status === 'na') return true
+  if (deltaPct !== null && !(Math.abs(row.deltaPct!) >= deltaPct)) return false
+  if (pValue !== null) {
+    const p = pValueOf(row.change)
+    if (p === null || p > pValue) return false
+  }
+  return abs === null || Math.max(Math.abs(row.a!), Math.abs(row.b!)) >= abs
 }
 
 /** The geometric mean of the absolute values of `values`, at least one of them, none zero. */
@@ -358,10 +471,13 @@ function geomean(values: readonly number[]): number {
 
 /**
  * The geomean summary row of `rows`, the compared rows (CP2): over those where both sides have a
- * value and neither is 0. Its status comes from its Delta, and is never noise. With no such row,
- * every value is null and the status N/A.
+ * value and neither is 0. Its status is that of its Ratio, a point, against the margin, as
+ * `options` hold them. With no such row, every value is null and the status N/A.
  */
-export function geomeanRow(rows: readonly Values[], biggerIsBetter: boolean): Values {
+export function geomeanRow(
+  rows: readonly Values[],
+  options: RowOptions,
+): Values {
   const pairs: [number, number][] = []
   for (const { a, b } of rows) {
     if (a !== null && b !== null && a !== 0 && b !== 0) pairs.push([a, b])
@@ -369,16 +485,10 @@ export function geomeanRow(rows: readonly Values[], biggerIsBetter: boolean): Va
   if (pairs.length === 0) return NOTHING
   const a = geomean(pairs.map(([value]) => value))
   const b = geomean(pairs.map(([, value]) => value))
-  const delta = b - a
-  return {
-    a,
-    b,
-    delta,
-    deltaPct: (delta / a) * 100,
-    // Over the same tests, the geomean of the ratios is that of B over that of A.
-    ratio: b / a,
-    status: statusOfDelta(delta, biggerIsBetter),
-  }
+  // Over the same tests, the geomean of the ratios is that of B over that of A.
+  const derived = derive(a, b)
+  const log = Math.log(derived.ratio!)
+  return { a, b, ...derived, status: statusOfBounds({ low: log, high: log }, options) }
 }
 
 /** The categories of the summary bar (CP4), in the order it shows them. */
@@ -390,8 +500,8 @@ export type Category = (typeof CATEGORIES)[number]
 export const LABELS: Record<Status | Category, string> = {
   improved: 'Improved',
   regressed: 'Regressed',
-  noise: 'Noise',
   unchanged: 'Unchanged',
+  inconclusive: 'Inconclusive',
   onlyA: 'Only in A',
   onlyB: 'Only in B',
   na: 'N/A',

@@ -1,7 +1,7 @@
 /**
- * The Compare page's table (CP2), from the comparison's rows: the rows the test filter and "Hide
- * noise" keep, sorted, the hidden tests, the geomean summary row, and what the table says of them,
- * with the settings the URL keeps of them (CP7).
+ * The Compare page's table (CP2), from the comparison's rows: the rows the test filter, the filters
+ * and "Hide unchanged" and "Hide inconclusive" keep, sorted, the hidden tests, the geomean summary
+ * row, and what the table says of them, with the settings the URL keeps of them (CP7).
  */
 
 import { useCallback, useEffect, useMemo } from 'react'
@@ -11,8 +11,15 @@ import { useTextFilter } from '../../components/use-text-filter'
 import { compareStrings } from '../../format'
 import { comparisonCsv, sortComparison, tableColumns } from './columns'
 import type { TableView } from './compare-table'
-import { geomeanRow, summaryCounts, type ComparisonRow } from './comparison'
-import { HIDDEN_IN_URL, PARAMS, type Settings } from './settings'
+import { geomeanRow, passesFilters, summaryCounts, type ComparisonRow } from './comparison'
+import {
+  appliedFilters,
+  confidenceOf,
+  filterSettings,
+  HIDDEN_IN_URL,
+  PARAMS,
+  type Settings,
+} from './settings'
 import type { Comparison } from './use-comparison'
 
 const NO_TESTS: string[] = []
@@ -24,7 +31,7 @@ const testOf = (row: ComparisonRow) => row.test
  * page of each test that has a profile on both sides, `links`.
  */
 export function useComparisonTable(
-  { tests, rows, biggerIsBetter }: Comparison,
+  { tests, rows, pValues, biggerIsBetter }: Comparison,
   settings: Settings,
   update: (changes: Partial<Settings>) => void,
   links: ReadonlyMap<string, string>,
@@ -36,20 +43,36 @@ export function useComparisonTable(
     (text) => update({ test_filter: text }),
     { regex: settings.test_filter_regex },
   )
-  const matching = filter.rows
-  // The rows the table shows: those the filter keeps, without the noise when it is hidden.
-  const shown = useMemo(
-    () => (settings.hide_noise ? matching.filter((row) => row.status !== 'noise') : matching),
-    [matching, settings.hide_noise],
-  )
-  const total = useMemo(
+  // The rows the test filter keeps, then those of them that pass the filters (CP1): the rows the
+  // summary bar counts.
+  const named = filter.rows
+  const { deltaPct, pValue, abs } = appliedFilters(filterSettings(settings), pValues)
+  const filtering = deltaPct !== null || pValue !== null || abs !== null
+  const matching = useMemo(
     () =>
-      settings.hide_noise ? rows.filter((row) => row.status !== 'noise').length : rows.length,
-    [rows, settings.hide_noise],
+      filtering
+        ? named.filter((row) => passesFilters(row, { deltaPct, pValue, abs }))
+        : named,
+    [named, filtering, deltaPct, pValue, abs],
   )
+  // The rows the table shows: those, without the unchanged and the inconclusive ones when they are
+  // hidden, which the table does not count either.
+  const { hide_unchanged: hideUnchanged, hide_inconclusive: hideInconclusive } = settings
+  const kept = useCallback(
+    ({ status }: ComparisonRow) =>
+      !(hideUnchanged && status === 'unchanged') &&
+      !(hideInconclusive && status === 'inconclusive'),
+    [hideUnchanged, hideInconclusive],
+  )
+  const shown = useMemo(() => matching.filter(kept), [matching, kept])
+  const total = useMemo(() => rows.filter(kept).length, [rows, kept])
   const counts = useMemo(() => summaryCounts(matching), [matching])
 
-  const columns = useMemo(() => tableColumns(settings.columns), [settings.columns])
+  const confidence = confidenceOf(settings)
+  const columns = useMemo(
+    () => tableColumns(settings.columns, confidence),
+    [settings.columns, confidence],
+  )
 
   // The table's rows, in the order they are sorted in, which a range selected with Shift follows.
   // A sort by a column that is not shown is the default one, and is dropped from the URL (CP7).
@@ -65,7 +88,7 @@ export function useComparisonTable(
   const sortedTests = useMemo(() => sorted.map(testOf), [sorted])
 
   // The hidden tests (CP2). Those the comparison no longer holds are forgotten once it is complete,
-  // and neither the filter nor "Hide noise" changes them.
+  // and neither the test filter, the filters, nor the hide checkboxes change them.
   const allTests = useMemo(() => tests?.map((entry) => entry.test), [tests])
   const { selected: hiddenTests, rows: hidden } = useRangeSelection(allTests, sortedTests, {
     inverted: true,
@@ -75,7 +98,11 @@ export function useComparisonTable(
     () => sorted.filter((row) => !hiddenTests.has(row.test)),
     [sorted, hiddenTests],
   )
-  const geomean = useMemo(() => geomeanRow(compared, biggerIsBetter), [compared, biggerIsBetter])
+  const { margin } = settings
+  const geomean = useMemo(
+    () => geomeanRow(compared, { biggerIsBetter, margin }),
+    [compared, biggerIsBetter, margin],
+  )
   // The same, in no particular order, for the chart, which sorts them its own way: sorting the
   // table by another column leaves it as it is.
   const plotted = useMemo(
@@ -83,7 +110,8 @@ export function useComparisonTable(
     [shown, hiddenTests],
   )
   // Whether to show the Profile column: whether any test of the comparison has a link, whatever the
-  // filter, "Hide noise" and the hidden tests, so that the columns stay as they change.
+  // test filter, the filters, the hide checkboxes and the hidden tests, so that the columns stay as
+  // they change.
   const profiled = useMemo(
     () => allTests?.some((test) => links.has(test)) ?? false,
     [allTests, links],
@@ -110,20 +138,19 @@ export function useComparisonTable(
     columns,
     tests: sortedTests,
     hidden,
-    summary: filter.active
-      ? `${compared.length} of ${shown.length} matching tests shown · ${total} tests in total`
-      : `${compared.length} of ${total} tests shown`,
+    summary:
+      filter.active || filtering
+        ? `${compared.length} of ${shown.length} matching tests shown · ${total} tests in total`
+        : `${compared.length} of ${total} tests shown`,
     notInUrl: shared ? undefined : `The URL holds at most ${HIDDEN_IN_URL} hidden tests.`,
     geomean,
     csv,
     links,
     profiled,
-    empty:
-      rows.length === 0
-        ? 'No test has a value for this metric.'
-        : matching.length === 0
-          ? 'No tests match the filter.'
-          : 'Every matching test is classified as noise.',
+    empty: emptyMessage(rows.length, named.length, matching.length, filter.active, {
+      hideUnchanged,
+      hideInconclusive,
+    }),
     sort,
     onSort,
   }
@@ -137,4 +164,25 @@ export function useComparisonTable(
     /** The compared rows (CP2), in no particular order: those the chart plots. */
     plotted,
   }
+}
+
+/**
+ * What the table says when it has no row (CP6 "Empty states"), given how many rows the comparison
+ * has, how many the test filter keeps, whether it is set, and how many of those pass the filters:
+ * which of the comparison, the test filter, the filters or the hide checkboxes left none.
+ */
+function emptyMessage(
+  all: number,
+  named: number,
+  matching: number,
+  textFilter: boolean,
+  { hideUnchanged, hideInconclusive }: { hideUnchanged: boolean; hideInconclusive: boolean },
+): string {
+  if (all === 0) return 'No test has a value for this metric.'
+  if (named === 0) return 'No tests match the filter.'
+  if (matching === 0) {
+    return textFilter ? 'No matching test passes the filters.' : 'No test passes the filters.'
+  }
+  const hidden = [hideUnchanged && 'unchanged', hideInconclusive && 'inconclusive']
+  return `Every matching test is ${hidden.filter(Boolean).join(' or ')}.`
 }
