@@ -309,32 +309,51 @@ scope that the change needs (see AR17).
 ## AR14: Comboboxes
 
 Every combobox follows the standard combobox accessibility conventions, with
-manual selection: typing narrows the suggestions, and the value changes only
-when the user picks a suggestion, by clicking it or by moving to it with
-ArrowDown/ArrowUp and pressing Enter. Leaving the combobox without picking one
-puts back the text of its current value, and emptying the input clears the
-value. While the input holds text, a button in it empties it, so that a value
-can be cleared without editing the text. When no suggestion matches the typed
-text, the list says so. The list closes on Escape, on blur, on a click outside
-it, once a suggestion is picked, and when the page, or a box holding the
-combobox, scrolls; on Escape and on such a scroll, the combobox also puts back
-the text of its current value, as leaving it does. A list too long to show
-whole stops scrolling at its ends rather than scrolling the page.
+manual selection: typing narrows the suggestions, and the user picks one by
+clicking it or by moving to it with ArrowDown/ArrowUp and pressing Enter. The
+list closes on Escape, on blur, on a click outside it, once a suggestion is
+picked, and when the page, or a box holding the combobox, scrolls. A list too
+long to show whole stops scrolling at its ends rather than scrolling the page.
 
-So that a value can be pasted and entered, Enter with no suggestion highlighted
-picks the suggestion that the typed text exactly identifies: its shown text, or
-the identifier of what it stands for, such as a commit string, a machine's name
-or a regression's UUID. The comparison is case-sensitive and ignores surrounding
-whitespace. The suggestion must be the only one so identified among the
-suggestions loaded for that text -- the first page of them, unless the user has
-scrolled for more.
-Otherwise, the text stays as it is. An Enter pressed before those suggestions
-have loaded takes effect once they have, unless the text has changed meanwhile,
-as it does when the user leaves the combobox.
+A combobox whose value is a suggestion changes its value only when the user
+picks one. When no suggestion matches the typed text, the list says so. Leaving
+the combobox without picking one puts back the text of its current value, as
+Escape and such a scroll do, and emptying the input clears the value. While the
+input holds text, a button in it empties it, so that a value can be cleared
+without editing the text.
+
+So that a value can be pasted and entered, Enter in such a combobox with no
+suggestion highlighted picks the suggestion that the typed text exactly
+identifies: its shown text, or the identifier of what it stands for, such as a
+commit string, a machine's name or a regression's UUID. The comparison is
+case-sensitive and ignores surrounding whitespace. The suggestion must be the
+only one so identified among the suggestions loaded for that text -- the first
+page of them, unless the user has scrolled for more. Otherwise, the text stays
+as it is. An Enter pressed before those suggestions have loaded takes effect
+once they have, unless the text has changed meanwhile, as it does when the user
+leaves the combobox.
 
 A combobox may list some of its suggestions in groups (see AR5). A group's
 heading is shown only while some suggestion under it is shown, so typing that
 matches none of a group's suggestions also hides its heading.
+
+A field edited in place (AR12) that takes any text may suggest values for it,
+such as a commit's branch (DT3), in a combobox whose value is its text:
+
+- Typing filters the suggestions by the text, as a client-side filter does
+  (AR9). They are all listed while the input holds the text it opened with, or
+  the suggestion last picked, and when the user opens the list from its button
+  or with ArrowDown, whatever the text.
+- The list is shown only while some suggestion matches the text, or while the
+  suggestions load. No list says that none matches.
+- Picking a suggestion replaces the text with it, and saves nothing.
+- Enter picks the suggestion highlighted only if the user moved the highlight
+  to it from the keyboard, since the text last changed and since the list last
+  opened. A suggestion highlighted under the pointer is not picked. Otherwise,
+  Enter closes the list and saves the text, as AR12 says.
+- Tab never picks a suggestion.
+- Nothing else changes the text: closing the list leaves it as it is, and no
+  button empties it.
 
 
 ## AR15: Commit Pickers

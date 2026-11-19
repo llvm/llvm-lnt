@@ -237,13 +237,21 @@ test('its branch is edited by a holder of manage scope', async ({
     await signIn(page, 'manage')
     await page.goto(`${suitePath(suite)}/commits/c2`)
     const info = page.getByRole('group', { name: 'Commit', exact: true })
-    const branch = page.getByRole('textbox', { name: 'Branch' })
+    const branch = page.getByRole('combobox', { name: 'Branch' })
+    const newBranch = info.getByText('New branch')
     const stored = async () =>
       (await json<Schemas['CommitDetail']>(request, `/api${suitePath(suite)}/commits/c2`)).branch
 
-    // A branch on which another commit has the commit's ordinal is refused.
+    // The suite's branches are suggested, and text that is none of them is said to be a new one.
     await page.getByRole('button', { name: 'Edit Branch' }).click()
-    await branch.fill('release/1.x')
+    await branch.fill('relase/1.x')
+    await expect(newBranch).toBeVisible()
+    await branch.fill('release/1')
+    await page.getByRole('option', { name: 'release/1.x' }).click()
+    await expect(branch).toHaveValue('release/1.x')
+    await expect(newBranch).toHaveCount(0)
+
+    // A branch on which another commit has the commit's ordinal is refused.
     await branch.press('Enter')
     await expect(page.getByRole('alert')).toContainText(
       "Another commit on branch 'release/1.x'",
