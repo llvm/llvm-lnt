@@ -8,7 +8,7 @@ import type { Layout, PlotData } from 'plotly.js'
 import { markerOf } from '../../chart-markers'
 import { noDataAnnotations } from '../../components/plot-annotations'
 import { compareStrings, escapeHtml, formatNumber } from '../../format'
-import { describeStatus, formatDeltaPct, formatRatio } from './columns'
+import { formatDeltaPct, formatRatio, intervalIs, noIntervalReason } from './columns'
 import { LABELS, type ComparisonRow, type Status, type Values } from './comparison'
 
 /** A test to plot: a compared row of the main comparison, or of a shadow's (CP8). */
@@ -70,10 +70,10 @@ export function shadowLook(index: number) {
   return { color: SHADOW_COLORS[index % SHADOW_COLORS.length], marker: markerOf(index) }
 }
 
-/** A main bar's status, and what its status says of its change, as lines of a tooltip. */
-function statusLines({ status, change }: ComparisonRow): string {
-  const detail = describeStatus(status, change)
-  return `Status: ${LABELS[status]}${detail === undefined ? '' : `<br>${escapeHtml(detail)}`}`
+/** A main bar's status, with its confidence interval or why it has none, as a line of a tooltip. */
+function statusLine({ status, change }: ComparisonRow): string {
+  const why = change.kind === 'interval' ? intervalIs(change) : noIntervalReason(change)
+  return escapeHtml(`Status: ${LABELS[status]}, ${why}`)
 }
 
 /**
@@ -108,14 +108,15 @@ function plotted<R extends Plottable>(
 }
 
 /**
- * The bars, as one Plotly trace, coloured by status, whose tooltips give the status, what it says
- * of the change, and a last line saying that clicking a bar shows its details (CP3).
+ * The bars, as one Plotly trace, coloured by status, whose tooltips give the status, with its
+ * confidence interval or why it has none, and a last line saying that clicking a bar shows its
+ * details (CP3).
  */
 export function barTrace(bars: readonly Bar<ComparisonRow>[]): Partial<PlotData> {
   return {
     type: 'bar',
     name: 'comparison',
-    ...plotted(bars, { after: (bar) => `${statusLines(bar)}<br><i>Click for details</i>` }),
+    ...plotted(bars, { after: (bar) => `${statusLine(bar)}<br><i>Click for details</i>` }),
     marker: { color: bars.map((bar) => STATUS_COLORS[bar.status]) },
   }
 }

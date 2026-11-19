@@ -80,7 +80,7 @@ describe('the classification (CP1, CP2)', () => {
     await waitFor(async () => expect(await statusShown('up')).toBe('Improved'))
     expect(await statusShown('down')).toBe('Regressed')
     expect(await statusShown('flat')).toBe('Unchanged')
-    expect(statusTitle('up')).toMatch(/^90% CI: -33\.11% \[/)
+    expect(statusTitle('up')).toBe('90% CI is [-35.64%, -30.49%]: over the 5% margin')
   })
 
   it('says on hover what the status says of the change, or why it has no interval', async () => {
@@ -88,9 +88,9 @@ describe('the classification (CP1, CP2)', () => {
     renderPage(COMPARED)
     await comparison()
 
-    expect(statusTitle('up')).toMatch(/^90% CI: \+49\.51% \[\+43\.86%, \+55\.38%\], beyond the margin$/)
-    expect(statusTitle('flat')).toMatch(/^90% CI: \+0\.10% \[.*\], within the margin$/)
-    expect(statusTitle('wild')).toMatch(/^90% CI: .*, straddles an edge of the margin$/)
+    expect(statusTitle('up')).toBe('90% CI is [+43.86%, +55.38%]: over the 5% margin')
+    expect(statusTitle('flat')).toMatch(/^90% CI is \[.*\]: under the 5% margin$/)
+    expect(statusTitle('wild')).toMatch(/^90% CI is \[.*\]: may or may not exceed the 5% margin$/)
     expect(statusTitle('one')).toBe(
       'Only 1 run on side A: a CI needs at least 2 runs on each side',
     )
@@ -159,7 +159,7 @@ describe('the classification (CP1, CP2)', () => {
 
     await waitFor(() => expect(query().confidence).toEqual(['99']))
     await waitFor(async () => expect(await statusShown('up')).toBe('Inconclusive'))
-    expect(statusTitle('up')).toMatch(/^99% CI: /)
+    expect(statusTitle('up')).toMatch(/^99% CI is \[.*\]: may or may not exceed the 40% margin$/)
   })
 
   it('falls back on the default margin and confidence for values it does not accept', async () => {
@@ -170,7 +170,7 @@ describe('the classification (CP1, CP2)', () => {
     await waitFor(() => expect(query().margin).toBeUndefined())
     expect(query().confidence).toBeUndefined()
     expect(screen.getByRole('textbox', { name: 'Margin' })).toHaveValue('5')
-    expect(statusTitle('up')).toMatch(/^90% CI: /)
+    expect(statusTitle('up')).toMatch(/^90% CI is \[.*\]: over the 5% margin$/)
   })
 
   it("loads a link with the old noise settings, ignoring them and leaving them as they are", async () => {

@@ -35,6 +35,7 @@ function row(
     ratio,
     status,
     change,
+    margin: 5,
     statisticsA: statistics,
     statisticsB: statistics,
   } satisfies ComparisonRow
@@ -136,16 +137,18 @@ describe('barTrace', () => {
       '1',
       '-50.00%',
       '',
-      '<br>Status: Improved<br>90% CI: -51.01% [-60.00%, -40.00%], beyond the margin' +
-        '<br><i>Click for details</i>',
+      '<br>Status: Improved, 90% CI is [-60.00%, -40.00%]<br><i>Click for details</i>',
     ])
   })
 
-  it("says what a bar's status says of its change, and last that it has details (CP3)", () => {
+  it("gives a bar's status, with its interval or why it has none, then its details (CP3)", () => {
     expect(hoverText(barTrace(bars), 1)).toBe(
       '<b>flat</b><br>Ratio: 1.0001<br>A: 1<br>B: 1<br>Delta %: +0.01%<br>' +
-        'Status: Unchanged<br>90% CI: +0.49% [-1.00%, +2.00%], within the margin<br>' +
+        'Status: Unchanged, 90% CI is [-1.00%, +2.00%]<br>' +
         '<i>Click for details</i><extra></extra>',
+    )
+    expect(hoverText(barTrace(bars), 2)).toMatch(
+      /<br>Status: Inconclusive, only 1 run on side A<br><i>Click for details<\/i>/,
     )
   })
 })

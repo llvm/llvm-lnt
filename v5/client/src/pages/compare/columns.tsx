@@ -15,6 +15,7 @@ import {
   type Change,
   type ComparisonRow,
   type Interval,
+  type NoInterval,
   type SideStatistics,
   type Status,
   type Values,
@@ -66,13 +67,28 @@ export function formatDeltaPct(value: number | null): string {
 /** The percentage change of a logarithm of a ratio. */
 const percentOf = (log: number) => Math.expm1(log) * 100
 
+/** A confidence interval's bounds, in brackets, each a percentage change as Delta % is shown. */
+function formatBounds({ low, high }: Interval): string {
+  return `[${formatDeltaPct(percentOf(low))}, ${formatDeltaPct(percentOf(high))}]`
+}
+
 /**
  * A confidence interval, as its estimate and its bounds in brackets, each a percentage change as
  * Delta % is shown: `+58.12% [-16.03%, +197.40%]` (CP2 "Optional columns").
  */
-export function formatInterval({ estimate, low, high }: Interval): string {
-  const [e, l, h] = [estimate, low, high].map((log) => formatDeltaPct(percentOf(log)))
-  return `${e} [${l}, ${h}]`
+export function formatInterval(interval: Interval): string {
+  return `${formatDeltaPct(percentOf(interval.estimate))} ${formatBounds(interval)}`
+}
+
+/** A confidence interval, as its confidence level and its bounds: `90% CI is [-1.00%, +2.00%]`. */
+export function intervalIs(interval: Interval): string {
+  return `${interval.confidence}% CI is ${formatBounds(interval)}`
+}
+
+/** Why a change has no confidence interval, in a few words: `only 1 run on side A`. */
+export function noIntervalReason(change: NoInterval): string {
+  if (change.kind === 'nonPositive') return "a run's value is 0 or negative"
+  return `only 1 run on ${change.sides === 'both' ? 'each side' : `side ${change.sides}`}`
 }
 
 /** A ratio, to 4 decimal places. */
@@ -118,30 +134,32 @@ function numberColumn(
   }
 }
 
-/** The words saying where a confidence interval lies against the margin, by the status it gives. */
+/** What a confidence interval does against the margin, by the status it gives. */
 const AGAINST_MARGIN: Partial<Record<Status, string>> = {
-  improved: 'beyond the margin',
-  regressed: 'beyond the margin',
-  unchanged: 'within the margin',
-  inconclusive: 'straddles an edge of the margin',
+  improved: 'over',
+  regressed: 'over',
+  unchanged: 'under',
+  inconclusive: 'may or may not exceed',
+}
+
+/** Why a change has no confidence interval, as a sentence. */
+const NO_INTERVAL: Record<NoInterval['kind'], string> = {
+  runs: 'a CI needs at least 2 runs on each side',
+  nonPositive: 'the change has no CI',
 }
 
 /**
- * What a test's status says of its change (CP2 "Status tooltip"): its confidence interval and where
- * it lies against the margin, or why it has none. Nothing for a test that cannot be compared.
+ * What a test's status says of its change (CP2 "Status tooltip"): its confidence interval and what
+ * it does against `margin`, a percentage, or why it has none. Nothing for a test that cannot be
+ * compared.
  */
-export function describeStatus(status: Status, change: Change): string | undefined {
+export function describeStatus(status: Status, change: Change, margin: number): string | undefined {
   if (status === 'na') return undefined
-  switch (change.kind) {
-    case 'interval':
-      return `${change.confidence}% CI: ${formatInterval(change)}, ${AGAINST_MARGIN[status]}`
-    case 'runs': {
-      const where = change.sides === 'both' ? 'each side' : `side ${change.sides}`
-      return `Only 1 run on ${where}: a CI needs at least 2 runs on each side`
-    }
-    case 'nonPositive':
-      return "A run's value is 0 or negative: the change has no CI"
+  if (change.kind === 'interval') {
+    return `${intervalIs(change)}: ${AGAINST_MARGIN[status]} the ${margin}% margin`
   }
+  const reason = noIntervalReason(change)
+  return `${reason[0].toUpperCase()}${reason.slice(1)}: ${NO_INTERVAL[change.kind]}`
 }
 
 /**
@@ -177,7 +195,7 @@ export const BASE_COLUMNS: CompareColumn[] = [
     cell: (row) =>
       statusLabel(
         row.status,
-        row.test === null ? undefined : describeStatus(row.status, row.change),
+        row.test === null ? undefined : describeStatus(row.status, row.change, row.margin),
       ),
     // N/A after every other status, in both directions, as a row without a value is.
     sortKey: (row) => (row.status === 'na' ? null : STATUSES.indexOf(row.status)),

@@ -387,6 +387,8 @@ type ValueRow = { test: string } & Omit<Values, 'status'>
 export interface ComparisonRow extends ComparedTest, Values {
   /** The test's change, from its runs' values, whatever its status. */
   change: Change
+  /** The margin, as a percentage, its status was classified against, which its tooltip names. */
+  margin: number
 }
 
 /** How `a` and `b`, each side's value of a test, differ (CP2 "Per-test derived columns"). */
@@ -437,7 +439,7 @@ export function compareRows(
     const row = valueRow(test.test, valuesA, valuesB)
     const change = changesOf.get(test.test)!
     const status = row.ratio === null ? 'na' : statusOf(change, margin, biggerIsBetter)
-    return { ...test, ...row, status, change }
+    return { ...test, ...row, status, change, margin }
   })
 }
 

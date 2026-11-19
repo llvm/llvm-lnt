@@ -203,14 +203,14 @@ all use these rows.
 - **Status colors**: green for improved, red for regressed, amber for
   inconclusive, and grey otherwise. The four colors differ from each other, and
   amber has a contrast of at least 3:1 against the page's background.
-- **Status tooltip**: a test's status, unless N/A, says on hover what it says
-  of the test's change: its confidence interval, formatted as the CI column
-  shows it, and whether it lies beyond, within or across an edge of the margin,
-  as in `90% CI: +3.10% [-1.20%, +7.60%], straddles an edge of the margin`;
-  or why it has none: `Only 1 run on side A: a CI needs at least 2 runs on
-  each side` (or side B, or each side), or that a run's value is 0 or
-  negative, which it says when both apply, since more runs would not remedy
-  it. The geomean summary row's status has no tooltip.
+- **Status tooltip**: a test's status, unless N/A, gives on hover the bounds of
+  its confidence interval, as the CI column shows them, and what they do
+  against the margin, as in `90% CI is [-1.20%, +7.60%]: may or may not exceed
+  the 5% margin` (`over` for improved and regressed, `under` for unchanged);
+  or why there is none: `Only 1 run on side A: a CI needs at least 2 runs on
+  each side` (or side B, or each side), or that a run's value is 0 or negative,
+  which it says when both apply. The geomean summary row's status has no
+  tooltip.
 - **Sample count tooltips**: Value A and Value B have a tooltip saying how many
   samples and runs the value was computed from, e.g. "6 samples across 2
   runs". Delta, Delta % and Ratio show both sides: "A:
@@ -393,13 +393,13 @@ plotted are left out (see Computation Reference).
   narrow range shows finer ticks
 - Rendered as bars, one per test, colored by status (see CP2). The chart draws
   no band for the margin: a bar is the change's Ratio, not its interval, and
-  may reach beyond the margin while its test is inconclusive.
+  may exceed the margin while its test is inconclusive.
 
 Interactivity:
 - **Hover**: tooltip showing test name, exact ratio, the values of both sides,
-  Delta %, the status, what the status's tooltip says (see CP2 "Status
-  tooltip"), and a last line saying that clicking the bar shows its details. It
-  also highlights the bar's table row (see CP5).
+  Delta %, the status with its confidence interval or why it has none, and a
+  last line saying that clicking the bar shows its details. It also highlights
+  the bar's table row (see CP5).
 - **Details**: clicking a bar opens a popover beside it, which behaves as a
   Graph point's does (GR11), and whose accessible name is the test name. Where
   the bar is too wide to leave room beside it, as when it is the only one, the

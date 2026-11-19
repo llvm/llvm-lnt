@@ -69,8 +69,8 @@ const FILTERS: Filter[] = [
 
 const MARGIN_HELP =
   'How large a change must be to matter, as a ratio: with 5%, beyond ×1.05 or ÷1.05. A test is ' +
-  'unchanged when the confidence interval of its change lies within the margin, improved or ' +
-  'regressed when it lies beyond it, and inconclusive otherwise.'
+  'unchanged when the confidence interval of its change is under the margin, improved or ' +
+  'regressed when it is over it, and inconclusive when it may or may not exceed it.'
 
 const CONFIDENCE_HELP =
   "The confidence level of the interval of each test's change, which the margin classifies the " +
