@@ -316,11 +316,24 @@ change to that field changes the commit's display value wherever the UI shows it
 this page, which shows the commit string. The ordinal, the branch and the tag are edited in
 place (see AR12) through `PATCH /commits/{value}`, which requires `manage` scope. Emptying
 any of them clears it. An ordinal is an integer that its column can hold (see D3 and D5):
-any other text is invalid (see AR11). The commit's `delete_after_inactive_days` is shown and
-edited in a `Delete after inactivity` row, as on the Machine Detail page (see DT1). While
-the setting is set and the commit has an ordinal, the row says after the number of days that
-it has no effect (see O10). It can still be edited, since it takes effect again if the
-ordinal is cleared.
+any other text is invalid (see AR11).
+
+The branch's input takes any branch, and suggests the suite's existing ones (see AR14): the
+named branches of `GET branches` (E3), without "No branch", since emptying the input clears the
+branch. They are listed anew each time the input opens, rather than taken from a list fetched
+before: until they are, the list says that they are loading. That list covers only the commits
+with an ordinal, which is enough: a branch only matters once its commits are ordered. Below the
+input, a muted `New branch` note shows while the trimmed text is not empty, is not the commit's
+branch, and is not one of the suggested branches, matched exactly, so that a typo
+(`relase/22.x`) shows before it takes the commit out of its branch's history. Assistive
+technology reads the note as the input's description. The note is not shown before the
+branches are listed. If they cannot be, its place says so, with a way to try again (see AR7)
+that leaves the focus in the input, and the input still saves any text.
+
+The commit's `delete_after_inactive_days` is shown and edited in a `Delete after inactivity`
+row, as on the Machine Detail page (see DT1). While the setting is set and the commit has an
+ordinal, the row says after the number of days that it has no effect (see O10). It can still be
+edited, since it takes effect again if the ordinal is cleared.
 
 ### Navigation
 
