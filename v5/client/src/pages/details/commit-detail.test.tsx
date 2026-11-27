@@ -1,4 +1,5 @@
 import { act, fireEvent, screen, waitFor, within } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { HttpResponse } from 'msw'
 import { describe, expect, it } from 'vitest'
 import type { Schemas } from '../../api/client'
@@ -21,6 +22,7 @@ import {
   currentUrl,
   editButton,
   expectInfoRow,
+  fieldInput,
   gate,
   inactivityCell,
   infoRows,
@@ -79,6 +81,16 @@ interface Options {
   previous?: Respond<Response>
   /** The suite's machines, which name the runs' machines by their labels; none by default. */
   machines?: Schemas['Machine'][]
+  /** The answer to each `GET /branches`: `BRANCHES` by default. */
+  branches?: Respond<Response>
+}
+
+/** The suite's branches, as `GET /branches` lists them by default. */
+const BRANCHES = [null, 'main', 'release/19.x', 'release/20.x']
+
+/** `GET /branches`'s answer listing `names`. */
+function branchList(names: (string | null)[]) {
+  return HttpResponse.json({ items: names.map((name) => ({ name })) })
 }
 
 /**
@@ -94,11 +106,13 @@ function renderCommit({
   regressions = () => HttpResponse.json(cursorPage([])),
   previous = () => HttpResponse.json(cursorPage([BEFORE])),
   machines = [],
+  branches = () => branchList(BRANCHES),
 }: Options = {}) {
   const detailCalls = { count: 0 }
   const runList = recording(runPages)
   const regressionList = recording(regressions)
   const lookups = recording(previous)
+  const branchLists = recording(branches)
   mockSuites(suites)
   mockMachines(() => ({ items: machines }))
   const resolved = mockResolve([withoutNeighbours(DETAIL)])
@@ -116,10 +130,14 @@ function renderCommit({
     mockApi('get', '/api/projects/{project}/suites/{suite}/commits', ({ request }) =>
       lookups.answer(request),
     ),
+    mockApi('get', '/api/projects/{project}/suites/{suite}/branches', ({ request }) =>
+      branchLists.answer(request),
+    ),
   )
   renderPage(url)
   return {
     detailCalls,
+    branchQueries: branchLists.queries,
     runQueries: runList.queries,
     regressionQueries: regressionList.queries,
     lookups: lookups.queries,
@@ -489,7 +507,7 @@ describe('the Commit Detail page', () => {
       save('Branch', ' release/19.x ')
       await expectInfo(2, ['Branch', 'release/19.xEdit'])
       fireEvent.click(editButton('Branch'))
-      expect(screen.getByRole('textbox', { name: 'Branch' })).toHaveAttribute('maxlength', '256')
+      expect(fieldInput('Branch')).toHaveAttribute('maxlength', '256')
       fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
       save('Branch', '')
       await expectInfo(2, ['Branch', '--Edit'])
@@ -519,7 +537,7 @@ describe('the Commit Detail page', () => {
       save(field, text)
 
       expect(await screen.findByRole('alert')).toHaveTextContent(why)
-      expect(screen.getByRole('textbox', { name: field })).toHaveValue(text)
+      expect(fieldInput(field)).toHaveValue(text)
       fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
       expect(await infoRows('Commit')).toContainEqual([field, shown])
     })
@@ -654,6 +672,235 @@ describe('the Commit Detail page', () => {
 
       expect(await within(await table('Commits')).findByText('v9')).toBeInTheDocument()
       expect(listQueries).toHaveLength(2)
+    })
+  })
+
+  describe("its branch's suggestions", () => {
+    /** Open the branch's editor, once the page allows it. */
+    async function editBranch() {
+      await ready('Commit', () => editButton('Branch'))
+      fireEvent.click(editButton('Branch'))
+      return fieldInput('Branch')
+    }
+
+    const listbox = () => screen.queryByRole('listbox')
+    const options = () => screen.queryAllByRole('option').map((option) => option.textContent)
+    const note = () => screen.queryByText('New branch')
+    const BROKEN = () => errorResponse(400, 'invalid_request', 'The branches broke')
+
+    it("lists the suite's named branches anew each time the editor opens", async () => {
+      signIn('manage')
+      const { branchQueries } = renderCommit()
+      await ready('Commit', () => editButton('Branch'))
+      expect(branchQueries.length).toBe(0)
+
+      const user = userEvent.setup()
+      await user.click(editButton('Branch'))
+      await user.click(screen.getByRole('button', { name: /Show suggestions/ }))
+      // No "No branch": emptying the input clears the branch.
+      await waitFor(() => expect(options()).toEqual(['main', 'release/19.x', 'release/20.x']))
+      expect(branchQueries.length).toBe(1)
+
+      // Closed first: while open, the list hides everything else from assistive technology.
+      await user.keyboard('{Escape}')
+      await user.click(screen.getByRole('button', { name: 'Cancel' }))
+      await user.click(editButton('Branch'))
+      await waitFor(() => expect(branchQueries.length).toBe(2))
+    })
+
+    it('saves the branch picked, only once saved', async () => {
+      signIn('manage')
+      const sent = mockSent('patch', COMMIT_ROUTE, (body) => HttpResponse.json(patched(body)))
+      renderCommit()
+      const user = userEvent.setup()
+      const input = await editBranch()
+
+      await user.type(input, '20')
+      await user.click(await screen.findByRole('option', { name: 'release/20.x' }))
+      expect(input).toHaveValue('release/20.x')
+      expect(sent).toEqual([])
+      await user.click(screen.getByRole('button', { name: 'Save' }))
+
+      await expectInfo(2, ['Branch', 'release/20.xEdit'])
+      expect(sent.map(({ body }) => body)).toEqual([{ branch: 'release/20.x' }])
+    })
+
+    it('says that text none of the branches is starts a new branch', async () => {
+      signIn('manage')
+      renderCommit({
+        detail: () => HttpResponse.json({ ...DETAIL, branch: 'unordered' }),
+      })
+      const input = await editBranch()
+      await waitFor(() => expect(screen.queryByText('Loading...')).not.toBeInTheDocument())
+
+      for (const [text, shown] of [
+        ['relase/19.x', true],
+        // Matched exactly.
+        ['Main', true],
+        ['main', false],
+        [' release/19.x ', false],
+        ['', false],
+        ['  ', false],
+        // The commit's own branch, which no commit with an ordinal is on.
+        ['unordered', false],
+      ] as const) {
+        fireEvent.change(input, { target: { value: text } })
+        await waitFor(() => expect(note() !== null).toBe(shown))
+        // Described by the note only while it shows.
+        if (shown) expect(input).toHaveAccessibleDescription('New branch')
+        else expect(input).not.toHaveAttribute('aria-describedby')
+      }
+    })
+
+    it('says nothing of the text until the branches are listed', async () => {
+      signIn('manage')
+      const answer = gate()
+      renderCommit({
+        branches: async () => {
+          await answer.promise
+          return branchList(BRANCHES)
+        },
+      })
+      const user = userEvent.setup()
+      const input = await editBranch()
+
+      await user.type(input, 'relase')
+      expect(listbox()).toHaveTextContent('Loading...')
+      expect(note()).toBeNull()
+
+      act(() => answer.open())
+      expect(await screen.findByText('New branch')).toBeInTheDocument()
+      // No list says that none matches: the note says what matters.
+      expect(listbox()).toBeNull()
+    })
+
+    it('closes the list on Escape, and cancels the edit on the next', async () => {
+      signIn('manage')
+      renderCommit()
+      const user = userEvent.setup()
+      const input = await editBranch()
+
+      await user.type(input, 'rel')
+      await waitFor(() => expect(options()).toHaveLength(2))
+      await user.keyboard('{Escape}')
+      expect(listbox()).toBeNull()
+      expect(input).toHaveValue('rel')
+
+      await user.keyboard('{Escape}')
+      expect(screen.queryByRole('combobox', { name: 'Branch' })).not.toBeInTheDocument()
+      expect(editButton('Branch')).toHaveFocus()
+    })
+
+    it('saves the text typed on Enter, closing the list, which stays closed if the save fails', async () => {
+      signIn('manage')
+      const why = "Another commit on branch 'release' in test suite 'llvm/libcxx' already has ordinal 100"
+      const sent = mockSent('patch', COMMIT_ROUTE, () => errorResponse(409, 'conflict', why))
+      renderCommit()
+      const user = userEvent.setup()
+      const input = await editBranch()
+
+      await user.type(input, 'release')
+      await waitFor(() => expect(options()).toHaveLength(2))
+      await user.keyboard('{Enter}')
+
+      expect(await screen.findByRole('alert')).toHaveTextContent(why)
+      expect(sent.map(({ body }) => body)).toEqual([{ branch: 'release' }])
+      expect(listbox()).toBeNull()
+      expect(input).toHaveValue('release')
+    })
+
+    it('says that the branches could not be listed, offering to try again', async () => {
+      signIn('manage')
+      // Listed once before, which a failure leaves cached.
+      let respond: () => Response | Promise<Response> = () => branchList(BRANCHES)
+      renderCommit({ branches: () => respond() })
+      const user = userEvent.setup()
+      await editBranch()
+      await waitFor(() => expect(screen.queryByText('Loading...')).not.toBeInTheDocument())
+      await user.click(screen.getByRole('button', { name: 'Cancel' }))
+      respond = BROKEN
+      await user.click(editButton('Branch'))
+      const input = fieldInput('Branch')
+
+      const alert = await screen.findByRole('alert')
+      expect(alert).toHaveTextContent('Could not list the branches: The branches broke')
+      // Still a text input, which saves what is typed, but says nothing of it.
+      await user.type(input, 'relase')
+      expect(note()).toBeNull()
+      expect(listbox()).toBeNull()
+
+      const answer = gate()
+      respond = async () => {
+        await answer.promise
+        return branchList(BRANCHES)
+      }
+      await user.click(within(alert).getByRole('button', { name: 'Retry' }))
+      // Listed again, rather than failed, until the answer comes (AR7), and back in the input, as the
+      // button goes meanwhile.
+      await waitFor(() => expect(screen.queryByRole('alert')).not.toBeInTheDocument())
+      expect(input).toHaveFocus()
+      act(() => answer.open())
+      expect(await screen.findByText('New branch')).toBeInTheDocument()
+      expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+      await user.keyboard('{Escape}')
+      expect(editButton('Branch')).toHaveFocus()
+    })
+
+    it('shows nothing of a list fetched before it opened again, until listed anew', async () => {
+      signIn('manage')
+      let respond: () => Response | Promise<Response> = () => branchList([null, 'old'])
+      renderCommit({ branches: () => respond() })
+      const user = userEvent.setup()
+      await editBranch()
+      await user.click(screen.getByRole('button', { name: /Show suggestions/ }))
+      await waitFor(() => expect(options()).toEqual(['old']))
+      await user.keyboard('{Escape}{Escape}')
+
+      const answer = gate()
+      respond = async () => {
+        await answer.promise
+        return branchList(BRANCHES)
+      }
+      await user.click(editButton('Branch'))
+      const input = fieldInput('Branch')
+      await user.type(input, 'x')
+      expect(listbox()?.textContent).toBe('Loading...')
+      expect(note()).toBeNull()
+
+      act(() => answer.open())
+      expect(await screen.findByText('New branch')).toBeInTheDocument()
+    })
+
+    it('shows nothing of an earlier list, nor of its failure, once opened again', async () => {
+      signIn('manage')
+      let respond: () => Response | Promise<Response> = () => branchList([null, 'old'])
+      renderCommit({ branches: () => respond() })
+      const user = userEvent.setup()
+      await editBranch()
+      await user.click(screen.getByRole('button', { name: /Show suggestions/ }))
+      await waitFor(() => expect(options()).toEqual(['old']))
+      await user.keyboard('{Escape}{Escape}')
+
+      respond = BROKEN
+      await user.click(editButton('Branch'))
+      expect(await screen.findByRole('alert')).toHaveTextContent('Could not list the branches')
+      await user.click(screen.getByRole('button', { name: 'Cancel' }))
+
+      const answer = gate()
+      respond = async () => {
+        await answer.promise
+        return branchList(BRANCHES)
+      }
+      await user.click(editButton('Branch'))
+      const input = fieldInput('Branch')
+      await user.type(input, 'old')
+      // Not the earlier list's `old`.
+      expect(listbox()?.textContent).toBe('Loading...')
+      expect(note()).toBeNull()
+      expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+
+      act(() => answer.open())
+      expect(await screen.findByText('New branch')).toBeInTheDocument()
     })
   })
 

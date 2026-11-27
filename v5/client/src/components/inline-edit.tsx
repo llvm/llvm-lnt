@@ -64,6 +64,11 @@ interface Props {
   editor?: (props: EditorProps) => ReactNode
   /** Why Save is refused while the editor reports pending input (see `EditorProps`). */
   pendingReason?: string
+  /**
+   * What shows below the input and its buttons while they are open, given the input's text, such
+   * as a note about that text.
+   */
+  below?: (text: string) => ReactNode
   /** The id of what describes the field, such as its help, for the Edit button and the input. */
   describedBy?: string
   /**
@@ -99,6 +104,7 @@ export function InlineEdit({
   multiline = false,
   editor,
   pendingReason,
+  below,
   describedBy,
   confirm,
   onSave,
@@ -291,6 +297,7 @@ export function InlineEdit({
           </span>
         )}
       </form>
+      {below?.(text)}
       {confirming && confirm && (
         // The focus starts on its Cancel, and goes back to the input once it closes.
         <Confirmation

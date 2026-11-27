@@ -87,7 +87,7 @@
   font-weight: normal;
 }
 
-/* What a list says in place of its names, or above them. */
+/* What a list says in place of its names, or above them, or a muted note below an input. */
 .note {
   color: var(--lnt-muted);
   font-size: 0.9rem;

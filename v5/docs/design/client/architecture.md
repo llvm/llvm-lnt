@@ -309,19 +309,21 @@ scope that the change needs (see AR17).
 ## AR14: Comboboxes
 
 Every combobox follows the standard combobox accessibility conventions, with
-manual selection: typing narrows the suggestions, and the value changes only
-when the user picks a suggestion, by clicking it or by moving to it with
-ArrowDown/ArrowUp and pressing Enter. Leaving the combobox without picking one
+manual selection: typing narrows the suggestions, and the user picks one by
+clicking it or by moving to it with ArrowDown/ArrowUp and pressing Enter. The
+list closes on Escape, on blur, on a click outside it, once a suggestion is
+picked, and when the page, or a box holding the combobox, scrolls. A list too
+long to show whole stops scrolling at its ends rather than scrolling the page.
+
+A combobox whose value is a suggestion changes its value only when the user
+picks a suggestion, not as they type. Leaving the combobox without picking one
 puts back the text of its current value, and emptying the input clears the
 value. While the input holds text, a button in it empties it, so that a value
 can be cleared without editing the text. When no suggestion matches the typed
-text, the list says so. The list closes on Escape, on blur, on a click outside
-it, once a suggestion is picked, and when the page, or a box holding the
-combobox, scrolls; on Escape and on such a scroll, the combobox also puts back
-the text of its current value, as leaving it does. A list too long to show
-whole stops scrolling at its ends rather than scrolling the page.
+text, the list says so. On Escape and on a scroll that closes the list, the
+combobox also puts back the text of its current value, as leaving it does.
 
-So that a value can be pasted and entered, Enter with no suggestion highlighted
+So that such a value can be pasted, Enter with no suggestion highlighted
 picks the suggestion that the typed text exactly identifies: its shown text, or
 the identifier of what it stands for, such as a commit string, a machine's name
 or a regression's UUID. The comparison is case-sensitive and ignores surrounding
@@ -335,6 +337,12 @@ as it does when the user leaves the combobox.
 A combobox may list some of its suggestions in groups (see AR5). A group's
 heading is shown only while some suggestion under it is shown, so typing that
 matches none of a group's suggestions also hides its heading.
+
+A field edited in place (AR12) that takes any text, such as a commit's branch
+(DT3), may suggest values in a combobox whose value is its text. Typing filters
+the suggestions as AR9 says, and opening the list from its button or with
+ArrowDown lists them all. Picking a suggestion replaces the text and saves
+nothing; otherwise, Enter saves the text, as AR12 says.
 
 
 ## AR15: Commit Pickers
