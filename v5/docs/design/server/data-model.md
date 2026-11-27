@@ -297,8 +297,8 @@ Notes:
   `name` alone.
 - `default_branch` names the suite's default branch (see D1), when it is set.
   It is a branch name, with the rules of a commit's `branch` (see E3). Like
-  `display`, it is a hint for the UI: the server never checks that any commit is
-  on it.
+  `display`, it is a hint for the UI, which uses it as the default of its branch
+  selectors (see AR25). The server never checks that any commit is on it.
 - The schema does not name the suite's project: that comes from the path that
   creates or addresses the suite (see D7), so a schema fetched from one project
   can be posted unchanged to another.

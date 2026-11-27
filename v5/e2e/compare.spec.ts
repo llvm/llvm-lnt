@@ -303,6 +303,7 @@ test("shows a bar's details, linking to the test's history on the Graph page (CP
   expect([...new URL(page.url()).searchParams]).toEqual([
     ['project', 'libcxx'],
     ['suite', 'benchmarks'],
+    ['branch', ''],
     ['machine', LINUX],
     ['metric', 'execution_time'],
     ['test', test],

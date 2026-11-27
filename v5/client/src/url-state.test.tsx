@@ -185,7 +185,7 @@ describe('useUrlState', () => {
     expect(result.current.url).toBe('/x?search=linux+x86')
   })
 
-  it('reads an optional text, empty as none, and writes one spelled null', () => {
+  it('reads an optional text, possibly empty, and writes one spelled null', () => {
     const { result } = renderHook(
       () => {
         const [state, setState] = useUrlState({ branch: optionalStringParam() })
@@ -195,7 +195,8 @@ describe('useUrlState', () => {
       providers({ url: '/x?branch=' }),
     )
 
-    expect(result.current.state).toEqual({ branch: null })
+    expect(result.current.state).toEqual({ branch: '' })
+    expect(result.current.url).toBe('/x?branch=')
     act(() => result.current.setState({ branch: 'null' }))
     expect(result.current.url).toBe('/x?branch=null')
     expect(result.current.state).toEqual({ branch: 'null' })

@@ -53,6 +53,12 @@ export interface Option<Value extends string> {
    * say, where its project's heading is not shown beside it (AR22).
    */
   selectedLabel?: string
+  /**
+   * Shown after the label in the list, muted, and part of the option's accessible name, but not
+   * matched by typing, nor shown by the closed dropdown once the option is picked. Not shown on an
+   * option with a `reason`.
+   */
+  note?: string
 }
 
 /**
@@ -100,7 +106,10 @@ function optionItem<Value extends string>(option: Option<Value>) {
           <VisuallyHidden elementType="span">: {reason}</VisuallyHidden>
         </span>
       ) : (
-        option.label
+        <>
+          {option.label}
+          {option.note !== undefined && <Note>{option.note}</Note>}
+        </>
       )}
     </ListBoxItem>
   )
@@ -209,10 +218,11 @@ export function Select<Value extends string>({
           isPending={isPending}
           aria-describedby={describedBy.length === 0 ? undefined : describedBy.join(' ')}
         >
-          {/* An option picked under a heading shows what names it without the heading. */}
+          {/* What names the option picked, rather than what the list shows of it: without its
+              heading, or its note. */}
           <SelectValue<Option<Value>> className={styles.value}>
             {({ selectedItems, defaultChildren }) =>
-              selectedItems[0]?.selectedLabel ?? defaultChildren
+              selectedItems[0]?.selectedLabel ?? selectedItems[0]?.label ?? defaultChildren
             }
           </SelectValue>
           <span aria-hidden="true">▾</span>

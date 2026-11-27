@@ -16,7 +16,8 @@ test.describe('routing', () => {
     ['/projects/swift', 'Projects'],
     ['/projects/libcxx/suites/benchmarks', 'Projects'],
     [`/projects/libcxx/suites/benchmarks/runs/${REAL_RUN}`, `Run: ${REAL_RUN}`],
-    ['/graph?project=libcxx&suite=benchmarks', 'Graph'],
+    // As the page writes it, on the branch it plots (GR1).
+    ['/graph?project=libcxx&suite=benchmarks&branch=', 'Graph'],
   ]) {
     test(`a deep link to ${url} survives a hard refresh`, async ({ page }) => {
       await page.goto(url)
@@ -60,7 +61,8 @@ test.describe('routing', () => {
   test('the navbar passes the suite of a suite-scoped page on (AR4)', async ({ page }) => {
     await page.goto('/projects/libcxx/suites/benchmarks')
     await page.getByRole('navigation').getByRole('link', { name: 'Graph', exact: true }).click()
-    await expect(page).toHaveURL('/graph?project=libcxx&suite=benchmarks')
+    // Once the branches are listed, with the branch plotted (GR1).
+    await expect(page).toHaveURL('/graph?project=libcxx&suite=benchmarks&branch=')
     await expect(page.getByRole('heading', { level: 1 })).toHaveText('Graph')
   })
 

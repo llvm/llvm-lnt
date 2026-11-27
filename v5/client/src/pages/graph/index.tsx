@@ -26,8 +26,9 @@ import {
   branchKey,
   branchOfKey,
   branchOptions,
+  defaultBranch,
   hasNamedBranch,
-  plottedBranch,
+  shownBranch,
 } from '../../branches'
 import { ChipList } from '../../components/chip-list'
 import { storeCommitLookup, suggestionOf } from '../../components/commit-lookup'
@@ -102,7 +103,10 @@ const PARAMS = {
   // The suite, by its project's name and its own (AR22), which go together.
   project: stringParam(),
   suite: stringParam(),
-  /** The branch plotted, by name, or null for the commits without a branch (GR1). */
+  /**
+   * The branch plotted (GR14), as its selector's value (`branchKey`): its name, or empty for the
+   * commits without a branch. Null, unlike a `BranchName`, leaves it out, for the suite's default.
+   */
   branch: optionalStringParam(),
   /** The machines, in the order of their chips. */
   machine: listParam(),
@@ -120,7 +124,7 @@ const PARAMS = {
 
 /** What a suite change clears, since it does not apply to another suite (GR1). */
 const IN_SUITE = {
-  branch: null as BranchName,
+  branch: null as string | null,
   machine: [] as string[],
   metric: [] as string[],
   test: [] as string[],
@@ -196,13 +200,22 @@ function GraphPage() {
   // commit has just been given an ordinal. Listing them again later leaves the chart as it is.
   const branchList = useBranches(suite, schema !== undefined)
   const branches = branchList.isFetchedAfterMount ? branchList.data : undefined
-  const branch = branches && plottedBranch(branches, settings.branch)
-  // A branch the list does not hold gives way to the list's first entry, rather than to the
-  // default, which may not be listed (GR1).
+  const asked = settings.branch === null ? undefined : branchOfKey(settings.branch)
+  const defaultName = schema?.default_branch ?? null
+  const plotted = (list: BranchName[]) =>
+    shownBranch(list, asked, defaultBranch(list, defaultName))
+  const branch = branches && plotted(branches)
+  // Once listed, the branch plotted is written to the URL, the default too, which a branch the list
+  // does not hold gives way to. A suite without commits with an ordinal lists none, and keeps none
+  // (GR1). Not while the suites are listed again, whose schema may name another default.
+  const write = (list: BranchName[]) => (list.length === 0 ? null : branchKey(plotted(list)))
   useDropUnusable(
-    { data: branches, isSuccess: branchList.isSuccess && branches !== undefined },
-    (list) => plottedBranch(list, settings.branch) === settings.branch,
-    () => update({ branch }),
+    {
+      data: branches,
+      isSuccess: branchList.isSuccess && branches !== undefined && !suites.isFetching,
+    },
+    (list) => settings.branch === write(list),
+    () => update({ branch: write(branches!) }),
   )
   // Why the branch selector offers nothing to pick, when that is worth saying (GR1).
   let unpickable: string | undefined
@@ -211,7 +224,10 @@ function GraphPage() {
   } else if (branches === undefined && branchList.isError && !branchList.isFetching) {
     unpickable = 'The branches could not be listed.'
   }
-  const branchChoices = useMemo(() => branchOptions(branches ?? []), [branches])
+  const branchChoices = useMemo(
+    () => branchOptions(branches ?? [], defaultName),
+    [branches, defaultName],
+  )
 
   const tests = useTestNames(suite, machines, metricNames, { keep: true })
   const filter = useTextFilter(
@@ -396,7 +412,7 @@ function GraphPage() {
             // The branch plotted, once known, and until then, what stands for it.
             value={branch === undefined ? null : branchKey(branch)}
             placeholder={branchPlaceholder}
-            onChange={(key) => update({ branch: branchOfKey(key) })}
+            onChange={(key) => update({ branch: key })}
             isDisabled={!branches || !hasNamedBranch(branches)}
             title={unpickable}
           />

@@ -18,7 +18,7 @@ import { projectPath } from '../../paths'
 import { isNumeric, type Metric } from '../../schema'
 import { enumParam, stringParam, useDropUnusable, useUrlState } from '../../url-state'
 import { suiteTabPath } from '../test-suites/settings'
-import { branchOptions, hasNamedBranch, plottedBranch } from '../../branches'
+import { branchOptions, defaultBranch, hasNamedBranch, shownBranch } from '../../branches'
 import {
   branchOfCard,
   cardBranchParam,
@@ -44,6 +44,8 @@ const PARAMS = {
 interface CardBranches {
   entries: CardBranch[]
   update(entries: CardBranch[]): void
+  /** Whether the projects are not being listed again, whose schemas name the default branches. */
+  settled: boolean
 }
 
 /** The `Project` dropdown's option for every project: no project name is empty (D7). */
@@ -80,6 +82,7 @@ export default function Dashboard() {
   const branches: CardBranches = {
     entries: branch,
     update: (entries) => update({ branch: entries }),
+    settled: !projects.isFetching,
   }
   // The projects the dropdown offers: until they are listed, the project of the URL, by its name
   // (AR22).
@@ -204,14 +207,19 @@ function SuiteSection({
 
   // The branches are shown from any list, even one cached before the page was opened, but only one
   // listed since is current enough to drop the branch of a card that it does not hold, or that is
-  // its default (DA1). A failed refetch drops nothing.
+  // its default (DA1), and only once the schema naming the default is not being listed again. A
+  // failed refetch drops nothing.
   const current = branchList.isSuccess && branchList.isFetchedAfterMount
-  const kept = (list: BranchName[]) =>
-    branches.entries.filter(
-      (entry) => entry.suite !== suite || (list.includes(entry.branch) && entry.branch !== list[0]),
+  const kept = (list: BranchName[]) => {
+    const fallback = defaultBranch(list, schema.default_branch)
+    return branches.entries.filter(
+      (entry) =>
+        entry.suite !== suite || (list.includes(entry.branch) && entry.branch !== fallback),
     )
+  }
+  const droppable = current && branches.settled
   useDropUnusable(
-    { data: current ? branchList.data : undefined, isSuccess: current },
+    { data: droppable ? branchList.data : undefined, isSuccess: droppable },
     (list) => kept(list).length === branches.entries.length,
     () => branches.update(kept(branchList.data!)),
   )
@@ -309,17 +317,22 @@ function Cards({
   list,
 }: SuiteCardsProps & { list: BranchName[] }) {
   // The options of every card's branch selector, if it has one.
-  const options = useMemo(() => (hasNamedBranch(list) ? branchOptions(list) : null), [list])
+  const defaultName = schema.default_branch
+  const options = useMemo(
+    () => (hasNamedBranch(list) ? branchOptions(list, defaultName) : null),
+    [list, defaultName],
+  )
+  const fallback = defaultBranch(list, defaultName)
   const retry = () => void branchList.refetch()
   return (
     <div className={styles.grid}>
       {metrics.map((metric) => {
         const named = branchOfCard(branches.entries, suite, metric.name)
-        // The branch the URL names, or the list's first entry. One that a list cached before the
-        // page was opened does not hold waits for a current list, which may hold it.
+        // The branch the URL names, or the suite's default. One that a list cached before the page
+        // was opened does not hold waits for a current list, which may hold it.
         const branch =
           named === undefined || list.includes(named) || current
-            ? plottedBranch(list, named ?? null)
+            ? shownBranch(list, named, fallback)
             : undefined
         return (
           <SparklineCard
@@ -333,11 +346,11 @@ function Cards({
             options={options}
             listingError={branchList.isError && !branchList.isFetching ? branchList.error : null}
             onRetryListing={retry}
-            onBranch={(picked) => {
-              // The default is left out of the URL (DA1).
-              const entry = picked === (list[0] ?? null) ? undefined : picked!
-              branches.update(withBranchOfCard(branches.entries, suite, metric.name, entry))
-            }}
+            // The pick is written, and dropped, once the list is current, if it is the default
+            // (DA1): a list cached before may give another.
+            onBranch={(picked) =>
+              branches.update(withBranchOfCard(branches.entries, suite, metric.name, picked))
+            }
           />
         )
       })}

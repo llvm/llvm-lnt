@@ -17,18 +17,21 @@ performance trends across all test suites, grouped by project (see D7).
 - Both controls sit in the page header rather than in a controls panel, an
   exception to AR5.
 - The branch each card shows (DA2) is persisted in the URL as `branch`,
-  repeated once per card that shows another branch than its default, the list's
-  first entry: `{project}/{suite}/{metric}/{branch}`, e.g.
+  repeated once per card that names one, which is normally another branch than
+  its suite's default branch (AR25): `{project}/{suite}/{metric}/{branch}`, e.g.
   `?branch=libcxx/benchmarks/cycles/release/22.x`. The branch is everything
-  after the third `/`, since a branch name may hold one. An entry with fewer
-  than four parts, or with an empty part, is dropped as the URL is read, and of
-  a card named twice, the first entry is kept. An entry is dropped once it is
-  found unusable (AR2 "State"): when no suite shows a card for its suite and
-  metric, once the projects are listed, and when its suite's branches do not
-  hold its branch, or hold it as their first entry, once they are current
-  (see DA2). Picking a card's default removes its entry. The page never writes
-  a default to the URL, not even the named branch a card falls back to, unlike
-  the Graph (GR1). Changing the commit range or the project keeps every entry;
+  after the third `/`, since a branch name may hold one, and is empty for the
+  commits without a branch (`libcxx/benchmarks/cycles/`), since a branch name
+  never is (see E3). An entry with fewer than four parts, or with an empty
+  project, suite or metric, is dropped as the URL is read, and of a card named
+  twice, the first entry is kept. An entry is dropped once it is found unusable
+  (AR2 "State"): when no suite shows a card for its suite and metric, once the
+  projects are listed, and when its suite's branches do not hold its branch, or
+  hold it as their default, once they are current (see DA2). Picking a card's
+  branch writes its entry, which is therefore dropped if it is the default, once
+  that is known: a list fetched before may give another default. Unlike the
+  Graph (GR1), the page keeps no default in the URL once its suite's branches
+  are current. Changing the commit range or the project keeps every entry;
   those of the suites not shown are left as they are.
 - One section per project, under a heading with the project's label (see
   AR22), linking to the project's suites on the Projects page
@@ -53,20 +56,18 @@ performance trends across all test suites, grouped by project (see D7).
   label as the card title, followed by its unit, as AR6 writes it, when it has
   one. A long title wraps.
 - Each card shows the commits of one branch, since the ordinals of different
-  branches are unrelated (see D1). The suite's branches are those of
-  `GET /api/projects/{p}/suites/{s}/branches` (E3), fetched once per suite
-  section for all of its cards, in its order: "No branch", standing for the
-  commits without a branch, when some of them have an ordinal, then the branch
-  names. A card shows the branch the URL names for it (DA1), and otherwise the
-  list's first entry, as the Graph does (GR1). When the list holds a named
-  branch, a branch selector at the top right of the card's title row, over
-  that list, picks the card's branch, without changing the other cards'. The
-  selector is not part of the title's link, nor does picking an option follow
-  the chart's. It is labelled `Branch of {metric label}` for assistive
-  technology only, and a long branch name is cut short in it, shown whole on
-  hover. A suite whose list holds no named branch shows no selector on its
-  cards. The selectors sit on the cards rather than in a controls panel, an
-  exception to AR5.
+  branches are unrelated (see D1). The suite's branches (AR25) are fetched once
+  per suite section for all of its cards, from
+  `GET /api/projects/{p}/suites/{s}/branches` (E3). A card shows the branch the
+  URL names for it (DA1), and otherwise the suite's default branch (AR25), as
+  the Graph does (GR1). When the list holds a named branch, a branch selector
+  at the top right of the card's title row, over that list, picks the card's
+  branch, without changing the other cards'. The selector is not part of the
+  title's link, nor does picking an option follow the chart's. It is labelled
+  `Branch of {metric label}` for assistive technology only, and a long branch
+  name is cut short in it, shown whole on hover. A suite whose list holds no
+  named branch shows no selector on its cards. The selectors sit on the cards
+  rather than in a controls panel, an exception to AR5.
 - The cards are drawn from the suite's branches as soon as some list of them is
   at hand, even one fetched before the page was opened: the page lists the
   branches again each time it is opened. A card whose URL entry such a list
@@ -104,8 +105,8 @@ performance trends across all test suites, grouped by project (see D7).
   `POST /api/projects/{p}/suites/{s}/commits/resolve`.
 - Clicking a sparkline, or the card's title, navigates to the Graph page
   pre-populated with that suite, metric, the machines with a trace on the
-  card, and the card's branch, which the link leaves out for the commits
-  without a branch. Clicking directly on a specific trace -- the one whose hover tooltip
+  card, and the card's branch, which the link names even when it is the
+  default (see GR14). Clicking directly on a specific trace -- the one whose hover tooltip
   shows -- navigates with just that machine. While a card shows no chart, its
   title is a disabled link (see AR8).
 - Loading state: placeholder skeleton with "Loading..." while data is being

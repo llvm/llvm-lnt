@@ -1,25 +1,27 @@
 /**
  * The branches the Dashboard's cards show, as the URL keeps them (DA1): one `branch` per card that
  * shows another branch than its default, spelled `{project}/{suite}/{metric}/{branch}`. Names have
- * no `/` (see D4, D7 and I1), whereas a branch may, so the branch is everything after the third.
+ * no `/` (see D4, D7 and I1), whereas a branch may, so the branch is everything after the third. It
+ * is empty for the commits without a branch, since a branch name never is (see E3).
  */
 
+import type { BranchName } from '../../api/commits'
 import { fullName, suiteRef, type SuiteRef } from '../../api/suite-ref'
+import { branchKey, branchOfKey } from '../../branches'
 import type { Param } from '../../url-state'
 
 /** The branch a card shows: that of the card of `suite`'s `metric`. */
 export interface CardBranch {
   suite: SuiteRef
   metric: string
-  branch: string
+  branch: BranchName
 }
 
 /** An entry of the URL, or null if malformed. */
 function parse(entry: string): CardBranch | null {
   const [project, suite, metric, ...rest] = entry.split('/')
-  const branch = rest.join('/')
-  if ([project, suite, metric, branch].some((part) => !part)) return null
-  return { suite: suiteRef(project, suite), metric, branch }
+  if (rest.length === 0 || [project, suite, metric].some((part) => !part)) return null
+  return { suite: suiteRef(project, suite), metric, branch: branchOfKey(rest.join('/')) }
 }
 
 /** Whether `entry` is the branch of the card of `suite`'s `metric`. */
@@ -44,31 +46,30 @@ export function cardBranchParam(): Param<CardBranch[]> {
       return entries
     },
     serialize: (entries) =>
-      entries.map(({ suite, metric, branch }) => `${fullName(suite)}/${metric}/${branch}`),
+      entries.map(
+        ({ suite, metric, branch }) => `${fullName(suite)}/${metric}/${branchKey(branch)}`,
+      ),
   }
 }
 
-/** The branch `entries` name for the card of `suite`'s `metric`, if any. */
+/** The branch `entries` name for the card of `suite`'s `metric`, or undefined if they name none. */
 export function branchOfCard(
   entries: readonly CardBranch[],
   suite: SuiteRef,
   metric: string,
-): string | undefined {
+): BranchName | undefined {
   return entries.find((entry) => isOfCard(entry, suite, metric))?.branch
 }
 
-/**
- * `entries`, with the card of `suite`'s `metric` showing `branch`, in place of its entry if it has
- * one, or without its entry if `branch` is undefined, for its default.
- */
+/** `entries`, with the card of `suite`'s `metric` showing `branch`, in place of its entry if any. */
 export function withBranchOfCard(
   entries: readonly CardBranch[],
   suite: SuiteRef,
   metric: string,
-  branch: string | undefined,
+  branch: BranchName,
 ): CardBranch[] {
-  const entry = branch === undefined ? [] : [{ suite, metric, branch }]
+  const entry = { suite, metric, branch }
   const index = entries.findIndex((kept) => isOfCard(kept, suite, metric))
-  if (index === -1) return [...entries, ...entry]
-  return [...entries.slice(0, index), ...entry, ...entries.slice(index + 1)]
+  if (index === -1) return [...entries, entry]
+  return [...entries.slice(0, index), entry, ...entries.slice(index + 1)]
 }

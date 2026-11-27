@@ -39,6 +39,26 @@ describe('Select', () => {
     expect(selectButton('Metric')).toHaveTextContent('Any metric')
   })
 
+  it("shows an option's note after its label in the list, but not once it is picked", async () => {
+    const options = [
+      { value: '', label: 'No branch' },
+      { value: 'main', label: 'main', note: 'default' },
+    ]
+    function BranchSelect() {
+      const [value, setValue] = useState('main')
+      return <Select label="Branch" options={options} value={value} onChange={setValue} />
+    }
+    render(<BranchSelect />)
+    expect(selectButton('Branch')).toHaveAccessibleName('main Branch')
+
+    await userEvent.setup().click(selectButton('Branch'))
+
+    expect(screen.getByRole('option', { name: 'main default' })).toBeInTheDocument()
+    // Typing matches the label alone.
+    await userEvent.setup().keyboard('n')
+    expect(screen.getByRole('option', { name: 'No branch' })).toHaveFocus()
+  })
+
   it('shows its placeholder while no option is picked, until one is', async () => {
     function Unpicked() {
       const [value, setValue] = useState<string | null>(null)

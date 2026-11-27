@@ -7,7 +7,7 @@ import clsx from 'clsx'
 import type { BranchName } from '../../api/commits'
 import { refOf, type Suite, type SuiteRef } from '../../api/suites'
 import { useTrends, type TrendPoint } from '../../api/trends'
-import { branchKey, branchOfKey } from '../../branches'
+import { branchKey, branchOfKey, branchOptionLabel } from '../../branches'
 import { DisabledLink } from '../../components/button-link'
 import { Chart } from '../../components/chart'
 import { ErrorMessage, Loading } from '../../components/feedback'
@@ -29,7 +29,7 @@ interface Props {
   /** The branch the card shows, once it is known (DA2). */
   branch: BranchName | undefined
   /** The branch the URL names for the card, if any, which it shows until it is known. */
-  named: string | undefined
+  named: BranchName | undefined
   /** The options of the card's branch selector, or null for none, without named branches. */
   options: Option<string>[] | null
   /** Why listing the branches again failed, if it did, which leaves `branch` unknown. */
@@ -71,6 +71,8 @@ export function SparklineCard({
   }, [trends.data, machines, schema, metric])
   const traced = shown?.machines ?? []
   const title = labelOf(metric)
+  // What the selector shows, and says on hover, while the branch shown is not known.
+  const waitingFor = named === undefined ? undefined : branchOptionLabel(named)
   const unit = formatUnit(metric)
 
   let body
@@ -144,7 +146,7 @@ export function SparklineCard({
           // hover, but not to assistive technology, which reads the whole name already.
           <span
             className={styles.branch}
-            title={branch === undefined ? named : (branch ?? undefined)}
+            title={branch === undefined ? waitingFor : (branch ?? undefined)}
           >
             <Select
               label={`Branch of ${title}`}
@@ -152,7 +154,7 @@ export function SparklineCard({
               compact
               options={options}
               value={branch === undefined ? null : branchKey(branch)}
-              placeholder={named}
+              placeholder={waitingFor}
               onChange={(key) => onBranch(branchOfKey(key))}
             />
           </span>

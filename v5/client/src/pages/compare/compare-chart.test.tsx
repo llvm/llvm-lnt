@@ -331,7 +331,8 @@ describe('the details of a bar (CP3)', () => {
     await waitFor(() =>
       expect(details().getByRole('link', { name: 'View on graph' })).toHaveAttribute(
         'href',
-        '/graph?project=llvm&suite=libcxx&machine=m2&metric=execution_time&test=a&run_agg=min&sample_agg=max' +
+        '/graph?project=llvm&suite=libcxx&branch=&machine=m2&metric=execution_time&test=a' +
+          '&run_agg=min&sample_agg=max' +
           '&highlight=c2',
       ),
     )
@@ -342,7 +343,8 @@ describe('the details of a bar (CP3)', () => {
     const link = details().getByRole('link', { name: 'View on graph' })
     return link.getAttribute('href') ?? `disabled: ${link.getAttribute('title')}`
   }
-  const GRAPH = '/graph?project=llvm&suite=libcxx&machine=m1&metric=execution_time&test=a'
+  /** The link, on the commits without a branch, which it names empty (GR14). */
+  const GRAPH = '/graph?project=llvm&suite=libcxx&branch=&machine=m1&metric=execution_time&test=a'
 
   it("highlights side A's commit too on side B's machine, each once it has an ordinal", async () => {
     const looked = gate()
@@ -371,7 +373,7 @@ describe('the details of a bar (CP3)', () => {
     click(0)
 
     // Side A's commit has no branch: it is not on the x-axis of release/1.x.
-    const onBranch = GRAPH.replace('libcxx&', 'libcxx&branch=release%2F1.x&')
+    const onBranch = GRAPH.replace('branch=&', 'branch=release%2F1.x&')
     await waitFor(() => expect(graphLink()).toBe(`${onBranch}&highlight=c2`))
   })
 
@@ -381,7 +383,7 @@ describe('the details of a bar (CP3)', () => {
 
     click(0)
 
-    const onBranch = GRAPH.replace('libcxx&', 'libcxx&branch=release%2F1.x&')
+    const onBranch = GRAPH.replace('branch=&', 'branch=release%2F1.x&')
     await waitFor(() => expect(graphLink()).toBe(`${onBranch}&highlight=c1&highlight=c2`))
   })
 
@@ -425,7 +427,8 @@ describe('the details of a bar (CP3)', () => {
 
     click(0)
 
-    await waitFor(() => expect(graphLink()).toBe(GRAPH))
+    // Without a branch, for the Graph's default (GR14).
+    await waitFor(() => expect(graphLink()).toBe(GRAPH.replace('&branch=', '')))
   })
 
   it("links to the test's profiles when its row does, as soon as they are listed", async () => {

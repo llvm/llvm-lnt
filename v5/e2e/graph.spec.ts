@@ -31,8 +31,9 @@ interface ListPage<Item> {
 /** A test every real machine measured, at every commit. */
 const TEST = 'BM_num_get<void*>'
 
+/** Both real machines' execution time, on the commits without a branch (GR14). */
 const GRAPHED =
-  `/graph?project=libcxx&suite=benchmarks&machine=${LINUX}&machine=${MACOS}` +
+  `/graph?project=libcxx&suite=benchmarks&branch=&machine=${LINUX}&machine=${MACOS}` +
   '&metric=execution_time'
 
 /** The range of the x-axis as Plotly drew it. */
@@ -99,7 +100,8 @@ test("lists the suites under their projects' headings, without the projects that
   await expect(optionGroup(page, 'swift')).toHaveCount(0)
   await optionGroup(page, 'LLVM').getByRole('option', { name: 'nts', exact: true }).click()
 
-  await expect(page).toHaveURL(/\/graph\?project=llvm&suite=nts$/)
+  // With the branch plotted, the commits without one (GR1).
+  await expect(page).toHaveURL(/\/graph\?project=llvm&suite=nts&branch=$/)
   await expect(page.getByRole('button', { name: 'LLVM › nts Suite', exact: true })).toBeVisible()
 })
 
@@ -134,7 +136,7 @@ test('plots a test chosen from scratch', async ({ page }) => {
   await expect(testBox(page, TEST)).toBeChecked()
   await expect(tracesOf(page)).toHaveCount(1)
   await expect(page).toHaveURL(
-    `/graph?project=libcxx&suite=benchmarks&machine=${LINUX}&metric=execution_time` +
+    `/graph?project=libcxx&suite=benchmarks&branch=&machine=${LINUX}&metric=execution_time` +
       `&test=${encodeURIComponent(TEST)}`,
   )
 })
@@ -181,8 +183,9 @@ test("lists the tests of a Dashboard card's machines, and plots none", async ({ 
     .getByRole('article', { name: 'Execution Time', exact: true })
   await card.getByRole('link', { name: 'Execution Time', exact: true }).click()
 
+  // On the card's branch, the commits without one, which the link names empty (GR14).
   await expect(page).toHaveURL(
-    /\/graph\?project=libcxx&suite=benchmarks&machine=.*&metric=execution_time$/,
+    /\/graph\?project=libcxx&suite=benchmarks&branch=&machine=.*&metric=execution_time$/,
   )
   await expect(testBox(page, TEST)).not.toBeChecked()
   await expect(tracesOf(page)).toHaveCount(0)
@@ -459,8 +462,9 @@ test('plots one branch at a time, with a baseline of any (GR1, GR3, GR9)', async
         `&metric=execution_time&test=bench&baseline=${suite.project}/${suite.suite}/m1/r2`,
     )
 
-    // A branch no commit with an ordinal is on is dropped, for the commits without one.
-    await expect.poll(branch).toBeNull()
+    // A branch no commit with an ordinal is on gives way to the default, the commits without one,
+    // which the page writes (GR1).
+    await expect.poll(branch).toBe('')
     await expect(selectButton(page, 'Branch')).toContainText('No branch')
     await expect.poll(commits).toEqual(['c1', 'c2', 'c3'])
     // The baseline, of another branch, says which.
@@ -476,6 +480,61 @@ test('plots one branch at a time, with a baseline of any (GR1, GR3, GR9)', async
     await page.reload()
     await expect.poll(commits).toEqual(['r1', 'r2'])
     await expect(selectButton(page, 'Branch')).toContainText('release/1.x')
+  })
+})
+
+test("shows a suite's default branch, marked, on the Dashboard and the Graph (AR25, DA2, GR1)", async ({
+  page,
+  request,
+  tokenFor,
+}, testInfo) => {
+  const run = (commit: string, ordinal: number, value: number, branch?: string) => ({
+    machine: 'm1',
+    commit,
+    ordinal,
+    branch,
+    tests: [{ name: 'bench', samples: [{ execution_time: value }] }],
+  })
+  // The old history without a branch, c1 and c2, and the new one on main, n3 and n4.
+  const runs = [run('c1', 1, 1), run('c2', 2, 2), run('n3', 3, 3, 'main'), run('n4', 4, 4, 'main')]
+  await ownSuite(request, tokenFor, testInfo, runs, async (suite) => {
+    const headers = { Authorization: `Bearer ${await tokenFor('manage')}` }
+    const patched = await request.patch(`/api${suitePath(suite)}/schema`, {
+      headers,
+      data: {
+        default_branch: 'main',
+        metrics: { update: [{ name: 'execution_time', dashboard: true }] },
+      },
+    })
+    expect(patched.status(), await patched.text()).toBe(200)
+    const commits = () =>
+      plotOf(page).evaluate(
+        (element) => (element as PlotDiv)._fullData.find((d) => d.name === 'bench - m1')?.x,
+      )
+    const branch = () => new URL(page.url()).searchParams.get('branch')
+
+    // The card shows main, rather than the commits without a branch, listed first.
+    await page.goto(`/?project=${suite.project}`)
+    const card = page.getByRole('article', { name: 'execution_time', exact: true })
+    await expect(selectButton(card, 'Branch of execution_time')).toHaveText(/^main/)
+    await card.getByRole('link', { name: 'execution_time', exact: true }).click()
+
+    // Its link names it, though it is the default (GR14).
+    await expect(page).toHaveURL(
+      `/graph?project=${suite.project}&suite=${suite.suite}&branch=main&machine=m1` +
+        '&metric=execution_time',
+    )
+    await testBox(page, 'bench').check()
+    await expect.poll(commits).toEqual(['n3', 'n4'])
+    const marked = page.getByRole('option', { name: 'main default', exact: true })
+    await openSelect(page, 'Branch', marked)
+    await page.getByRole('option', { name: 'No branch', exact: true }).click()
+
+    await expect.poll(branch).toBe('')
+    await expect.poll(commits).toEqual(['c1', 'c2'])
+    await page.reload()
+    await expect.poll(commits).toEqual(['c1', 'c2'])
+    await expect(selectButton(page, 'Branch')).toContainText('No branch')
   })
 })
 

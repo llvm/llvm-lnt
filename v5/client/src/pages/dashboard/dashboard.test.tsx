@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react'
 import { act, fireEvent, screen, waitFor, within } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { HttpResponse } from 'msw'
 import { useNavigate } from 'react-router'
 import type { PlotData, PlotHoverEvent, PlotMouseEvent } from 'plotly.js'
@@ -31,7 +32,7 @@ import {
   renderPage,
 } from '../../test/page'
 import { chartProps } from '../../test/chart-props'
-import { pickOption, selectButton } from '../../test/select'
+import { optionsIn, pickOption, selectButton } from '../../test/select'
 import { server } from '../../test/server'
 import { machineColor } from './sparkline'
 
@@ -94,8 +95,8 @@ function mockMachineNames(names: string[], { idle = [] }: { idle?: string[] } = 
 }
 
 /** The Dashboard of DASH_SUITE alone, with POINTS for every metric, on m1 and m2. */
-function renderDashboard(url = '/', extra?: ReactNode) {
-  mockSuites([DASH_SUITE])
+function renderDashboard(url = '/', extra?: ReactNode, suite: Suite = DASH_SUITE) {
+  mockSuites([suite])
   mockMachineNames(['m1', 'm2'])
   const trends = mockTrends(() => POINTS)
   mockResolve()
@@ -689,7 +690,8 @@ describe('the Dashboard', () => {
       mockResolve()
       renderPage('/')
 
-      const graph = '/graph?project=llvm&suite=libcxx&machine=m1&machine=m2&metric=cycles'
+      // On the card's branch, the commits without one, which the link names empty (GR14).
+      const graph = '/graph?project=llvm&suite=libcxx&branch=&machine=m1&machine=m2&metric=cycles'
       expect(await chartLink('Cycles')).toHaveAttribute('href', graph)
       const title = (await card('Cycles')).getByRole('link', { name: 'Cycles' })
       expect(title).toHaveAttribute('href', graph)
@@ -719,7 +721,7 @@ describe('the Dashboard', () => {
       })
 
       await waitFor(() =>
-        expect(currentUrl()).toBe('/graph?project=llvm&suite=libcxx&machine=m2&metric=cycles'),
+        expect(currentUrl()).toBe('/graph?project=llvm&suite=libcxx&branch=&machine=m2&metric=cycles'),
       )
     })
 
@@ -748,11 +750,23 @@ describe('the Dashboard', () => {
 describe("the cards' branches", () => {
   const RELEASE = 'release/22.x'
 
-  /** The Dashboard of DASH_SUITE at `url`, its suite's branches being `branches`. */
-  function renderBranches(branches: (string | null)[], url = '/', extra?: ReactNode) {
+  /**
+   * The Dashboard of DASH_SUITE at `url`, its suite's branches being `branches`, and its schema's
+   * default branch `named`, if any.
+   */
+  function renderBranches(
+    branches: (string | null)[],
+    url = '/',
+    extra?: ReactNode,
+    named: string | null = null,
+  ) {
     mockBranches(branches)
-    return renderDashboard(url, extra)
+    return renderDashboard(url, extra, { ...DASH_SUITE, default_branch: named })
   }
+
+  /** The URL of the Dashboard with the card of `metric` on `branch`, empty for no branch (DA1). */
+  const withEntry = (metric: string, branch: string) =>
+    `/?branch=${encodeURIComponent(`llvm/libcxx/${metric}/${branch}`)}`
 
   /** The branch filter each card's last trend request asked for, by metric. */
   function lastFilters(trends: URLSearchParams[]) {
@@ -873,8 +887,8 @@ describe("the cards' branches", () => {
   it('drops malformed entries, and the second entry of a card, from the URL', async () => {
     const entries = [
       'llvm/libcxx/cycles',
-      'llvm/libcxx/cycles/',
       `llvm//cycles/${RELEASE}`,
+      `llvm/libcxx//${RELEASE}`,
       'llvm/libcxx/cycles/main',
       `llvm/libcxx/cycles/${RELEASE}`,
     ]
@@ -900,6 +914,52 @@ describe("the cards' branches", () => {
     )
     await chartOf('Cycles')
     expect(selectButton('Branch of Cycles')).toHaveTextContent('main')
+  })
+
+  it("shows the schema's default branch, marked, unless the suite does not list it", async () => {
+    const { trends, unmount } = renderBranches([null, 'main', RELEASE], '/', undefined, 'main')
+
+    await chartOf('Cycles')
+    await waitFor(() => expect(lastFilters(trends).cycles).toBe('branch=main'))
+    // The closed dropdown shows the branch without its mark (AR25).
+    expect(selectButton('Branch of Cycles')).toHaveTextContent(/^main▾$/)
+    await userEvent.setup().click(selectButton('Branch of Cycles'))
+    expect(optionsIn(screen.getByRole('listbox'))).toEqual(['No branch', 'main default', RELEASE])
+    expect(currentUrl()).toBe('/')
+    unmount()
+
+    renderBranches([null, RELEASE], '/', undefined, 'main')
+    await chartOf('Cycles')
+    expect(selectButton('Branch of Cycles')).toHaveTextContent('No branch')
+  })
+
+  it('reads an empty branch as the commits without one, and writes it so', async () => {
+    const entry = withEntry('cycles', '')
+    const { trends } = renderBranches([null, 'main'], entry, undefined, 'main')
+
+    await chartOf('Cycles')
+    expect(selectButton('Branch of Cycles')).toHaveTextContent('No branch')
+    expect(lastFilters(trends).cycles).toBe('has_branch=false')
+    expect(lastFilters(trends).execution_time).toBe('branch=main')
+    expect((await card('Cycles')).getByRole('link', { name: 'Cycles' })).toHaveAttribute(
+      'href',
+      '/graph?project=llvm&suite=libcxx&branch=&machine=m1&machine=m2&metric=cycles',
+    )
+    expect(currentUrl()).toBe(entry)
+
+    // The default leaves it out of the URL, and the commits without a branch write it back.
+    await pickOption('Branch of Cycles', 'main default')
+    await waitFor(() => expect(currentUrl()).toBe('/'))
+    await pickOption('Branch of Cycles', 'No branch')
+    await waitFor(() => expect(currentUrl()).toBe(entry))
+  })
+
+  it("drops an entry naming the schema's default branch, not one naming another", async () => {
+    const entries = ['llvm/libcxx/cycles/main', 'llvm/libcxx/execution_time/']
+    const search = entries.map((entry) => `branch=${encodeURIComponent(entry)}`).join('&')
+    renderBranches([null, 'main'], `/?${search}`, undefined, 'main')
+
+    await waitFor(() => expect(query()).toEqual({ branch: ['llvm/libcxx/execution_time/'] }))
   })
 
   it('drops the branches of cards that no suite shows', async () => {
@@ -965,6 +1025,65 @@ describe("the cards' branches", () => {
     await waitFor(() => expect(selectButton('Branch of Cycles')).toHaveTextContent(RELEASE))
     await waitFor(() => expect(lastFilters(trends).cycles).toBe(`branch=${RELEASE}`))
     expect(query()).toEqual({ branch: [entry] })
+  })
+
+  it('waits for a current list for the commits without a branch, if a cached one lacks them', async () => {
+    const entry = withEntry('cycles', '')
+    const { trends } = renderBranches(
+      ['main'],
+      '/',
+      <>
+        <GoTo to="/nope" />
+        <GoTo to={entry} />
+      </>,
+      'main',
+    )
+    await chartOf('Cycles')
+    fireEvent.click(screen.getByRole('button', { name: 'Go to /nope' }))
+    await waitFor(() => expect(currentUrl()).toBe('/nope'))
+    // Some commit without a branch gets an ordinal, as the page is left.
+    const slow = gate()
+    mockBranches([null, 'main'], { wait: () => slow.promise })
+
+    fireEvent.click(screen.getByRole('button', { name: `Go to ${entry}` }))
+
+    await chartOf('Execution Time')
+    expect(await (await card('Cycles')).findByText('Loading...')).toBeInTheDocument()
+    expect(trends.filter((query) => query.get('has_branch') !== null)).toEqual([])
+    slow.open()
+    await waitFor(() => expect(lastFilters(trends).cycles).toBe('has_branch=false'))
+    expect(selectButton('Branch of Cycles')).toHaveTextContent('No branch')
+    expect(currentUrl()).toBe(entry)
+  })
+
+  it("keeps a pick that a cached list gives as the default, until it is known to be", async () => {
+    const back = withEntry('cycles', RELEASE)
+    renderBranches(
+      [null, RELEASE],
+      '/',
+      <>
+        <GoTo to="/nope" />
+        <GoTo to={back} />
+      </>,
+      'main',
+    )
+    await chartOf('Cycles')
+    fireEvent.click(screen.getByRole('button', { name: 'Go to /nope' }))
+    await waitFor(() => expect(currentUrl()).toBe('/nope'))
+    // main, the schema's default, gets its first commits with an ordinal, as the page is left.
+    const slow = gate()
+    mockBranches([null, 'main', RELEASE], { wait: () => slow.promise })
+    fireEvent.click(screen.getByRole('button', { name: `Go to ${back}` }))
+    await waitFor(() => expect(selectButton('Branch of Cycles')).toHaveTextContent(RELEASE))
+
+    // The cached list gives the commits without a branch as the default, which they are not.
+    await pickOption('Branch of Cycles', 'No branch')
+    const entry = withEntry('cycles', '')
+    await waitFor(() => expect(currentUrl()).toBe(entry))
+    slow.open()
+    await waitFor(() => expect(selectButton('Branch of Execution Time')).toHaveTextContent('main'))
+    expect(selectButton('Branch of Cycles')).toHaveTextContent('No branch')
+    expect(currentUrl()).toBe(entry)
   })
 
   it("says why the suite's branches could not be listed, and tries again", async () => {
