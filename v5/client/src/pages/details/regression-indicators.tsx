@@ -61,13 +61,14 @@ export function RegressionIndicators({
   const triage = useScopeGate('triage', suite)
   const labelOfMachine = useMachineLabels(suite)
   const [settings, update] = useUrlState(PARAMS)
-  // The branch of the regression's commit, which the Graph shows it on (DT4): undefined while the
-  // commit is looked up, as its link at the top of the page also does, and null without a commit,
-  // or once the lookup has failed.
+  // The branch of the regression's commit, which the Graph shows it on (DT4), null for the commits
+  // without a branch. Unknown, and left to the Graph's default, without a commit, or once the
+  // lookup has failed or found none. While the commit is looked up, as its link at the top of the
+  // page also does, the link waits for it.
   const { commit } = regression
   const resolved = useResolvedCommit(suite, commit ?? '', commit !== null)
-  const branch: BranchName | undefined =
-    commit === null ? null : resolved.isPending ? undefined : (resolved.data?.branch ?? null)
+  const lookingUp = commit !== null && resolved.isPending
+  const branch: BranchName | undefined = resolved.data?.branch
 
   const metrics = useMemo(
     () => new Map(schema.metrics.map((metric) => [metric.name, metric])),
@@ -168,6 +169,7 @@ export function RegressionIndicators({
       indicatorColumns({
         suite,
         branch,
+        lookingUp,
         rows: selection.rows,
         keys,
         metrics,
@@ -179,6 +181,7 @@ export function RegressionIndicators({
     [
       suite,
       branch,
+      lookingUp,
       selection.rows,
       keys,
       metrics,
@@ -263,8 +266,10 @@ function heading(total: Counts, part?: Counts): string {
 
 interface ColumnOptions {
   suite: SuiteRef
-  /** The branch of the regression's commit, once it is known (see `GraphLink`). */
+  /** The branch of the regression's commit, if it is known (see `GraphLink`). */
   branch: BranchName | undefined
+  /** Whether the regression's commit is still being looked up, for its branch. */
+  lookingUp: boolean
   rows: RowSelection
   /** The keys of the rows shown. */
   keys: readonly string[]
@@ -279,6 +284,7 @@ interface ColumnOptions {
 function indicatorColumns({
   suite,
   branch,
+  lookingUp,
   rows,
   keys,
   metrics,
@@ -320,7 +326,13 @@ function indicatorColumns({
       header: <VisuallyHidden>Graph</VisuallyHidden>,
       looks: ['nowrap'],
       cell: (indicator) => (
-        <GraphLink suite={suite} branch={branch} indicator={indicator} metrics={metrics} />
+        <GraphLink
+          suite={suite}
+          branch={branch}
+          lookingUp={lookingUp}
+          indicator={indicator}
+          metrics={metrics}
+        />
       ),
     },
     {
@@ -344,19 +356,21 @@ function indicatorColumns({
 }
 
 /**
- * The indicator on the Graph page, on the branch of the regression's commit, with every state's
- * regressions marked, so that this one's commit is (GR15). The Graph page plots only numeric
- * metrics, so for any other, the link leads nowhere, and says why (AR8), as it does while the
- * branch is not known.
+ * The indicator on the Graph page, on the branch of the regression's commit, if known, and
+ * otherwise on the suite's default (GR14), with every state's regressions marked, so that this
+ * one's commit is (GR15). The Graph page plots only numeric metrics, so for any other, the link
+ * leads nowhere, and says why (AR8), as it does while the commit is looked up.
  */
 function GraphLink({
   suite,
   branch,
+  lookingUp,
   indicator,
   metrics,
 }: {
   suite: SuiteRef
   branch: BranchName | undefined
+  lookingUp: boolean
   indicator: Indicator
   metrics: Map<string, Metric>
 }) {
@@ -364,7 +378,7 @@ function GraphLink({
   if (metric === undefined || !isNumeric(metric)) {
     return <DisabledLink title={NOT_PLOTTED}>View on graph</DisabledLink>
   }
-  if (branch === undefined) return <DisabledLink title={LOOKING_UP}>View on graph</DisabledLink>
+  if (lookingUp) return <DisabledLink title={LOOKING_UP}>View on graph</DisabledLink>
   const { machine, test } = indicator
   const to = graphPath({
     suite,

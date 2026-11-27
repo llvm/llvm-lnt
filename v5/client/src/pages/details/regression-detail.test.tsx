@@ -1039,11 +1039,12 @@ describe('the Indicators table', () => {
       'href',
       '/projects/llvm/suites/libcxx/machines/linux',
     )
-    // On the commit's branch, once it is known: it has none.
+    // On the commit's branch, once it is known: it has none, which the link names empty (GR14).
     await waitFor(() =>
       expect(within(indicators).getAllByRole('link', { name: 'View on graph' })[1]).toHaveAttribute(
         'href',
-        '/graph?project=llvm&suite=libcxx&machine=linux&metric=execution_time&test=BM_sort&regressions=all',
+        '/graph?project=llvm&suite=libcxx&branch=&machine=linux&metric=execution_time&test=BM_sort' +
+          '&regressions=all',
       ),
     )
     const graphs = within(indicators).getAllByRole('link', { name: 'View on graph' })

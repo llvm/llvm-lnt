@@ -113,7 +113,9 @@ test("opens the Graph with a card's machines from its title", async ({ page }) =
 
   await cycles.getByRole('link', { name: 'Cycles Elapsed', exact: true }).click()
 
-  await expect(page).toHaveURL(/\/graph\?project=libcxx&suite=benchmarks&machine=.*&metric=cycles$/)
+  await expect(page).toHaveURL(
+    /\/graph\?project=libcxx&suite=benchmarks&branch=&machine=.*&metric=cycles$/,
+  )
   const machines = machinesOf(page.url())
   expect(machines).toHaveLength(5)
   expect(machines).toEqual(expect.arrayContaining([LINUX, MACOS, HARDENED]))

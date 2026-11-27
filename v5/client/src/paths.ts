@@ -56,8 +56,8 @@ function withQuery(path: string, params: Param[]): string {
 interface GraphView {
   suite?: SuiteRef
   /**
-   * The branch plotted (GR14). Null, like undefined, leaves it out, which is what names the
-   * commits without a branch.
+   * The branch plotted (GR14): null for the commits without a branch, which the URL names with an
+   * empty value, and undefined to leave it out, for the suite's default branch.
    */
   branch?: string | null
   machines?: string[]
@@ -87,7 +87,7 @@ export function graphPath({
   return withQuery('/graph', [
     ['project', suite?.project],
     ['suite', suite?.suite],
-    ['branch', branch ?? undefined],
+    ['branch', branch === null ? '' : branch],
     // Repeated once per machine, as a setting holding several values is (AR2 "State").
     ...machines.map((machine): Param => ['machine', machine]),
     ['metric', metric],

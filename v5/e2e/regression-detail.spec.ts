@@ -280,6 +280,7 @@ test('the tests offered are those of the machines selected, on the metric select
     const graph = rows(table(page, 'Indicators'))
       .filter({ hasText: 'm1' })
       .getByRole('link', { name: 'View on graph' })
+    // Without a branch, for the Graph's default: the regression has no commit (DT4).
     await expect(graph).toHaveAttribute(
       'href',
       `/graph?project=${suite.project}&suite=${suite.suite}&machine=m1&metric=compile_time` +

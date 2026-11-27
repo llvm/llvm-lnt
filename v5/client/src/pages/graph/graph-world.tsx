@@ -50,6 +50,8 @@ export interface World {
   branch?: { name: string; commits: Record<string, number[]> }
   /** What the list of branches waits for before it is answered. */
   branchesWait?: () => Promise<void>
+  /** GRAPH_SUITE's default branch (D4), none if left out. */
+  defaultBranch?: string
   /** The samples of each test on each machine, under `machine/test`. */
   samples?: Record<string, Sample[]>
   /** The samples of the metrics named, in place of `samples`, which are any other metric's. */
@@ -139,13 +141,15 @@ export function mockWorld({
   commits = COMMITS,
   branch,
   branchesWait,
+  defaultBranch,
   samples = SAMPLES,
   samplesOf = {},
   suitesWait,
   suites = [],
   testsIn = {},
 }: World = {}): Recorded {
-  mockSuites([GRAPH_SUITE, TEXT_SUITE, ...suites], { wait: suitesWait })
+  const graphSuite = { ...GRAPH_SUITE, default_branch: defaultBranch ?? null }
+  mockSuites([graphSuite, TEXT_SUITE, ...suites], { wait: suitesWait })
   const recorded: Recorded = { series: [], tests: [], lookups: [], commits: [] }
   // Null if some machine has a commit without a branch, then the world's branch.
   const unbranched = Object.values(commits).some((ordinals) => ordinals.length > 0)
@@ -258,5 +262,6 @@ export function toggleMetric(label: string) {
   return toggleOptions('Metrics', [label])
 }
 
+/** GRAPH_SUITE's execution time on both machines, on the commits without a branch (GR14). */
 export const GRAPHED =
-  '/graph?project=llvm&suite=libcxx&machine=m1&machine=m2&metric=execution_time'
+  '/graph?project=llvm&suite=libcxx&branch=&machine=m1&machine=m2&metric=execution_time'

@@ -124,7 +124,7 @@ function scatter() {
   }))
 }
 
-const ONE_MACHINE = '/graph?project=llvm&suite=libcxx&machine=m1&metric=execution_time'
+const ONE_MACHINE = '/graph?project=llvm&suite=libcxx&branch=&machine=m1&metric=execution_time'
 
 describe('hover (GR7, GR10)', () => {
   it("emphasizes the hovered row's test, its baseline's lines too, fading others", async () => {
@@ -1552,6 +1552,7 @@ describe('the baselines (GR9)', () => {
       expect(query()).toEqual({
         project: ['llvm'],
         suite: ['text_only'],
+        branch: [''],
         regressions: ['active'],
         baseline: ['llvm/libcxx/m1/c10'],
       }),
@@ -1803,7 +1804,7 @@ describe('the highlighted commits (GR16)', () => {
 
     await pickSuite('Suite', 'llvm', 'libcxx')
 
-    await waitFor(() => expect(query()).toEqual({ project: ['llvm'], suite: ['libcxx'] }))
+    await waitFor(() => expect(query()).toEqual({ project: ['llvm'], suite: ['libcxx'], branch: [''] }))
   })
 })
 
@@ -2143,7 +2144,7 @@ describe('the panels of several metrics (GR1)', () => {
   it('keeps the numeric metrics of the URL, each once, in its order', async () => {
     mockWorld()
     renderPage(
-      '/graph?project=llvm&suite=libcxx&machine=m1&metric=compile_time&metric=hash' +
+      '/graph?project=llvm&suite=libcxx&branch=&machine=m1&metric=compile_time&metric=hash' +
         '&metric=compile_time&metric=execution_time',
     )
 

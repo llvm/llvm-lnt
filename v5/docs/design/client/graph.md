@@ -22,23 +22,24 @@ several metrics at once, each in a panel of its own.
   baseline names its own suite. When the page is loaded with `project=` and
   `suite=` in the URL, the dropdown is pre-selected.
 
-- **Branch selector**: A dropdown after the suite selector, over the branches
-  that the suite's commits with an ordinal are on (`GET branches`, see E3), in
-  its order: "No branch", standing for the commits without a branch, when some
-  of them have an ordinal, then the branch names. The chart plots one branch at
-  a time, since the ordinals of different branches are unrelated (see D1): the
-  x-axis (GR3) and the traces (GR2) hold the commits of that branch alone. The
-  selector is always there. Until a suite is selected, it says to select a
-  branch; while the suite's branches are being listed, it says so; once they
-  are, it shows the branch plotted. For a suite whose list holds no named
-  branch, it shows "No branch", disabled, and says why on hover and to
-  assistive technology, as it does when the branches could not be listed.
-  Without a branch in the URL (GR14), or once one that the list does not hold
-  is dropped (see AR2 "State"), the page plots the list's first entry, and
-  writes it to the URL if it is a named branch. Nothing is plotted until the
-  branches are listed, which the page does anew each time it is opened, rather
-  than trusting a list fetched before. Changing the branch keeps everything
-  else: the machines, the metrics, the selected tests, the baselines and the
+- **Branch selector**: A dropdown after the suite selector, over the suite's
+  branches (see AR25). The chart plots one branch at a time, since the ordinals
+  of different branches are unrelated (see D1): the x-axis (GR3) and the traces
+  (GR2) hold the commits of that branch alone. The selector is always there.
+  Until a suite is selected, it says to select a branch; while the suite's
+  branches are being listed, it says so; once they are, it shows the branch
+  plotted. For a suite whose list holds no named branch, it shows "No branch",
+  disabled, and says why on hover and to assistive technology, as it does when
+  the branches could not be listed. Without a branch in the URL (GR14), or once
+  one that the list does not hold is dropped (see AR2 "State"), the page plots
+  the suite's default branch (AR25). Once the branches are listed, the page
+  writes the branch it plots to the URL, whether or not it is the default, so
+  that the URL keeps showing it if the default changes: a missing `branch` only
+  matters when the page is loaded. A suite with no commit with an ordinal lists
+  no branch, and keeps none in the URL. Nothing is plotted until the branches are
+  listed, which the page does anew each time it is opened, rather than
+  trusting a list fetched before. Changing the branch keeps everything else:
+  the machines, the metrics, the selected tests, the baselines and the
   highlighted commits.
 
 - **Machine chip input**: The machine selector is a chip-based multi-select
@@ -499,9 +500,14 @@ Baseline lines (GR9), regression annotations (GR15) and the highlighted commits
 
 `?project={p}&suite={s}&branch={name}&machine={name}&machine={name2}&metric={name}&metric={name2}&test_filter={text}&test_filter_regex=true&test={name}&test={name2}&run_agg={fn}&sample_agg={fn}&regressions={mode}&baseline={project}/{suite}/{machine}/{commit}&baseline={project2}/{suite2}/{machine2}/{commit2}&highlight={commit}&highlight={commit2}`
 
-`branch` names the branch plotted (GR1). Without it, the page plots the first
-entry of the suite's branches: the commits without a branch, which no `branch`
-can name, when some of them have an ordinal.
+`branch` names the branch plotted (GR1), and is empty for the commits without a
+branch, since a branch name never is (see E3). Without it, the page plots the
+suite's default branch (AR25). A link to the page about a commit, such as
+Regression Detail's (DT4) and Compare's (CP3), or from a page showing a branch,
+such as a Dashboard card's (DA2), names the branch when it knows it, empty or
+not, rather than leaving it to the default, which may be another; otherwise it
+leaves it out. Links about no branch in particular, such as the navigation
+bar's (AR4) and Machine Detail's (DT1), leave it out too.
 
 `metric` is repeated once per metric, in the order of the panels (GR1), from the
 top, and a page loaded from the URL stacks its panels in that order. A URL

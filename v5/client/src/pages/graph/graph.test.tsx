@@ -106,7 +106,7 @@ describe('the Graph page (GR1)', () => {
     renderPage('/graph')
 
     await pickSuite('Suite', 'llvm', 'libcxx')
-    expect(currentUrl()).toBe('/graph?project=llvm&suite=libcxx')
+    await waitFor(() => expect(currentUrl()).toBe('/graph?project=llvm&suite=libcxx&branch='))
     expect(selectButton('Metrics')).toHaveTextContent('-- Select metrics --')
     await userEvent.setup().click(selectButton('Metrics'))
     const options = screen.getAllByRole('option').map((option) => option.textContent)
@@ -119,7 +119,7 @@ describe('the Graph page (GR1)', () => {
 
   it('plots the metrics in the order they are checked, which its hover lists', async () => {
     mockWorld()
-    renderPage('/graph?project=llvm&suite=libcxx&machine=m1')
+    renderPage('/graph?project=llvm&suite=libcxx&branch=&machine=m1')
     const user = userEvent.setup()
 
     // The list stays open while metrics are checked, each going after those checked before.
@@ -161,12 +161,12 @@ describe('the Graph page (GR1)', () => {
 
   it('adds machines as chips showing their marker, and offers each once', async () => {
     mockWorld()
-    renderPage('/graph?project=llvm&suite=libcxx')
+    renderPage('/graph?project=llvm&suite=libcxx&branch=')
 
     await addMachine('m2')
     await addMachine('m1')
 
-    expect(currentUrl()).toBe('/graph?project=llvm&suite=libcxx&machine=m2&machine=m1')
+    expect(currentUrl()).toBe('/graph?project=llvm&suite=libcxx&branch=&machine=m2&machine=m1')
     const chips = within(screen.getByRole('list', { name: 'Machines added' }))
       .getAllByRole('listitem')
     expect(chips.map((chip) => chip.textContent)).toEqual(['●m2×', '▲m1×'])
@@ -176,7 +176,7 @@ describe('the Graph page (GR1)', () => {
     await userEvent.setup().keyboard('{Escape}')
 
     await userEvent.setup().click(screen.getByRole('button', { name: 'Remove m2' }))
-    expect(currentUrl()).toBe('/graph?project=llvm&suite=libcxx&machine=m1')
+    expect(currentUrl()).toBe('/graph?project=llvm&suite=libcxx&branch=&machine=m1')
     // The focus goes to the chip left, then to the combobox once none is.
     expect(screen.getByRole('button', { name: 'Remove m1' })).toHaveFocus()
     await userEvent.setup().keyboard('{Enter}')
@@ -188,7 +188,7 @@ describe('the Graph page (GR1)', () => {
     mockMachines(() => ({
       items: [machine('m0', { tracked: false }), machine('m1'), machine('m2')],
     }))
-    renderPage('/graph?project=llvm&suite=libcxx')
+    renderPage('/graph?project=llvm&suite=libcxx&branch=')
     const user = userEvent.setup()
     const combobox = await screen.findByRole('combobox', { name: 'Machines' })
     await waitFor(() => expect(combobox).toBeEnabled())
@@ -318,7 +318,7 @@ describe('the Graph page (GR1)', () => {
     mockMachines(() => ({
       items: [machine('m1', { display_name: 'Linux / x86' }), machine('m12')],
     }))
-    renderPage('/graph?project=llvm&suite=libcxx')
+    renderPage('/graph?project=llvm&suite=libcxx&branch=')
     const user = userEvent.setup()
     const combobox = await screen.findByRole('combobox', { name: 'Machines' })
     await waitFor(() => expect(combobox).toBeEnabled())
@@ -328,7 +328,7 @@ describe('the Graph page (GR1)', () => {
     await waitFor(() => expect(screen.getAllByRole('option')).toHaveLength(2))
     await user.keyboard('{Enter}')
 
-    await waitFor(() => expect(currentUrl()).toBe('/graph?project=llvm&suite=libcxx&machine=m1'))
+    await waitFor(() => expect(currentUrl()).toBe('/graph?project=llvm&suite=libcxx&branch=&machine=m1'))
   })
 
   it('suggests a machine by its label, followed by its name, which finds it too', async () => {
@@ -336,7 +336,7 @@ describe('the Graph page (GR1)', () => {
     mockMachines(() => ({
       items: [machine('m1', { display_name: 'Linux / x86' }), machine('m2')],
     }))
-    renderPage('/graph?project=llvm&suite=libcxx')
+    renderPage('/graph?project=llvm&suite=libcxx&branch=')
     const user = userEvent.setup()
     const combobox = await screen.findByRole('combobox', { name: 'Machines' })
     await waitFor(() => expect(combobox).toBeEnabled())
@@ -348,7 +348,7 @@ describe('the Graph page (GR1)', () => {
       ]),
     )
     await user.keyboard('{ArrowDown}{Enter}')
-    expect(currentUrl()).toBe('/graph?project=llvm&suite=libcxx&machine=m1')
+    expect(currentUrl()).toBe('/graph?project=llvm&suite=libcxx&branch=&machine=m1')
   })
 
   it("puts every machine's commits on the x-axis, by display value and ordinal (GR3)", async () => {
@@ -399,6 +399,9 @@ const seriesIn = (recorded: Recorded) => recorded.series.map(({ query }) => quer
 const scaffoldsIn = (recorded: Recorded) =>
   recorded.commits.filter((query) => query.get('has_ordinal') === 'true')
 
+/** GRAPHED without its branch, which the page writes at the end of the URL. */
+const UNNAMED = GRAPHED.replace('&branch=', '')
+
 describe('the branch (GR1, GR3, GR14)', () => {
   it("offers none while the suite's commits are on no branch, saying why", async () => {
     const recorded = mockWorld()
@@ -429,7 +432,7 @@ describe('the branch (GR1, GR3, GR14)', () => {
     await waitFor(() => expect(traces()).toEqual(['a - m1: r10=5 r20=6']))
     expect(layout().xaxis?.categoryarray).toEqual(['r10', 'r20'])
     expect(layout().uirevision).not.toBe(unbranched)
-    expect(currentUrl()).toBe(`${GRAPHED}&test=a&highlight=c20&branch=release%2F1.x`)
+    expect(currentUrl()).toBe(`${UNNAMED}&test=a&highlight=c20&branch=release%2F1.x`)
     expect(branchesOf(seriesIn(recorded))).toEqual([
       'has_branch=false',
       'release/1.x',
@@ -447,23 +450,77 @@ describe('the branch (GR1, GR3, GR14)', () => {
     expect(layout().uirevision).not.toBe(branched)
     expect(recorded.series).toHaveLength(2)
     expect(scaffoldsIn(recorded)).toHaveLength(4)
-    expect(currentUrl()).toBe(`${GRAPHED}&test=a&highlight=c20`)
+    expect(currentUrl()).toBe(`${UNNAMED}&test=a&highlight=c20&branch=`)
   })
 
   it("drops a branch that none of the suite's commits with an ordinal is on", async () => {
     mockWorld(BRANCHED)
-    renderPage(`${GRAPHED.replace('libcxx&', 'libcxx&branch=nope&')}&test=a`)
+    renderPage(`${GRAPHED.replace('branch=&', 'branch=nope&')}&test=a`)
 
-    await waitFor(() => expect(currentUrl()).toBe(`${GRAPHED}&test=a`))
+    await waitFor(() => expect(currentUrl()).toBe(`${UNNAMED}&test=a&branch=`))
     await waitFor(() => expect(traces()).toEqual(['a - m1: c10=1 c20=2']))
+  })
+
+  it('writes the commits without a branch to the URL, when they are the default', async () => {
+    mockWorld(BRANCHED)
+    renderPage(`${UNNAMED}&test=a`)
+
+    await waitFor(() => expect(traces()).toEqual(['a - m1: c10=1 c20=2']))
+    expect(currentUrl()).toBe(`${UNNAMED}&test=a&branch=`)
+  })
+
+  it("plots the schema's default branch, marked, and the commits without a branch if asked", async () => {
+    mockWorld({ ...BRANCHED, defaultBranch: 'release/1.x' })
+    renderPage(`${UNNAMED}&test=a`)
+
+    await waitFor(() => expect(traces()).toEqual(['a - m1: r10=5 r20=6']))
+    expect(currentUrl()).toBe(`${UNNAMED}&test=a&branch=release%2F1.x`)
+    // The closed dropdown shows the branch without its mark (AR25).
+    expect(selectButton('Branch')).toHaveTextContent(/^release\/1\.x▾$/)
+    await userEvent.setup().click(selectButton('Branch'))
+    expect(optionsIn(screen.getByRole('listbox'))).toEqual(['No branch', 'release/1.x default'])
+    await userEvent.setup().click(screen.getByRole('option', { name: 'No branch' }))
+
+    await waitFor(() => expect(traces()).toEqual(['a - m1: c10=1 c20=2']))
+    expect(currentUrl()).toBe(`${UNNAMED}&test=a&branch=`)
+  })
+
+  it("falls back to the first branch listed when the schema's default is not listed", async () => {
+    mockWorld({ ...BRANCHED, defaultBranch: 'main' })
+    renderPage(`${UNNAMED}&test=a`)
+
+    await waitFor(() => expect(traces()).toEqual(['a - m1: c10=1 c20=2']))
+    expect(currentUrl()).toBe(`${UNNAMED}&test=a&branch=`)
+    await userEvent.setup().click(selectButton('Branch'))
+    expect(optionsIn(screen.getByRole('listbox'))).toEqual(['No branch', 'release/1.x'])
+  })
+
+  it('keeps no branch for a suite without commits with an ordinal', async () => {
+    mockWorld({ commits: { m1: [], m2: [] } })
+    renderPage(`${UNNAMED}&test=a`)
+
+    await waitFor(() => expect(selectButton('Branch')).toHaveTextContent('No branch'))
+    await waitFor(() => expect(box('a')).toBeChecked())
+    expect(currentUrl()).toBe(`${UNNAMED}&test=a`)
+  })
+
+  it('drops the branch of the URL, empty or not, for a suite that lists none', async () => {
+    for (const branch of ['nope', '']) {
+      mockWorld({ commits: { m1: [], m2: [] } })
+      const { unmount } = renderPage(`${UNNAMED}&test=a&branch=${branch}`)
+
+      await waitFor(() => expect(currentUrl()).toBe(`${UNNAMED}&test=a`))
+      expect(selectButton('Branch')).toHaveTextContent('No branch')
+      unmount()
+    }
   })
 
   it('plots the first branch of a suite whose commits all have one, which the URL names', async () => {
     const recorded = mockWorld({ ...BRANCHED, commits: { m1: [], m2: [] } })
-    renderPage(`${GRAPHED}&test=a`)
+    renderPage(`${UNNAMED}&test=a`)
 
     await waitFor(() => expect(traces()).toEqual(['a - m1: r10=5 r20=6']))
-    expect(currentUrl()).toBe(`${GRAPHED}&test=a&branch=release%2F1.x`)
+    expect(currentUrl()).toBe(`${UNNAMED}&test=a&branch=release%2F1.x`)
     expect(selectButton('Branch')).toHaveTextContent('release/1.x')
     // Nothing was asked of the commits without a branch, which the suite lists none of.
     expect(branchesOf(scaffoldsIn(recorded))).toEqual(['release/1.x', 'release/1.x'])
@@ -472,7 +529,7 @@ describe('the branch (GR1, GR3, GR14)', () => {
   it('plots nothing until the branches are listed, keeping the branch of the URL', async () => {
     const branches = gate()
     const recorded = mockWorld({ ...BRANCHED, branchesWait: () => branches.promise })
-    const url = `${GRAPHED}&test=a&branch=release%2F1.x`
+    const url = `${UNNAMED}&test=a&branch=release%2F1.x`
     renderPage(url)
     await waitFor(() => expect(box('a')).toBeChecked())
 
@@ -491,7 +548,7 @@ describe('the branch (GR1, GR3, GR14)', () => {
 
   it('checks the branch of the URL against the branches listed anew, not those listed before', async () => {
     mockWorld()
-    const linked = `${GRAPHED}&test=a&branch=release%2F1.x`
+    const linked = `${UNNAMED}&test=a&branch=release%2F1.x`
     renderPage(`${GRAPHED}&test=a`, <Link to={linked}>Elsewhere's link</Link>)
     await waitFor(() => expect(traces()).toEqual(['a - m1: c10=1 c20=2']))
 
@@ -546,7 +603,7 @@ describe('the aggregation (GR1)', () => {
 
   it("combines each run's samples, then the runs at a commit, median by default", async () => {
     mockWorld({ samples: SPREAD })
-    renderPage('/graph?project=llvm&suite=libcxx&machine=m1&metric=execution_time&test=a')
+    renderPage('/graph?project=llvm&suite=libcxx&branch=&machine=m1&metric=execution_time&test=a')
 
     // Run r1's median is 3: the median of 3 and 10 is 6.5.
     await waitFor(() => expect(traces()).toEqual(['a - m1: c10=6.5']))
@@ -554,7 +611,7 @@ describe('the aggregation (GR1)', () => {
 
   it('applies the aggregations chosen, without asking for the data again', async () => {
     const recorded = mockWorld({ samples: SPREAD })
-    renderPage('/graph?project=llvm&suite=libcxx&machine=m1&metric=execution_time&test=a')
+    renderPage('/graph?project=llvm&suite=libcxx&branch=&machine=m1&metric=execution_time&test=a')
     await waitFor(() => expect(traces()).toHaveLength(1))
 
     await pickOption('Sample aggregation', 'max')
@@ -608,12 +665,12 @@ describe('the selection (GR6, GR7, GR14)', () => {
   it('keeps at most 10 tests in the URL, and says so once the selection is not in it', async () => {
     const names = Array.from({ length: 11 }, (_, i) => `t${String(i).padStart(2, '0')}`)
     mockWorld({ tests: { m1: names } })
-    renderPage('/graph?project=llvm&suite=libcxx&machine=m1&metric=execution_time')
+    renderPage('/graph?project=llvm&suite=libcxx&branch=&machine=m1&metric=execution_time')
     await waitFor(() => expect(listed()).toHaveLength(11))
 
     fireEvent.click(testTable().getByRole('checkbox', { name: 'Select all tests shown' }))
 
-    expect(currentUrl()).toBe('/graph?project=llvm&suite=libcxx&machine=m1&metric=execution_time')
+    expect(currentUrl()).toBe('/graph?project=llvm&suite=libcxx&branch=&machine=m1&metric=execution_time')
     // "loading..." comes last, after the URL note, while the tests' data loads.
     const count = main().getByText(/^11 of 11 tests selected/)
     expect(count).toHaveTextContent(
@@ -631,7 +688,7 @@ describe('the selection (GR6, GR7, GR14)', () => {
     const names = Array.from({ length: 11 }, (_, i) => `t${String(i).padStart(2, '0')}`)
     mockWorld({ tests: { m1: names } })
     const tests = names.map((name) => `test=${name}`).join('&')
-    renderPage(`/graph?project=llvm&suite=libcxx&machine=m1&metric=execution_time&test_filter=t0&${tests}`)
+    renderPage(`/graph?project=llvm&suite=libcxx&branch=&machine=m1&metric=execution_time&test_filter=t0&${tests}`)
     await waitFor(() => expect(listed()).toHaveLength(10))
 
     expect(main().getByText(/^10 of 10 matching tests selected/).textContent).toBe(
@@ -642,7 +699,7 @@ describe('the selection (GR6, GR7, GR14)', () => {
 
   describe('selects at most 100 tests', () => {
     const NAMES = Array.from({ length: 101 }, (_, i) => `t${String(i).padStart(3, '0')}`)
-    const ONE_MACHINE = '/graph?project=llvm&suite=libcxx&machine=m1&metric=execution_time'
+    const ONE_MACHINE = '/graph?project=llvm&suite=libcxx&branch=&machine=m1&metric=execution_time'
     const WHY = 'At most 100 tests can be selected at once.'
     const REFUSED = `101 tests would be selected. ${WHY}`
     const FIRST_100 = NAMES.slice(0, 100).map((name) => `test=${name}`)
@@ -790,12 +847,12 @@ describe('the selection (GR6, GR7, GR14)', () => {
 
   it('clears the selection with the last machine', async () => {
     mockWorld()
-    renderPage(`/graph?project=llvm&suite=libcxx&machine=m1&metric=execution_time&test=a`)
+    renderPage(`/graph?project=llvm&suite=libcxx&branch=&machine=m1&metric=execution_time&test=a`)
     await waitFor(() => expect(box('a')).toBeChecked())
 
     await userEvent.setup().click(screen.getByRole('button', { name: 'Remove m1' }))
 
-    await waitFor(() => expect(currentUrl()).toBe('/graph?project=llvm&suite=libcxx&metric=execution_time'))
+    await waitFor(() => expect(currentUrl()).toBe('/graph?project=llvm&suite=libcxx&branch=&metric=execution_time'))
   })
 
   it('offers Deselect all only while some test is selected (GR7)', async () => {
@@ -979,7 +1036,7 @@ describe('the selection (GR6, GR7, GR14)', () => {
     await toggleMetric('Execution Time')
     expect(await main().findByText('Select a metric to list the tests that have it.')).toBeVisible()
     expect(currentUrl()).toBe(
-      '/graph?project=llvm&suite=libcxx&machine=m1&machine=m2&test=a&test=b',
+      '/graph?project=llvm&suite=libcxx&branch=&machine=m1&machine=m2&test=a&test=b',
     )
     expect(drawn()).toEqual([])
 
@@ -989,7 +1046,7 @@ describe('the selection (GR6, GR7, GR14)', () => {
 
   it('clears the branch, machines, metric, tests and highlight on a new suite, not the rest', async () => {
     mockWorld(BRANCHED)
-    renderPage(`${GRAPHED}&test=a&test_filter=a&sample_agg=max&highlight=c20&branch=release%2F1.x`)
+    renderPage(`${UNNAMED}&test=a&test_filter=a&sample_agg=max&highlight=c20&branch=release%2F1.x`)
     await waitFor(() => expect(box('a')).toBeChecked())
     await waitFor(() => expect(selectButton('Branch')).toHaveTextContent('release/1.x'))
 
@@ -999,6 +1056,7 @@ describe('the selection (GR6, GR7, GR14)', () => {
       expect(query()).toEqual({
         project: ['llvm'],
         suite: ['text_only'],
+        branch: [''],
         test_filter: ['a'], sample_agg: ['max'] }),
     )
   })
@@ -1023,7 +1081,7 @@ describe('loading (GR2, GR4, GR8)', () => {
     const rest = gate()
     mockWorld()
     mockAnswers(() => ndjsonResponse([[OF_A[0]], [OF_A[1]]], { wait: () => rest.promise }))
-    renderPage('/graph?project=llvm&suite=libcxx&machine=m1&metric=execution_time&test=a')
+    renderPage('/graph?project=llvm&suite=libcxx&branch=&machine=m1&metric=execution_time&test=a')
 
     expect(await main().findByText('1 of 3 tests selected · loading...')).toBeInTheDocument()
     expect(testTable().getByText('(loading...)')).toBeInTheDocument()
@@ -1052,7 +1110,7 @@ describe('loading (GR2, GR4, GR8)', () => {
     const recorded = mockWorld({ machines: ['m1'], tests: { m1: names } })
     // The responses start at once, and only their bodies are held.
     mockHeld(recorded, held)
-    renderPage('/graph?project=llvm&suite=libcxx&machine=m1&metric=execution_time')
+    renderPage('/graph?project=llvm&suite=libcxx&branch=&machine=m1&metric=execution_time')
     await waitFor(() => expect(listed()).toHaveLength(8))
 
     fireEvent.click(testTable().getByRole('checkbox', { name: 'Select all tests shown' }))
@@ -1068,7 +1126,7 @@ describe('loading (GR2, GR4, GR8)', () => {
     const names = ['t1', 't2', 't3', 't4', 't5', 't6', 't7']
     const recorded = mockWorld({ machines: ['m1'], tests: { m1: names } })
     mockHeld(recorded, held)
-    renderPage('/graph?project=llvm&suite=libcxx&machine=m1&metric=execution_time')
+    renderPage('/graph?project=llvm&suite=libcxx&branch=&machine=m1&metric=execution_time')
     await waitFor(() => expect(listed()).toHaveLength(7))
     fireEvent.click(testTable().getByRole('checkbox', { name: 'Select all tests shown' }))
     await waitFor(() => expect(recorded.series).toHaveLength(6))
@@ -1159,7 +1217,7 @@ describe('loading (GR2, GR4, GR8)', () => {
     const sent = mockAnswers((before) =>
       before === 0 ? ndjsonResponse([[OF_A[0]]], { cut: true }) : ndjsonResponse([OF_A]),
     )
-    renderPage('/graph?project=llvm&suite=libcxx&machine=m1&metric=execution_time&test=a')
+    renderPage('/graph?project=llvm&suite=libcxx&branch=&machine=m1&metric=execution_time&test=a')
 
     expect(await main().findByText(/data of some tests could not be loaded/)).toBeInTheDocument()
     expect(traces()).toEqual([])
@@ -1177,7 +1235,7 @@ describe('loading (GR2, GR4, GR8)', () => {
         ? ndjsonResponse([[OF_A[0]], [OF_A[1]]], { wait: () => first.promise })
         : ndjsonResponse([OF_A]),
     )
-    renderPage('/graph?project=llvm&suite=libcxx&machine=m1&metric=execution_time&test=a')
+    renderPage('/graph?project=llvm&suite=libcxx&branch=&machine=m1&metric=execution_time&test=a')
     await waitFor(() => expect(sent).toHaveLength(1))
 
     fireEvent.click(box('a'))
@@ -1207,7 +1265,7 @@ describe('loading (GR2, GR4, GR8)', () => {
     const held = gate()
     const recorded = mockWorld()
     mockHeld(recorded, held)
-    renderPage('/graph?project=llvm&suite=libcxx&machine=m1&metric=execution_time&test=a&test=b')
+    renderPage('/graph?project=llvm&suite=libcxx&branch=&machine=m1&metric=execution_time&test=a&test=b')
     await waitFor(() => expect(recorded.series).toHaveLength(2))
 
     fireEvent.click(box('a'))
@@ -1249,7 +1307,7 @@ describe('loading (GR2, GR4, GR8)', () => {
         errorResponse(500, 'internal_error', 'The machines broke.'),
       ),
     )
-    renderPage('/graph?project=llvm&suite=libcxx')
+    renderPage('/graph?project=llvm&suite=libcxx&branch=')
 
     expect(
       await main().findByText(/The machines could not be listed: The machines broke\./),
@@ -1325,7 +1383,7 @@ describe('the URL (GR14, AR2)', () => {
     expect(groups[1]).toHaveAccessibleName('llvm')
     await userEvent.setup().click(within(groups[0]).getByRole('option', { name: 'Alpha' }))
 
-    await waitFor(() => expect(query()).toEqual({ project: ['aaa'], suite: ['zeta'] }))
+    await waitFor(() => expect(query()).toEqual({ project: ['aaa'], suite: ['zeta'], branch: [''] }))
     expect(selectButton('Suite')).toHaveTextContent('Zed › Alpha')
   })
 
@@ -1335,17 +1393,17 @@ describe('the URL (GR14, AR2)', () => {
 
     await waitFor(() => expect(selectButton('Suite')).toBeEnabled())
     await pickSuite('Suite', 'other', 'libcxx')
-    await waitFor(() => expect(query()).toEqual({ project: ['other'], suite: ['libcxx'] }))
+    await waitFor(() => expect(query()).toEqual({ project: ['other'], suite: ['libcxx'], branch: [''] }))
     expect(selectButton('Suite')).toHaveTextContent('other › libcxx')
 
     await pickSuite('Suite', 'llvm', 'libcxx')
-    await waitFor(() => expect(query()).toEqual({ project: ['llvm'], suite: ['libcxx'] }))
+    await waitFor(() => expect(query()).toEqual({ project: ['llvm'], suite: ['libcxx'], branch: [''] }))
   })
 
   it('drops a machine that does not exist, and a metric that is not numeric', async () => {
     mockWorld()
-    renderPage('/graph?project=llvm&suite=libcxx&machine=gone&machine=m1&metric=hash')
-    await waitFor(() => expect(currentUrl()).toBe('/graph?project=llvm&suite=libcxx&machine=m1'))
+    renderPage('/graph?project=llvm&suite=libcxx&branch=&machine=gone&machine=m1&metric=hash')
+    await waitFor(() => expect(currentUrl()).toBe('/graph?project=llvm&suite=libcxx&branch=&machine=m1'))
   })
 })
 

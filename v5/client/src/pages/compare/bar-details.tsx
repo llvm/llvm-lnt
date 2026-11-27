@@ -44,7 +44,8 @@ function useTestRuns(
  * with that commit highlighted, and side A's too when it has the same suite, machine and branch,
  * each once known to have an ordinal, without which a commit is not on the Graph's x-axis (GR3,
  * GR16). It leads nowhere while side B's commit is looked up, or once it has none. A failed lookup
- * leaves its commit out rather than block it, and side B's leaves out the branch too.
+ * leaves its commit out rather than block it, and side B's leaves out the branch too, for the
+ * Graph's default (GR14).
  */
 function useGraphLink(
   a: Side,

@@ -654,3 +654,22 @@ saved, the item that moved is faded, and no item can be dragged, though the grip
 can still be focused. If the save fails, the item goes back to its place, and the
 page says why. If the save fails because the list changed elsewhere, or because
 it no longer exists, the page fetches it again.
+
+
+## AR25: Branches
+
+The Graph's branch selector (GR1) and the branch selectors of the Dashboard's
+cards (DA2) pick one of a suite's branches, those of `GET branches` (E3), in its
+order: "No branch", standing for the commits without a branch, when some of them
+have an ordinal, then the branch names.
+
+**Default.** Where such a control is not told which branch to show, it shows the
+suite's default branch: the schema's `default_branch` (see D4) when the list
+holds it, and otherwise the list's first entry. A `default_branch` that no
+commit with an ordinal is on yet, or misspelled, therefore never leaves a page
+empty while another branch has data.
+
+**Mark.** In the open list of such a control, the schema's `default_branch` is
+followed by a muted `default`, while it is the default: when the list holds it.
+"No branch" and a first entry shown in its place are not marked. The closed
+control shows the branch picked without the mark.
