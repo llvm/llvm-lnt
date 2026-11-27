@@ -49,7 +49,7 @@ from lnt_v5 import examples
 from lnt_v5.errors import ApiError, ErrorCode, validation_problems
 from lnt_v5.strings import Storable
 from lnt_v5.suites import concurrency
-from lnt_v5.suites.schema import AttributeType, DisplayName, Entry, SuiteSchema
+from lnt_v5.suites.schema import AttributeType, BranchName, DisplayName, Entry, SuiteSchema
 from lnt_v5.suites.tables import (
     INACTIVE_DAYS_MAX,
     INACTIVE_DAYS_MIN,
@@ -330,9 +330,7 @@ Tag = Annotated[
 ]
 
 Branch = Annotated[
-    str,
-    StringConstraints(min_length=1, max_length=NAME_LENGTH),
-    Storable,
+    BranchName,
     Field(
         description=(
             "The line of history the commit is on, such as `main` or a release branch. Ordinals "

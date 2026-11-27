@@ -12,12 +12,13 @@ from pydantic import ValidationError
 
 from lnt_v5 import examples
 from lnt_v5.suites.schema import AttributeType, SuiteSchema
-from lnt_v5.tables import DISPLAY_NAME_MAX_LENGTH
+from lnt_v5.tables import BRANCH_NAME_MAX_LENGTH, DISPLAY_NAME_MAX_LENGTH
 
 # The schema from D4, which exercises every list, the repository, and most of the optional keys.
 EXAMPLE: dict[str, Any] = {
     "name": "nts",
     "display_name": "LLVM test-suite",
+    "default_branch": "main",
     "metrics": [
         {
             "name": "compile_time",
@@ -460,6 +461,19 @@ class TestSuiteDisplayName:
         ]
 
 
+class TestDefaultBranch:
+    def test_may_name_any_branch_or_none(self) -> None:
+        # A UI hint: nothing checks that some commit is on the branch (D4).
+        for value in ("release/19.x", "x" * BRANCH_NAME_MAX_LENGTH, None):
+            parsed = SuiteSchema.model_validate(schema(default_branch=value))
+            assert parsed.default_branch == value
+
+    @pytest.mark.parametrize("value", ["", "x" * (BRANCH_NAME_MAX_LENGTH + 1), "ma\x00in"])
+    def test_is_refused_where_a_commit_branch_would_be(self, value: str) -> None:
+        with pytest.raises(ValidationError):
+            SuiteSchema.model_validate(schema(default_branch=value))
+
+
 class TestNormalization:
     """D4's stored and returned form: every optional key present and explicit.
 
@@ -524,6 +538,7 @@ class TestNormalization:
         assert SuiteSchema.model_validate(schema()).model_dump() == {
             "name": "nts",
             "display_name": None,
+            "default_branch": None,
             "metrics": [],
             "commit_fields": [],
             "machine_fields": [],

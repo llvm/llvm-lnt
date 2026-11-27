@@ -45,6 +45,7 @@ vi.mock('./schema/download', () => ({ downloadFile: vi.fn() }))
 const UNITLESS: Suite = inProject({
   name: 'units',
   display_name: null,
+  default_branch: null,
   metrics: [
     {
       name: 'neither',
@@ -204,9 +205,10 @@ describe('the Schema tab', () => {
       'Machine Fields',
       'Repository',
     ])
-    // The suite by its project's label, its name, and its display name, which it has none of.
+    // The suite by its project's label, its name, and its display name and default branch, which
+    // it has none of.
     expect(screen.getByRole('group', { name: 'Suite' })).toHaveTextContent(
-      'Project' + 'llvm' + 'Name' + 'libcxx' + 'Display name' + '--',
+      'Project' + 'llvm' + 'Name' + 'libcxx' + 'Display name' + '--' + 'Default branch' + '--',
     )
     // The templates as text, not links: they are not URLs until filled in.
     const repository = screen.getByRole('group', { name: 'Repository' })
@@ -221,14 +223,22 @@ describe('the Schema tab', () => {
     expect(within(repository).queryByRole('link')).toBeNull()
   })
 
-  it("shows the suite's project by its label, and the suite's display name", async () => {
+  it("shows the suite's project by its label, and the suite's display name and default branch", async () => {
     const project = { name: 'llvm', display_name: 'LLVM' }
-    mockSuites([inProject({ ...SUITE, display_name: 'Microbenchmarks' }, project)])
+    const suite = { ...SUITE, display_name: 'Microbenchmarks', default_branch: 'main' }
+    mockSuites([inProject(suite, project)])
     renderPage('/projects/llvm/suites/libcxx?tab=schema')
 
     await table('Metrics')
     expect(screen.getByRole('group', { name: 'Suite' })).toHaveTextContent(
-      'Project' + 'LLVM' + 'Name' + 'libcxx' + 'Display name' + 'Microbenchmarks',
+      'Project' +
+        'LLVM' +
+        'Name' +
+        'libcxx' +
+        'Display name' +
+        'Microbenchmarks' +
+        'Default branch' +
+        'main',
     )
   })
 

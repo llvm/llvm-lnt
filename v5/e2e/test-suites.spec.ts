@@ -13,7 +13,7 @@ import { EXPERIMENT, HARDENED, MACOS, TAG, TAGGED_INFO, UNTRACKED } from '../too
 import { expect, json, test } from './fixtures.ts'
 import { ownSuite, withOwnSuite } from './own-suite.ts'
 import { pickOption } from './select.ts'
-import { column, rows, settled, table } from './tables.ts'
+import { column, infoValue, rows, settled, table } from './tables.ts'
 
 /** The accessible name of the Runs tab's search. */
 const RUNS_SEARCH = 'Search runs by machine, commit or UUID'
@@ -693,12 +693,13 @@ test.describe('the Schema tab', () => {
       await commitUrl.fill('https://git.example.com/commit/{commit}')
       await editor.getByRole('textbox', { name: 'Label' }).fill('')
       await editor.getByRole('textbox', { name: 'Display name', exact: true }).fill('Forge suite')
+      await editor.getByRole('textbox', { name: 'Default branch' }).fill(' main ')
       await save.click()
 
       await expect(editor).toBeHidden()
-      await expect(page.getByRole('group', { name: 'Suite' })).toHaveText(
-        `Project${suite.project}Name${suite.suite}Display nameForge suite`,
-      )
+      const suiteBox = page.getByRole('group', { name: 'Suite' })
+      await expect(infoValue(suiteBox, 'Display name')).toHaveText('Forge suite')
+      await expect(infoValue(suiteBox, 'Default branch')).toHaveText('main')
       // The suite's chip is named by its display name (AR22).
       await expect(
         page.getByRole('navigation', { name: 'Test suites' }).getByRole('link', {
@@ -713,6 +714,7 @@ test.describe('the Schema tab', () => {
         `/api${suitePath(suite)}`,
       )
       expect(schema.display_name).toBe('Forge suite')
+      expect(schema.default_branch).toBe('main')
       expect(schema.repository).toEqual({
         label: null,
         commit_url: 'https://git.example.com/commit/{commit}',
@@ -766,9 +768,10 @@ test.describe('the Schema tab', () => {
         // The page of the new names takes the place of the old one in the history (AR16).
         await expect(page).toHaveURL(`${suitePath(renamed)}?tab=schema`)
         await expect(editor).toBeHidden()
-        await expect(page.getByRole('group', { name: 'Suite' })).toHaveText(
-          `Project${suite.project}NamerenamedDisplay nameRenamed suite`,
-        )
+        const suiteBox = page.getByRole('group', { name: 'Suite' })
+        await expect(infoValue(suiteBox, 'Project')).toHaveText(suite.project)
+        await expect(infoValue(suiteBox, 'Name')).toHaveText('renamed')
+        await expect(infoValue(suiteBox, 'Display name')).toHaveText('Renamed suite')
         await expect(edit).toBeFocused()
         await page.goBack()
         await expect(page).toHaveURL('/projects/swift')

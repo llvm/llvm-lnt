@@ -3,6 +3,7 @@ import { schemaOf as apiSchemaOf } from '../../../api/suites'
 import { BARE_SUITE, NO_REPOSITORY, SUITE } from '../../../test/fixtures'
 import {
   addEntry,
+  changeDefaultBranch,
   changeEntry,
   changeRepository,
   copyOf,
@@ -256,9 +257,10 @@ describe('displayNameChange', () => {
 
 describe('copyOf and schemaOf', () => {
   it('copy a schema, keys and all, as a new suite', () => {
-    expect(copyOf(SUITE).metrics.every((entry) => entry.original === null)).toBe(true)
+    const suite = { ...SUITE, default_branch: 'main' }
+    expect(copyOf(suite).metrics.every((entry) => entry.original === null)).toBe(true)
     // Without the project, which the suite is not created in by its schema.
-    expect(schemaOf('copy', '', copyOf(SUITE))).toEqual({ ...apiSchemaOf(SUITE), name: 'copy' })
+    expect(schemaOf('copy', '', copyOf(suite))).toEqual({ ...apiSchemaOf(suite), name: 'copy' })
   })
 
   it('send each entry with exactly the keys its list accepts', () => {
@@ -269,6 +271,7 @@ describe('copyOf and schemaOf', () => {
     expect(schemaOf('new', '', draft)).toEqual({
       name: 'new',
       display_name: null,
+      default_branch: null,
       metrics: [
         {
           name: 'x',
@@ -320,6 +323,7 @@ describe('copyOf and schemaOf', () => {
     expect(schemaOf('empty', '', EMPTY_DRAFT)).toEqual({
       name: 'empty',
       display_name: null,
+      default_branch: null,
       metrics: [],
       commit_fields: [],
       machine_fields: [],
@@ -533,6 +537,22 @@ describe('patchOf, for the repository', () => {
     let draft = changeRepository(draftOf(SUITE), 'label', ' GitLab ')
     draft = changeRepository(draft, 'range_url', '')
     expect(patchOf(draft)).toEqual({ repository: { label: 'GitLab', range_url: null } })
+  })
+})
+
+describe('patchOf, for the default branch', () => {
+  const stored = { ...SUITE, default_branch: 'main' }
+
+  it('leaves it out unless it changes', () => {
+    expect(patchOf(draftOf(stored))).toEqual({})
+    expect(patchOf(changeDefaultBranch(draftOf(stored), ' main '))).toEqual({})
+    expect(patchOf(changeDefaultBranch(draftOf(SUITE), '  '))).toEqual({})
+  })
+
+  it('sends it trimmed, and emptied as null', () => {
+    const draft = draftOf(stored)
+    expect(patchOf(changeDefaultBranch(draft, ' trunk '))).toEqual({ default_branch: 'trunk' })
+    expect(patchOf(changeDefaultBranch(draft, ''))).toEqual({ default_branch: null })
   })
 })
 

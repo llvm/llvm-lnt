@@ -33,6 +33,8 @@
   commits (`{commit}`) and of the changes between two commits (`{from}`,
   `{to}`), for clients to link to. `{commit.<field>}`, `{from.<field>}` and
   `{to.<field>}` stand for a commit's value for one of its text fields instead.
+  An optional `default_branch` names the suite's default branch, a hint for
+  the web UI: the server never checks that any commit is on it.
 - **Machine** -- where a benchmark ran, addressed by `name`. Carries the
   declared `machine_fields` under `fields`, an optional built-in
   `display_name` that the web UI names it by, and a built-in `tracked` flag
@@ -96,7 +98,7 @@ POST   /api/projects/{project}/suites                                        man
 PATCH  /api/projects/{project}/suites                                        manage  Reorder the project's suites
 GET    /api/projects/{project}/suites/{suite}                                read    One suite's schema
 PATCH  /api/projects/{project}/suites/{suite}                                manage  Rename a suite, or move it to another project
-PATCH  /api/projects/{project}/suites/{suite}/schema                         manage  Add, update, remove or reorder metrics and fields; change the display name or the repository
+PATCH  /api/projects/{project}/suites/{suite}/schema                         manage  Add, update, remove or reorder metrics and fields; change the display name, the default branch or the repository
 DELETE /api/projects/{project}/suites/{suite}                                manage  Delete a suite and all its data
 
 GET    /api/projects/{project}/suites/{suite}/machines                       read    List machines (search=, tracked=, sort=)

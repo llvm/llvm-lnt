@@ -62,6 +62,7 @@ from lnt_v5.suites.aggregation import SampleAggregation
 from lnt_v5.suites.schema import AttributeType, Entry, SuiteSchema
 from lnt_v5.suites.states import RegressionState
 from lnt_v5.tables import (
+    BRANCH_NAME_MAX_LENGTH,
     DISPLAY_NAME_MAX_LENGTH,
     IDENTIFIER_MAX_LENGTH,
     NAMING_CONVENTION,
@@ -242,7 +243,7 @@ def build(schema: SuiteSchema, namespace: str) -> SuiteTables:
         # per branch, below.
         Column("ordinal", Integer, nullable=True, index=True),
         Column("tag", String(NAME_LENGTH), nullable=True),
-        Column("branch", String(NAME_LENGTH), nullable=True),
+        Column("branch", String(BRANCH_NAME_MAX_LENGTH), nullable=True),
         *_inactivity_columns(),
         *_dynamic(schema.commit_fields),
         _inactive_days_range(),

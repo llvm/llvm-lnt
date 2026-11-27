@@ -12,7 +12,7 @@ import { suitePath } from '../client/src/paths.ts'
 import { adminToken, BENCHMARKS, expect, json, NTS, test } from './fixtures.ts'
 import { ownName, withOwnSuite } from './own-suite.ts'
 import { pickOption, pickSuite, selectButton } from './select.ts'
-import { column, rows, table } from './tables.ts'
+import { column, infoValue, rows, table } from './tables.ts'
 
 /** The key that `token` belongs to, or null if the API does not accept it. */
 async function keyOf(request: APIRequestContext, token: string) {
@@ -360,9 +360,12 @@ test.describe("the Projects tab's suite creation", () => {
       await editor.getByRole('button', { name: 'Create', exact: true }).click()
 
       await expect(page).toHaveURL(`${suitePath(suite)}?tab=schema`)
-      await expect(page.getByRole('group', { name: 'Suite' })).toHaveText(
-        `Project${suite.project}Name${suite.suite}Display nameE2E suite`,
-      )
+      const suiteBox = page.getByRole('group', { name: 'Suite' })
+      await expect(infoValue(suiteBox, 'Name')).toHaveText(suite.suite)
+      // Sent without its surrounding spaces (TS7).
+      await expect(infoValue(suiteBox, 'Display name')).toHaveText('E2E suite')
+      // Start from copies it, and the suite started from has none.
+      await expect(infoValue(suiteBox, 'Default branch')).toHaveText('--')
       await expect(rows(table(page, 'Machine fields')).last().locator('td')).toHaveText([
         'kernel',
         'text',

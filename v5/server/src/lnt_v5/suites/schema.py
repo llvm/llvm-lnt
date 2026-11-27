@@ -31,7 +31,12 @@ from pydantic import (
 
 from lnt_v5 import examples
 from lnt_v5.strings import Storable
-from lnt_v5.tables import DISPLAY_NAME_MAX_LENGTH, IDENTIFIER_MAX_LENGTH, SUITE_NAME_MAX_LENGTH
+from lnt_v5.tables import (
+    BRANCH_NAME_MAX_LENGTH,
+    DISPLAY_NAME_MAX_LENGTH,
+    IDENTIFIER_MAX_LENGTH,
+    SUITE_NAME_MAX_LENGTH,
+)
 
 # D4: an entry name is also the name of a column, and therefore an identifier: starting with a
 # letter, and no longer than Postgres allows an identifier to be. Characters and bytes are
@@ -76,6 +81,12 @@ Label = Annotated[str, StringConstraints(min_length=1), Storable]
 # project's and a machine's the same rules.
 DisplayName = Annotated[Label, StringConstraints(max_length=DISPLAY_NAME_MAX_LENGTH)]
 
+# D1: a branch name, which a commit's `branch` holds (E3), and a schema's `default_branch` names
+# (D4). Free text, like a tag, so it needs D3's NUL check.
+BranchName = Annotated[
+    str, StringConstraints(min_length=1, max_length=BRANCH_NAME_MAX_LENGTH), Storable
+]
+
 # D4's rule for a suite name, which a project name follows too (D7), as I8's document words it.
 NAME_RULE = (
     "Lowercase letters, digits, hyphens and underscores, starting with a letter or a digit, and at "
@@ -86,6 +97,11 @@ NAME_RULE = (
 SUITE_DISPLAY_NAME = (
     "How the web UI names the suite, instead of its `name`. At most "
     f"{DISPLAY_NAME_MAX_LENGTH} characters. Only the name addresses the suite in the API."
+)
+DEFAULT_BRANCH = (
+    "The suite's default branch, such as `main`, a hint for the web UI. A branch name, as a "
+    f"commit's `branch` is: 1 to {BRANCH_NAME_MAX_LENGTH} characters. The server does not check "
+    "that any commit is on it."
 )
 
 # D4: the URL templates of a suite's `repository`. The rules exist so that filling one in can only
@@ -460,9 +476,9 @@ def _reject_duplicates(entries: Sequence[Entry]) -> None:
 # `GET /api/projects/{project}/suites/{suite}` returns. There is no `format_version` -- only one
 # format exists for v5.
 class SuiteSchema(BaseModel):
-    """A test suite's schema: its name and display name, the metrics, commit fields and machine
-    fields it defines, and the repository its commits come from. A suite can only store what its
-    schema defines.
+    """A test suite's schema: its name, display name and default branch, the metrics, commit fields
+    and machine fields it defines, and the repository its commits come from. A suite can only store
+    what its schema defines.
 
     The same document is used to create a suite and is returned when reading one (with all
     optional keys filled in), so a suite read from one instance can be created as-is on another.
@@ -478,6 +494,10 @@ class SuiteSchema(BaseModel):
     name: SuiteNameStr = Field(description=f"The suite's name. {NAME_RULE}")
     display_name: DisplayName | None = Field(
         default=None, description=f"{SUITE_DISPLAY_NAME} Null if there is none."
+    )
+    # D4: a UI hint, like `display_name`. No commit has to be on the branch it names.
+    default_branch: BranchName | None = Field(
+        default=None, description=f"{DEFAULT_BRANCH} Null if there is none."
     )
     metrics: list[Metric] = Field(
         default_factory=list, description="What the suite's tests measure."

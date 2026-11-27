@@ -127,18 +127,20 @@ for _ in $(seq 1 "$ATTEMPTS"); do
     fi
 done
 
-echo "  changing only its display name and repository changes no table, and every worker sees it"
+echo "  changing only its display name, default branch and repository changes no table, and every worker sees it"
 request -X PATCH -H "$AUTH" -H "$JSON" \
-    --data '{"display_name": "Suite CRUD", "repository": {"label": "Forge"}}' \
+    --data '{"display_name": "Suite CRUD", "default_branch": "main", "repository": {"label": "Forge"}}' \
     "${SUITES}/suite-crud/schema"
 expect_status 200
 expect_body '"display_name":"Suite CRUD"'
+expect_body '"default_branch":"main"'
 expect_body '"label":"Forge"'
 
 for _ in $(seq 1 "$ATTEMPTS"); do
     request "${SUITES}/suite-crud"
     expect_status 200
     expect_body '"display_name":"Suite CRUD"'
+    expect_body '"default_branch":"main"'
     expect_body '"label":"Forge"'
 done
 

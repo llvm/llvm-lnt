@@ -155,6 +155,14 @@ class TestCreate:
         named = create(name="named", display_name="LLVM test-suite").json()
         assert named["display_name"] == "LLVM test-suite"
 
+    def test_keeps_the_default_branch_and_leaves_it_null_when_omitted(
+        self, create: Callable[..., Any]
+    ) -> None:
+        assert create().json()["default_branch"] is None
+        # No commit is on it yet, which nothing checks (D4).
+        named = create(name="named", default_branch="main").json()
+        assert named["default_branch"] == "main"
+
     def test_normalizes_the_repository(self, create: Callable[..., Any]) -> None:
         repository = {"commit_url": "https://git.example.com/{commit}"}
 
@@ -1323,6 +1331,52 @@ class TestEvolveDisplayName:
 
         assert code_of(response) == "invalid_request"
         assert api_client.get(f"{SUITES}/nts").json()["display_name"] == "LLVM test-suite"
+
+
+class TestEvolveDefaultBranch:
+    """The suite's `default_branch` is set, cleared with null, or left alone when omitted (D2)."""
+
+    def test_sets_it_without_confirmation_and_tells_every_worker(
+        self,
+        api_client: TestClient,
+        db_engine: Engine,
+        create: Callable[..., Any],
+        manage: dict[str, str],
+    ) -> None:
+        create()
+        before = schema_version_of(db_engine)
+
+        response = patch_request(api_client, manage, {"default_branch": "release/19.x"})
+
+        assert response.status_code == 200
+        assert response.json()["default_branch"] == "release/19.x"
+        assert stored_schema(db_engine, "nts") == response.json()
+        assert schema_version_of(db_engine) == before + 1
+
+        # Setting what is stored changes nothing.
+        assert patch_request(api_client, manage, {"default_branch": "release/19.x"}).is_success
+        assert schema_version_of(db_engine) == before + 1
+
+    def test_null_clears_it_and_omitting_it_keeps_it(
+        self, api_client: TestClient, create: Callable[..., Any], manage: dict[str, str]
+    ) -> None:
+        create(default_branch="main")
+
+        kept = patch_request(api_client, manage, {"display_name": "LLVM test-suite"}).json()
+        cleared = patch_request(api_client, manage, {"default_branch": None}).json()
+
+        assert kept["default_branch"] == "main"
+        assert cleared["default_branch"] is None
+
+    def test_refuses_what_a_schema_would_not_accept(
+        self, api_client: TestClient, create: Callable[..., Any], manage: dict[str, str]
+    ) -> None:
+        create(default_branch="main")
+
+        response = patch_request(api_client, manage, {"default_branch": ""})
+
+        assert code_of(response) == "invalid_request"
+        assert api_client.get(f"{SUITES}/nts").json()["default_branch"] == "main"
 
 
 def suite_tables_for(engine: Engine) -> Any:

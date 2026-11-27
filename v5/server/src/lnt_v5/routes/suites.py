@@ -121,6 +121,10 @@ _PATCH_EXAMPLES = {
         "summary": "Change the suite's display name",
         "value": {"display_name": "libc++ microbenchmarks"},
     },
+    "default_branch": {
+        "summary": "Show the commits of the main branch by default",
+        "value": {"default_branch": examples.BRANCH},
+    },
     "repository": {
         "summary": "Change the repository's commit URL and remove its label",
         "value": {"repository": {"commit_url": examples.REPOSITORY["commit_url"], "label": None}},
@@ -379,7 +383,7 @@ def patch_schema(
     confirm: ConfirmRemoval = False,
 ) -> SuiteSchema:
     """Add, update, remove or reorder metrics, commit fields and machine fields, or change the
-    display name or the repository. Returns the updated schema.
+    display name, the default branch or the repository. Returns the updated schema.
 
     Only display settings can be updated. To change the type of a metric or field, remove it and
     add it again. Removing a metric or field permanently deletes its data, so the request must

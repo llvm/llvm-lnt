@@ -25,6 +25,7 @@ import { useUnsavedChanges } from '../../../components/use-unsaved-changes'
 import { projectLabel, projectNamed } from '../../../labels'
 import { EditorFooter } from './editor-footer'
 import {
+  changeDefaultBranch,
   displayNameChange,
   draftOf,
   draftProblem,
@@ -141,8 +142,8 @@ function EditForm({ suite, schema, onClose, onMoved }: FormProps) {
   const mounted = useMounted()
   const saveRef = useRef<HTMLButtonElement>(null)
   // What the editor starts from: the schema as fetched, then as stored by a save whose rename or
-  // move failed, which leaves only that to save (TS7). The suite's display name is its own, and so
-  // not part of what the tables edit.
+  // move failed, which leaves only that to save (TS7). The suite's display name is its own, like its
+  // name, and so not part of the draft.
   const [draft, setDraft] = useState(() => draftOf(schema))
   const [storedDisplayName, setStoredDisplayName] = useState(schema.display_name)
   const [displayName, setDisplayName] = useState(schema.display_name ?? '')
@@ -354,6 +355,10 @@ function EditForm({ suite, schema, onClose, onMoved }: FormProps) {
         onName={setName}
         displayName={displayName}
         onDisplayName={setDisplayName}
+        defaultBranch={draft.default_branch.text}
+        onDefaultBranch={(text) => {
+          if (!locked) setDraft((current) => changeDefaultBranch(current, text))
+        }}
         readOnly={locked}
       />
       <SchemaEditorTables draft={draft} onChange={setDraft} busy={locked} />

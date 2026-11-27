@@ -28,7 +28,8 @@ v5 "Commit" concept separates them.
   branch is an attribute of the commit, not part of its identity: the commit
   string stays unique across the suite, and still addresses the commit alone. A
   commit reachable from several branches, such as a branch point, is on only
-  one of them. Nothing relates branches to each other.
+  one of them. Nothing relates branches to each other. A suite's schema may
+  name its default branch (see D4).
 
 Runs therefore come in two tiers:
 1. A run on an ordered commit (ordinal set) takes full part in time series.
@@ -133,13 +134,13 @@ The boolean keys (`bigger_is_better`, `dashboard`, `searchable`, `display`,
 `listed`) are not nullable, because D4 normalizes them to `false` rather than to
 null, so `null` for one of them is rejected with 400.
 
-The same request can change the suite's `display_name` and its `repository`
-(D4), with the same rule: an omitted key is left unchanged, and an explicit
-`null` clears the display name or one of the repository's keys. `null` for the
-whole `repository` is rejected with 400, since there is one way to clear it, key
-by key. A change to either, or a new order for a list, destroys nothing and
-changes no table. It is still a schema write: it takes the lock above, and
-bumps `schema_version`.
+The same request can change the suite's `display_name`, its `default_branch`
+and its `repository` (D4), with the same rule: an omitted key is left
+unchanged, and an explicit `null` clears the display name, the default branch
+or one of the repository's keys. `null` for the whole `repository` is rejected
+with 400, since there is one way to clear it, key by key. A change to any of
+them, or a new order for a list, destroys nothing and changes no table. It is
+still a schema write: it takes the lock above, and bumps `schema_version`.
 
 Notes:
 - Renaming an entry is not supported: it is semantically a remove plus an add.
@@ -228,6 +229,7 @@ vocabulary.
 {
   "name": "nts",
   "display_name": "LLVM test-suite",
+  "default_branch": "main",
   "metrics": [
     {
       "name": "compile_time",
@@ -293,6 +295,10 @@ Notes:
 - `display_name` is how the UI names the suite (see AR22), when it is set. Like
   `display`, it is purely a UI concern: the API addresses the suite by its
   `name` alone.
+- `default_branch` names the suite's default branch (see D1), when it is set.
+  It is a branch name, with the rules of a commit's `branch` (see E3). Like
+  `display`, it is a hint for the UI: the server never checks that any commit is
+  on it.
 - The schema does not name the suite's project: that comes from the path that
   creates or addresses the suite (see D7), so a schema fetched from one project
   can be posted unchanged to another.
@@ -320,6 +326,7 @@ another, so these defaults are part of the wire contract.
 | Key | Default |
 |-----|---------|
 | `display_name` (the suite's, and each entry's) | `null` |
+| `default_branch` | `null` |
 | `unit`, `unit_abbrev` | `null` |
 | `bigger_is_better` | `false` |
 | `dashboard` | `false` |
@@ -332,10 +339,11 @@ A schema that omits one of the three lists entirely gets it back as an empty
 list, and one that omits `repository` gets it back with all of its keys. Like a
 list, `repository` itself cannot be `null`.
 
-`display_name`, `unit` and `unit_abbrev`, and the keys of `repository`, are each
-either `null`, meaning there is none, or a non-empty string. An empty string is
-rejected with 400 rather than read as `null`: it would only be a second spelling
-of `null`. The suite's `display_name` is also at most 256 characters.
+`display_name`, `unit` and `unit_abbrev`, `default_branch`, and the keys of
+`repository`, are each either `null`, meaning there is none, or a non-empty
+string. An empty string is rejected with 400 rather than read as `null`: it
+would only be a second spelling of `null`. The suite's `display_name` and
+`default_branch` are also at most 256 characters.
 
 **Repository.** `repository` accepts only the keys below, each optional. Any
 other key is rejected with 400.

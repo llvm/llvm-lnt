@@ -74,6 +74,10 @@ SUITE_NAME_MAX_LENGTH = 64
 # D4's limit on a suite's display name, which D7 applies to a project's too.
 DISPLAY_NAME_MAX_LENGTH = 256
 
+# The width of `{suite}.commit.branch` (D5), and so the limit on a branch name, whether a commit's
+# (E3) or the one a schema's `default_branch` names (D4).
+BRANCH_NAME_MAX_LENGTH = 256
+
 # I5: a token is 64 lowercase hex characters, of which the first 8 are the published prefix, and
 # the stored hash is a hex SHA-256. These widths are the authority; keys.py reads them from here.
 TOKEN_PREFIX_LENGTH = 8

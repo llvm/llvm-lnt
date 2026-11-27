@@ -8,6 +8,7 @@ import { TOKEN, mockAuth, unknownToken } from '../test/auth'
 const SUITE = {
   name: 'nts',
   display_name: null,
+  default_branch: null,
   metrics: [],
   commit_fields: [],
   machine_fields: [],

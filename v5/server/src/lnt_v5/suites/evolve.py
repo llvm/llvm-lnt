@@ -9,8 +9,9 @@ validates an addition, which update model validates a change, and -- through the
 `RESERVED_COLUMNS` -- which of the suite's tables gain or lose a column. Spelling that
 correspondence out per operation is how a fourth list would end up half-supported.
 
-The schema's `display_name` and `repository` are not lists: the first is set or cleared, and the
-second is changed key by key, like an entry's `update`. Neither adds or removes a column.
+The schema's `display_name`, `default_branch` and `repository` are not lists: the first two are set
+or cleared, and the last is changed key by key, like an entry's `update`. None of them adds or
+removes a column.
 """
 
 from __future__ import annotations
@@ -28,9 +29,11 @@ from lnt_v5.patching import omit_defaults
 from lnt_v5.suites import tables as suite_tables
 from lnt_v5.suites.schema import (
     COMMIT_URL,
+    DEFAULT_BRANCH,
     RANGE_URL,
     REPOSITORY_LABEL,
     SUITE_DISPLAY_NAME,
+    BranchName,
     CommitField,
     CommitUrl,
     DisplayName,
@@ -208,8 +211,8 @@ class RepositoryUpdate(BaseModel):
 
 
 class SchemaPatch(BaseModel):
-    """Changes to a suite's display name, metrics, commit fields, machine fields and repository.
-    What you leave out is not changed.
+    """Changes to a suite's display name, default branch, metrics, commit fields, machine fields and
+    repository. What you leave out is not changed.
 
     Either all the changes are applied or none are, and the resulting schema must be valid. Each
     metric or field can only be added, updated or removed once per request, and a list's new
@@ -217,14 +220,18 @@ class SchemaPatch(BaseModel):
     order given, and have no value for existing data. Removing one permanently deletes its data
     (and, for a metric, the regression indicators that refer to it), so the request must include
     `confirm=true`. To rename a metric or field, remove it and add it again. Changing the display
-    name, the repository or an order needs no confirmation.
+    name, the default branch, the repository or an order needs no confirmation.
     """
 
-    # As `_EntryUpdate`: only a `display_name` the request sends is read, so its default never is.
+    # As `_EntryUpdate`: only a `display_name` or a `default_branch` the request sends is read, so
+    # their defaults never are.
     model_config = ConfigDict(extra="forbid", json_schema_extra=omit_defaults)
 
     display_name: DisplayName | None = Field(
         default=None, description=f"{SUITE_DISPLAY_NAME} Null removes it."
+    )
+    default_branch: BranchName | None = Field(
+        default=None, description=f"{DEFAULT_BRANCH} Null removes it."
     )
     metrics: MetricChanges = Field(default_factory=MetricChanges)
     commit_fields: CommitFieldChanges = Field(default_factory=CommitFieldChanges)
@@ -352,16 +359,17 @@ def resulting_schema(current: SuiteSchema, patch: SchemaPatch) -> SuiteSchema:
     Catching it narrowly also keeps it from swallowing an internal one -- a stored schema that will
     not parse is a 500, not the caller's fault.
     """
+    # As in an entry's `update`: a key left out is unchanged, and one sent as null is cleared.
+    sent = patch.model_fields_set
     document: dict[str, Any] = {
         "name": current.name,
-        # As in an entry's `update`: left out, it is unchanged, and sent as null, it is cleared.
-        "display_name": (
-            patch.display_name if "display_name" in patch.model_fields_set else current.display_name
+        "display_name": patch.display_name if "display_name" in sent else current.display_name,
+        "default_branch": (
+            patch.default_branch if "default_branch" in sent else current.default_branch
         ),
     }
     for of in LISTS:
         document[of.attribute] = _apply(of, getattr(current, of.attribute), _changes(patch, of))
-    # As in an entry's `update`: a key left out is unchanged, and one sent as null is cleared.
     document["repository"] = {
         **current.repository.model_dump(),
         **patch.repository.model_dump(exclude_unset=True),

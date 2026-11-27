@@ -19,6 +19,7 @@ import { ErrorMessage } from '../../components/feedback'
 import { Select } from '../../components/select'
 import { useUnsavedChanges } from '../../components/use-unsaved-changes'
 import {
+  changeDefaultBranch,
   copyOf,
   EMPTY_DRAFT,
   draftProblem,
@@ -40,9 +41,9 @@ interface Props {
 }
 
 /**
- * The schema editor creating a suite (TS7) in the project `project`: the suite's name, its entries
- * and its repository, which can start as a copy of another suite's. Or, through "Import JSON", a
- * schema document sent as it is.
+ * The schema editor creating a suite (TS7) in the project `project`: the suite's name, its entries,
+ * its repository and its default branch, the last three of which can start as a copy of another
+ * suite's. Or, through "Import JSON", a schema document sent as it is.
  */
 export function CreateSuite({ project, onCancel, onCreated }: Props) {
   const { status } = useAuth()
@@ -142,8 +143,8 @@ export function CreateSuite({ project, onCancel, onCreated }: Props) {
         />
       ) : (
         <>
-          {/* A form, so that Enter in the suite's name or display name creates the suite. Its
-              submit button is Create, below the tables. */}
+          {/* A form, so that Enter in the suite's name, display name or default branch creates the
+              suite. Its submit button is Create, below the tables. */}
           <form id={formId} aria-labelledby={titleId} onSubmit={submit}>
             <SuiteFields
               project={projectLabel(projectNamed(list, project))}
@@ -153,6 +154,10 @@ export function CreateSuite({ project, onCancel, onCreated }: Props) {
               nameRef={nameRef}
               displayName={displayName}
               onDisplayName={setDisplayName}
+              defaultBranch={draft.default_branch.text}
+              onDefaultBranch={(text) => {
+                if (!busy) setDraft((current) => changeDefaultBranch(current, text))
+              }}
               readOnly={busy}
             />
           </form>
