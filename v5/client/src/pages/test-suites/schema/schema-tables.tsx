@@ -124,9 +124,14 @@ export function RepositoryBox({ value }: { value(key: RepositoryKey): ReactNode 
 
 /**
  * The suite a schema is of, under its heading, in the viewer and the editor alike: its project, its
- * name and its display name, as given, or the editor's inputs of them.
+ * name, its display name and its default branch, as given, or the editor's inputs of them.
  */
-export function SuiteBox(props: { project: ReactNode; name: ReactNode; displayName: ReactNode }) {
+export function SuiteBox(props: {
+  project: ReactNode
+  name: ReactNode
+  displayName: ReactNode
+  defaultBranch: ReactNode
+}) {
   return (
     <>
       <h2 className={styles.heading}>Suite</h2>
@@ -134,6 +139,7 @@ export function SuiteBox(props: { project: ReactNode; name: ReactNode; displayNa
         <InfoRow label="Project">{props.project}</InfoRow>
         <InfoRow label="Name">{props.name}</InfoRow>
         <InfoRow label="Display name">{props.displayName}</InfoRow>
+        <InfoRow label="Default branch">{props.defaultBranch}</InfoRow>
       </InfoBox>
     </>
   )
@@ -147,12 +153,13 @@ export function SuiteBox(props: { project: ReactNode; name: ReactNode; displayNa
 export function SchemaTables({ schema }: { schema: Suite }) {
   return (
     <>
-      {/* By its project's label, its name and its display name, `--` when it has none, rather
-          than repeating the name (TS6). */}
+      {/* By its project's label, its name, its display name and its default branch, `--` when it
+          has none, rather than repeating the name (TS6). */}
       <SuiteBox
         project={projectLabel(schema.project)}
         name={schema.name}
         displayName={schema.display_name ?? MISSING}
+        defaultBranch={schema.default_branch ?? MISSING}
       />
       <SchemaList
         list="metrics"

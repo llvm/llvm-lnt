@@ -314,7 +314,7 @@ export interface paths {
         /**
          * Change a test suite's schema
          * @description Add, update, remove or reorder metrics, commit fields and machine fields, or change the
-         *     display name or the repository. Returns the updated schema.
+         *     display name, the default branch or the repository. Returns the updated schema.
          *
          *     Only display settings can be updated. To change the type of a metric or field, remove it and
          *     add it again. Removing a metric or field permanently deletes its data, so the request must
@@ -2459,6 +2459,7 @@ export interface components {
          *               "type": "text"
          *             }
          *           ],
+         *           "default_branch": "main",
          *           "display_name": "Microbenchmarks",
          *           "machine_fields": [
          *             {
@@ -3240,8 +3241,8 @@ export interface components {
         };
         /**
          * SchemaPatch
-         * @description Changes to a suite's display name, metrics, commit fields, machine fields and repository.
-         *     What you leave out is not changed.
+         * @description Changes to a suite's display name, default branch, metrics, commit fields, machine fields and
+         *     repository. What you leave out is not changed.
          *
          *     Either all the changes are applied or none are, and the resulting schema must be valid. Each
          *     metric or field can only be added, updated or removed once per request, and a list's new
@@ -3249,7 +3250,7 @@ export interface components {
          *     order given, and have no value for existing data. Removing one permanently deletes its data
          *     (and, for a metric, the regression indicators that refer to it), so the request must include
          *     `confirm=true`. To rename a metric or field, remove it and add it again. Changing the display
-         *     name, the repository or an order needs no confirmation.
+         *     name, the default branch, the repository or an order needs no confirmation.
          */
         SchemaPatch: {
             /**
@@ -3257,6 +3258,11 @@ export interface components {
              * @description How the web UI names the suite, instead of its `name`. At most 256 characters. Only the name addresses the suite in the API. Null removes it.
              */
             display_name?: string | null;
+            /**
+             * Default Branch
+             * @description The suite's default branch, such as `main`, a hint for the web UI. A branch name, as a commit's `branch` is: 1 to 256 characters. The server does not check that any commit is on it. Null removes it.
+             */
+            default_branch?: string | null;
             metrics?: components["schemas"]["MetricChanges"];
             commit_fields?: components["schemas"]["CommitFieldChanges"];
             machine_fields?: components["schemas"]["MachineFieldChanges"];
@@ -3275,9 +3281,9 @@ export interface components {
         };
         /**
          * SuiteSchema
-         * @description A test suite's schema: its name and display name, the metrics, commit fields and machine
-         *     fields it defines, and the repository its commits come from. A suite can only store what its
-         *     schema defines.
+         * @description A test suite's schema: its name, display name and default branch, the metrics, commit fields
+         *     and machine fields it defines, and the repository its commits come from. A suite can only store
+         *     what its schema defines.
          *
          *     The same document is used to create a suite and is returned when reading one (with all
          *     optional keys filled in), so a suite read from one instance can be created as-is on another.
@@ -3300,6 +3306,7 @@ export interface components {
          *           "type": "text"
          *         }
          *       ],
+         *       "default_branch": "main",
          *       "display_name": "Microbenchmarks",
          *       "machine_fields": [
          *         {
@@ -3405,6 +3412,11 @@ export interface components {
              */
             display_name: string | null;
             /**
+             * Default Branch
+             * @description The suite's default branch, such as `main`, a hint for the web UI. A branch name, as a commit's `branch` is: 1 to 256 characters. The server does not check that any commit is on it. Null if there is none.
+             */
+            default_branch: string | null;
+            /**
              * Metrics
              * @description What the suite's tests measure.
              */
@@ -3424,9 +3436,9 @@ export interface components {
         };
         /**
          * SuiteSchemaInput
-         * @description A test suite's schema: its name and display name, the metrics, commit fields and machine
-         *     fields it defines, and the repository its commits come from. A suite can only store what its
-         *     schema defines.
+         * @description A test suite's schema: its name, display name and default branch, the metrics, commit fields
+         *     and machine fields it defines, and the repository its commits come from. A suite can only store
+         *     what its schema defines.
          *
          *     The same document is used to create a suite and is returned when reading one (with all
          *     optional keys filled in), so a suite read from one instance can be created as-is on another.
@@ -3449,6 +3461,7 @@ export interface components {
          *           "type": "text"
          *         }
          *       ],
+         *       "default_branch": "main",
          *       "display_name": "Microbenchmarks",
          *       "machine_fields": [
          *         {
@@ -3553,6 +3566,11 @@ export interface components {
              * @description How the web UI names the suite, instead of its `name`. At most 256 characters. Only the name addresses the suite in the API. Null if there is none.
              */
             display_name?: string | null;
+            /**
+             * Default Branch
+             * @description The suite's default branch, such as `main`, a hint for the web UI. A branch name, as a commit's `branch` is: 1 to 256 characters. The server does not check that any commit is on it. Null if there is none.
+             */
+            default_branch?: string | null;
             /**
              * Metrics
              * @description What the suite's tests measure.

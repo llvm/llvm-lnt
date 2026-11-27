@@ -30,6 +30,7 @@ export const SUITE: Suite = {
   project: PROJECT,
   name: 'libcxx',
   display_name: null,
+  default_branch: null,
   metrics: [
     {
       name: 'execution_time',
@@ -76,6 +77,7 @@ export const BARE_SUITE: Suite = {
   project: PROJECT,
   name: 'nts',
   display_name: null,
+  default_branch: null,
   metrics: [],
   machine_fields: [],
   commit_fields: [],

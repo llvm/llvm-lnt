@@ -669,7 +669,10 @@ class TestSchemaRepository:
         upgrade_to_head(empty_engine)
 
         stored = stored_schema_json(empty_engine)["before"]
-        assert stored == compact(with_display_name(_BEFORE_DISPLAY_NAME))
+        # With what 0009 and 0012 add after it, also unset.
+        assert stored == compact(
+            {**with_display_name(_BEFORE_DISPLAY_NAME), "default_branch": None}
+        )
         # What the server itself writes for that schema, if not in the same order (D5).
         assert json.loads(stored) == json.loads(
             normalized_json(SuiteSchema.model_validate_json(stored))
@@ -877,6 +880,13 @@ def restrictions(engine: Engine) -> dict[str, Any]:
     return {row.prefix: row.suites if row.restricted else None for row in rows}
 
 
+def without_default_branch(**keys: Any) -> dict[str, Any]:
+    """A schema as a build before 0012 stores it: normalized, but without the default branch."""
+    document: dict[str, Any] = json.loads(normalized_json(SuiteSchema.model_validate(keys)))
+    del document["default_branch"]
+    return document
+
+
 def with_display_name(document: dict[str, Any]) -> dict[str, Any]:
     """`document` as 0009 rewrites it: with the display name, unset, at the end."""
     return {**document, "display_name": None}
@@ -1014,10 +1024,10 @@ class TestProjects:
             "nameless": compact({"metrics": [], "display_name": None}),
             **untouched,
         }
-        # What the server itself writes for that schema, if not in the same order (D5).
-        assert json.loads(stored["before"]) == json.loads(
-            normalized_json(SuiteSchema.model_validate_json(stored["before"]))
-        )
+        # What the server itself writes for that schema, if not in the same order (D5), but for the
+        # default branch, which 0012 adds.
+        before = json.loads(stored["before"])
+        assert before == without_default_branch(**before)
 
     def test_downgrading_names_the_suites_again(self, at_0009: Engine) -> None:
         downgrade_by_hand(at_0009, "0008")
@@ -1296,6 +1306,104 @@ class TestOrder:
 
         assert_no_pending_revision(at_0010)
         assert names_in_order(at_0010)["llvm"] == ["zeta", "beta", "broken", "nts"]
+
+
+def suite_schemas_0011(engine: Engine) -> dict[tuple[str, str], str]:
+    """Each suite's stored schema, keyed by the names of its project and of the suite."""
+    with engine.connect() as connection:
+        rows = connection.execute(
+            text(
+                "SELECT project.name AS project, schema.name, schema_json "
+                "FROM schema JOIN project ON project.id = schema.project_id"
+            )
+        ).all()
+    return {(row.project, row.name): row.schema_json for row in rows}
+
+
+# Schemas stored before 0012, by project and suite: two suites of the same name, in different
+# projects, which only their identity tells apart, and rows that 0012 leaves alone.
+_BEFORE_DEFAULT_BRANCH = {
+    ("llvm", "benchmarks"): compact(without_default_branch(name="benchmarks")),
+    ("libcxx", "benchmarks"): compact(
+        without_default_branch(name="benchmarks", display_name="Microbenchmarks")
+    ),
+    ("libcxx", "already"): compact({"name": "already", "default_branch": "main"}),
+    ("libcxx", "broken"): "{",
+    ("libcxx", "not-an-object"): "[]",
+}
+
+
+class TestSchemaDefaultBranch:
+    """0012 gives every stored schema a default branch, unset, to keep stored schemas normalized."""
+
+    @pytest.fixture
+    def at_0011(self, empty_engine: Engine) -> Engine:
+        upgrade_by_hand(empty_engine, "0011")
+        with empty_engine.begin() as connection:
+            connection.execute(text("INSERT INTO project (name) VALUES ('llvm'), ('libcxx')"))
+            for (project, name), schema_json in _BEFORE_DEFAULT_BRANCH.items():
+                connection.execute(
+                    text(
+                        "INSERT INTO schema "
+                        "(project_id, name, namespace, schema_json, migration_version) "
+                        "SELECT id, :name, :namespace, :schema_json, :version "
+                        "FROM project WHERE name = :project"
+                    ),
+                    {
+                        "project": project,
+                        "name": name,
+                        "namespace": f"{project}_{name}",
+                        "schema_json": schema_json,
+                        "version": migrations.head(),
+                    },
+                )
+        return empty_engine
+
+    def test_adds_it_to_each_suite_and_nothing_else(self, at_0011: Engine) -> None:
+        # To the head, so that what is stored is what the latest build writes.
+        upgrade_to_head(at_0011)
+
+        stored = suite_schemas_0011(at_0011)
+        for key in [("llvm", "benchmarks"), ("libcxx", "benchmarks")]:
+            assert json.loads(stored[key]) == {
+                **json.loads(_BEFORE_DEFAULT_BRANCH[key]),
+                "default_branch": None,
+            }
+            # What the server itself writes for that schema, if not in the same order (D5).
+            assert json.loads(stored[key]) == json.loads(
+                normalized_json(SuiteSchema.model_validate_json(stored[key]))
+            )
+        for key in [("libcxx", "already"), ("libcxx", "broken"), ("libcxx", "not-an-object")]:
+            assert stored[key] == _BEFORE_DEFAULT_BRANCH[key]
+        # D2: like any other change to a stored schema, however many rows it rewrites.
+        assert schema_version_of(at_0011) == 1
+
+    def test_applying_it_again_changes_nothing(self, at_0011: Engine) -> None:
+        upgrade_by_hand(at_0011, "0012")
+        stored = suite_schemas_0011(at_0011)
+
+        # Recorded as not applied, so that the revision runs again on what it wrote.
+        with at_0011.begin() as connection:
+            config = alembic_config()
+            config.attributes["connection"] = connection
+            command.stamp(config, "0011")
+        upgrade_by_hand(at_0011, "0012")
+
+        assert suite_schemas_0011(at_0011) == stored
+        assert schema_version_of(at_0011) == 1
+
+    def test_downgrading_removes_it_whatever_it_holds(self, at_0011: Engine) -> None:
+        upgrade_by_hand(at_0011, "0012")
+
+        downgrade_by_hand(at_0011, "0011")
+
+        stored = suite_schemas_0011(at_0011)
+        assert stored == {
+            **_BEFORE_DEFAULT_BRANCH,
+            ("libcxx", "already"): compact({"name": "already"}),
+        }
+        # Once on the way up, and once on the way down.
+        assert schema_version_of(at_0011) == 2
 
 
 class TestConcurrentUpgrade:

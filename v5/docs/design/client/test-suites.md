@@ -224,9 +224,10 @@ This tab shows the suite's schema, as follows:
 ```
 Suite (subtitle font)
 
-Project         libc++
-Name            benchmarks
-Display name    Microbenchmarks
+Project           libc++
+Name              benchmarks
+Display name      Microbenchmarks
+Default branch    main
 
 
 Metrics (subtitle font)
@@ -266,8 +267,8 @@ Range URL     --
 [Edit schema] [Copy as JSON] [Download JSON]                            [Delete This Suite]
 ```
 
-"Suite" shows the label of the suite's project (see AR22), and the suite's name and display
-name, `--` when it has none.
+"Suite" shows the label of the suite's project (see AR22), and the suite's name, display name
+and default branch (see D4), each of the last two `--` when it has none.
 
 Each table shows exactly the presentation keys its list accepts (see D4), so the three
 tables deliberately differ in their columns. Entries are shown by their `name`, with their
@@ -306,17 +307,18 @@ tab (see TS6). It takes the place of what the tab shows: its whole content in th
 the schema viewer, buttons included, in the Schema tab. "Cancel" closes it and discards its
 changes, without asking, and the tab shows what it showed before again. Leaving the tab with
 unsaved changes asks first (see AR19): when editing a schema, the changes "Save" would send, a new
-name or project included; when creating a suite, a suite name or display name, any entry, a
-repository value, or a document to import that is not blank.
+name or project included; when creating a suite, a suite name, display name or default branch,
+any entry, a repository value, or a document to import that is not blank.
 
 ```
 Start from [suite v]    [Import JSON]                      (when creating a suite)
 
 Suite
-Project         libc++                                     (when creating a suite)
-Project         [libc++ v]                                 (when editing a schema)
-Name            [benchmarks      ]
-Display name    [Microbenchmarks ]
+Project           libc++                                   (when creating a suite)
+Project           [libc++ v]                               (when editing a schema)
+Name              [benchmarks      ]
+Display name      [Microbenchmarks ]
+Default branch    [main            ]
 
 Metrics
    Name              Type        Display Name        Unit          Abbrev    Bigger is Better    Dashboard
@@ -359,9 +361,11 @@ accepts (see D4). Each table has a button to add an entry. A new entry goes at t
 list. Each entry has a button (×) to remove it, and a grip (⠿) to drag it to another place in its
 list (see AR24). Leaving out removed entries (see below), the editor shows the entries in the order
 the suite will have them. A new suite is created with its entries in that order. Entries added to
-an existing suite are sent in that order (see D2). The suite's display name, the entries' display
-name, unit and abbreviation, and the repository's keys, are sent without whitespace at either end,
-and an input that is empty, or holds only whitespace, sets its key to `null` (see D2).
+an existing suite are sent in that order (see D2). The suite's display name and default branch,
+the entries' display name, unit and abbreviation, and the repository's keys, are sent without
+whitespace at either end, and an input that is empty, or holds only whitespace, sets its key to
+`null` (see D2). The default branch is free text: it need not name a branch that some commit is
+on (see D4).
 
 `searchable` and `display` are only valid on a `text` entry, and `dashboard` only on a numeric
 metric (see D3): each is disabled for the other types, says why on hover, and is cleared when the
@@ -380,12 +384,12 @@ text commit fields of the schema being edited, so that a schema stored with one 
 refuse can still be saved. The server validates everything else when the schema is submitted.
 
 **Creating a suite**: The editor starts empty. A "Start from" dropdown, over every suite
-(see AR22), replaces the editor's entries and repository with a copy of an existing suite's. It
-copies neither the suite's name nor its display name. Creating the suite, with "Create" or with the
-button sending a document to import, requires `manage` covering the project in full (see I5 and
-AR17). Both buttons are disabled, saying why on hover, while the project is no longer listed, as
-when it has been deleted or renamed elsewhere. The editor keeps its contents meanwhile, and names
-the project by its name.
+(see AR22), replaces the editor's entries, repository and default branch with a copy of an
+existing suite's. It copies neither the suite's name nor its display name. Creating the suite,
+with "Create" or with the button sending a document to import, requires `manage` covering the
+project in full (see I5 and AR17). Both buttons are disabled, saying why on hover, while the project
+is no longer listed, as when it has been deleted or renamed elsewhere. The editor keeps its contents
+meanwhile, and names the project by its name.
 
 "Create" creates the suite in the project. On success, the page goes to the new suite's
 Schema tab (`/projects/{p}/suites/{name}?tab=schema`), unless the user has left the tab
@@ -415,11 +419,11 @@ dropped on it. The other entries move past it as if it were not there.
 `PATCH /api/projects/{project}/suites/{suite}/schema`, under the suite's current names, then, once
 that succeeds, renames or moves the suite (`PATCH /api/projects/{project}/suites/{suite}`, see
 E10), each only if there is one. The schema change sends only the keys the user changed, of the
-entries and of the repository alike, so that it does not overwrite changes made by others since the
-editor opened. In the same way, it sends a list's new order only if the user reordered that list.
-More precisely, it sends no order when the list, leaving out removed entries, shows the stored
-entries in their stored order, then the added entries. When the user changed nothing, "Save" closes
-the editor without sending anything.
+suite, of the entries and of the repository alike, so that it does not overwrite changes made by
+others since the editor opened. In the same way, it sends a list's new order only if the user
+reordered that list. More precisely, it sends no order when the list, leaving out removed entries,
+shows the stored entries in their stored order, then the added entries. When the user changed
+nothing, "Save" closes the editor without sending anything.
 
 A save that neither removes an entry nor renames or moves the suite asks nothing. Otherwise, "Save"
 first asks for one confirmation (see AR16) covering all that the save does, and the editor's

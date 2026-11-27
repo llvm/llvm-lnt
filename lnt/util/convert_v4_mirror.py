@@ -340,10 +340,11 @@ def _derive_schema(mirrored: MirroredSuite, target_suite: str,
                        'searchable': False, 'listed': name in declared}
                       for name in declared + undeclared]
 
-    # v4 knows nothing of the repository the commits come from.
+    # v4 knows nothing of the repository the commits come from, nor of
+    # branches.
     schema = {'name': target_suite, 'display_name': None,
-              'metrics': metrics, 'machine_fields': machine_fields,
-              'commit_fields': [],
+              'default_branch': None, 'metrics': metrics,
+              'machine_fields': machine_fields, 'commit_fields': [],
               'repository': {'label': None, 'commit_url': None,
                              'range_url': None}}
     check_schema(schema, problems)

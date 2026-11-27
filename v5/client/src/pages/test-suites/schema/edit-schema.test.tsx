@@ -606,6 +606,46 @@ describe("the suite's display name", () => {
   })
 })
 
+describe("the suite's default branch", () => {
+  function defaultBranchInput() {
+    return within(editor()!).getByRole('textbox', { name: 'Default branch' })
+  }
+
+  it('starts as stored, and is sent alone once changed, then shown saved', async () => {
+    const store = await openEditor()
+    expect(defaultBranchInput()).toHaveValue('')
+    const sent = mockPatch(store, (schema) => ({ ...schema, default_branch: 'main' }))
+
+    typeInto(defaultBranchInput(), ' main ')
+    expect(unloadAsks()).toBe(true)
+    fireEvent.click(saveButton())
+
+    await waitFor(() => expect(editor()).not.toBeInTheDocument())
+    expect(sent).toEqual([{ body: { default_branch: 'main' }, confirm: null }])
+    expect(screen.getByRole('group', { name: 'Suite' })).toHaveTextContent('Default branchmain')
+  })
+
+  it('is cleared by emptying it, and left alone when only its spaces change', async () => {
+    signIn('manage')
+    const store = mockSuites([{ ...SUITE, default_branch: 'main' }, BARE_SUITE])
+    mockFresh(store)
+    renderPage('/projects/llvm/suites/libcxx?tab=schema')
+    await waitFor(() => expect(editButton()).toBeEnabled())
+    fireEvent.click(editButton())
+    const input = await screen.findByRole('textbox', { name: 'Default branch' })
+    expect(input).toHaveValue('main')
+    const sent = mockPatch(store, (schema) => ({ ...schema, default_branch: null }))
+
+    typeInto(input, ' main ')
+    expect(unloadAsks()).toBe(false)
+    typeInto(input, '  ')
+    fireEvent.click(saveButton())
+
+    await waitFor(() => expect(editor()).not.toBeInTheDocument())
+    expect(sent).toEqual([{ body: { default_branch: null }, confirm: null }])
+  })
+})
+
 describe('saving', () => {
   it('sends only what changed, then shows the schema saved', async () => {
     const store = await openEditor()
@@ -1086,12 +1126,13 @@ describe('renaming or moving the suite', () => {
     fireEvent.click(within(prompt()!).getByRole('button', { name: 'Save' }))
   }
 
-  it("shows the suite's project, name and display name, laid out as the viewer shows them", async () => {
+  it("shows the suite's project, name, display name and default branch, laid out as the viewer shows them", async () => {
     await openMovable()
 
     expect(selectButton('Project', suiteBox())).toHaveTextContent('llvm')
     expect(nameInput()).toHaveValue('libcxx')
     expect(within(suiteBox()).getByRole('textbox', { name: 'Display name' })).toHaveValue('')
+    expect(within(suiteBox()).getByRole('textbox', { name: 'Default branch' })).toHaveValue('')
     // Above the entries, as in the viewer.
     expect(
       suiteBox().compareDocumentPosition(screen.getByRole('table', { name: 'Metrics' })) &
@@ -1261,10 +1302,13 @@ describe('renaming or moving the suite', () => {
     const { store } = await openMovable()
     const patched = mockPatch(store, (schema) => ({
       ...schema,
+      default_branch: 'main',
       metrics: schema.metrics.filter((metric) => metric.name !== 'execution_time'),
     }))
     mockMove(store, { fail: () => errorResponse(409, 'retry', 'Try again.') })
     fireEvent.click(screen.getByRole('button', { name: 'Remove metric execution_time' }))
+    const defaultBranch = within(editor()!).getByRole('textbox', { name: 'Default branch' })
+    typeInto(defaultBranch, 'main')
     await change(null, 'benchmarks')
     fireEvent.click(saveButton())
     typeInto(within(prompt()!).getByRole('textbox'), 'libcxx')
@@ -1280,6 +1324,7 @@ describe('renaming or moving the suite', () => {
     expect(nameInput()).toHaveValue('benchmarks')
     expect(nameInput()).not.toHaveAttribute('readonly')
     expect(rowsOf(await table('Metrics'))).toHaveLength(1)
+    expect(within(editor()!).getByRole('textbox', { name: 'Default branch' })).toHaveValue('main')
 
     // Saving again asks the plain confirmation of the rename alone, and sends only that.
     const sent = mockMove(store)

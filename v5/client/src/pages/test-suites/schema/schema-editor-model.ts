@@ -58,13 +58,27 @@ export interface DraftRepository extends Record<RepositoryKey, string> {
   original: Repository | null
 }
 
-export type Draft = Record<ListName, DraftEntry[]> & { repository: DraftRepository }
+/** The default branch as the editor holds it: what its input shows. */
+export interface DraftDefaultBranch {
+  /**
+   * The default branch as stored, when editing a suite's schema: null when it has none, as when
+   * creating a suite.
+   */
+  original: string | null
+  text: string
+}
+
+export type Draft = Record<ListName, DraftEntry[]> & {
+  repository: DraftRepository
+  default_branch: DraftDefaultBranch
+}
 
 export const EMPTY_DRAFT: Draft = {
   metrics: [],
   commit_fields: [],
   machine_fields: [],
   repository: { original: null, label: '', commit_url: '', range_url: '' },
+  default_branch: { original: null, text: '' },
 }
 
 /** An entry of any list, as a schema has it: the keys of the other lists are absent. */
@@ -104,18 +118,25 @@ function draftOfSchema(schema: SuiteSchema, stored: boolean): Draft {
       commit_url: repository.commit_url ?? '',
       range_url: repository.range_url ?? '',
     },
+    default_branch: {
+      original: stored ? schema.default_branch : null,
+      text: schema.default_branch ?? '',
+    },
   }
 }
 
 /**
- * The entries and the repository of `schema`, as new ones: to create a suite from a copy of it
- * (TS7).
+ * The entries, the repository and the default branch of `schema`, as new ones: to create a suite
+ * from a copy of it (TS7).
  */
 export function copyOf(schema: SuiteSchema): Draft {
   return draftOfSchema(schema, false)
 }
 
-/** The entries and the repository of `schema`, as they are stored: to edit its schema (TS7). */
+/**
+ * The entries, the repository and the default branch of `schema`, as they are stored: to edit its
+ * schema (TS7).
+ */
 export function draftOf(schema: SuiteSchema): Draft {
   return draftOfSchema(schema, true)
 }
@@ -190,6 +211,11 @@ export function restoreEntry(draft: Draft, list: ListName, id: number): Draft {
 /** `draft` with the repository's `key` showing `text`. */
 export function changeRepository(draft: Draft, key: RepositoryKey, text: string): Draft {
   return { ...draft, repository: { ...draft.repository, [key]: text } }
+}
+
+/** `draft` with the default branch's input showing `text`. */
+export function changeDefaultBranch(draft: Draft, text: string): Draft {
+  return { ...draft, default_branch: { ...draft.default_branch, text } }
 }
 
 // D4's rules for names. An entry's name becomes a column: it may have capitals, and its case is
@@ -343,8 +369,8 @@ function entryOf(list: ListName, entry: DraftEntry) {
 }
 
 /**
- * The body of `POST /api/projects/{project}/suites` creating the suite `name`, with the display name its input shows
- * as `displayName`, and `draft`'s entries and repository (E10).
+ * The body of `POST /api/projects/{project}/suites` creating the suite `name`, with the display name
+ * its input shows as `displayName`, and `draft`'s entries, repository and default branch (E10).
  */
 export function schemaOf(
   name: string,
@@ -356,6 +382,7 @@ export function schemaOf(
   return {
     name,
     display_name: sent(displayName),
+    default_branch: sent(draft.default_branch.text),
     ...Object.fromEntries(lists),
     repository: Object.fromEntries(repository),
   } as Schemas['SuiteSchemaInput']
@@ -366,11 +393,15 @@ export function isSet(text: string): boolean {
   return sent(text) !== null
 }
 
-/** Whether a suite's `draft` holds anything the user entered: an entry, or a repository value. */
+/**
+ * Whether a suite's `draft` holds anything the user entered: an entry, a repository value, or a
+ * default branch.
+ */
 export function hasContent(draft: Draft): boolean {
   return (
     LISTS.some((list) => draft[list].length > 0) ||
-    REPOSITORY_KEYS.some((key) => sent(draft.repository[key]) !== null)
+    REPOSITORY_KEYS.some((key) => sent(draft.repository[key]) !== null) ||
+    sent(draft.default_branch.text) !== null
   )
 }
 
@@ -423,12 +454,13 @@ function orderOf(entries: readonly DraftEntry[]): string[] | undefined {
 /**
  * The body of `PATCH /api/projects/{project}/suites/{suite}/schema` making the changes in `draft` (E10): an entry added
  * in full, an existing one updated with only the keys the user changed, a removed one by its name,
- * the list's new order if the user changed it, and the repository with only the keys the user
- * changed. It says nothing of what the user left alone, so that saving does not undo changes others
- * made since the editor opened (TS7). Empty when the user changed nothing.
+ * the list's new order if the user changed it, the repository with only the keys the user changed,
+ * and the default branch if the user changed it. It says nothing of what the user left alone, so
+ * that saving does not undo changes others made since the editor opened (TS7). Empty when the user
+ * changed nothing.
  */
 export function patchOf(draft: Draft): Schemas['SchemaPatch'] {
-  const patch: Record<string, Record<string, unknown>> = {}
+  const patch: Record<string, unknown> = {}
   for (const list of LISTS) {
     const add = []
     const update = []
@@ -458,5 +490,7 @@ export function patchOf(draft: Draft): Schemas['SchemaPatch'] {
       patch.repository = Object.fromEntries(changed.map((key) => [key, sent(repository[key])]))
     }
   }
+  const branch = draft.default_branch
+  if (isChanged(branch.text, branch.original)) patch.default_branch = sent(branch.text)
   return patch as Schemas['SchemaPatch']
 }

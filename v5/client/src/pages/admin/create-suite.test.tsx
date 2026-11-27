@@ -51,6 +51,7 @@ function mockCreate(
       const body = JSON.parse(text) as Partial<SuiteSchema> & { name: string }
       const schema: SuiteSchema = {
         display_name: null,
+        default_branch: null,
         metrics: [],
         commit_fields: [],
         machine_fields: [],
@@ -81,6 +82,10 @@ function suiteNameInput() {
 
 function displayNameInput() {
   return screen.getByRole('textbox', { name: 'Display name' })
+}
+
+function defaultBranchInput() {
+  return screen.getByRole('textbox', { name: 'Default branch' })
 }
 
 function createButton() {
@@ -282,7 +287,7 @@ describe('opening the editor', () => {
     expect(confirm).not.toHaveBeenCalled()
   })
 
-  it('has unsaved changes once a name, an entry or a repository value is entered', async () => {
+  it('has unsaved changes once a name, a default branch, an entry or a repository value is entered', async () => {
     await openEditor()
 
     typeInto(displayNameInput(), ' ')
@@ -290,6 +295,12 @@ describe('opening the editor', () => {
     typeInto(displayNameInput(), 'Draft')
     expect(unloadAsks()).toBe(true)
     typeInto(displayNameInput(), '')
+
+    typeInto(defaultBranchInput(), ' ')
+    expect(unloadAsks()).toBe(false)
+    typeInto(defaultBranchInput(), 'main')
+    expect(unloadAsks()).toBe(true)
+    typeInto(defaultBranchInput(), '')
 
     typeInto(screen.getByRole('textbox', { name: 'Range URL' }), ' ')
     expect(unloadAsks()).toBe(false)
@@ -540,6 +551,7 @@ describe('creating the suite', () => {
     const confirm = answerLeaving(false)
     typeInto(suiteNameInput(), 'fresh')
     typeInto(screen.getByRole('textbox', { name: 'Display name' }), ' Fresh suite ')
+    typeInto(defaultBranchInput(), ' main ')
     addEntry('metric', 'size')
     await pickOption('Type of metric size', 'integer')
     typeInto(screen.getByRole('textbox', { name: 'Display name of metric size' }), ' Size  ')
@@ -556,6 +568,7 @@ describe('creating the suite', () => {
     expect(JSON.parse(sent[0].text)).toEqual({
       name: 'fresh',
       display_name: 'Fresh suite',
+      default_branch: 'main',
       metrics: [
         {
           name: 'size',
@@ -577,7 +590,7 @@ describe('creating the suite', () => {
     expect(confirm).not.toHaveBeenCalled()
     expect(editor()).not.toBeInTheDocument()
     expect(await screen.findByRole('group', { name: 'Suite' })).toHaveTextContent(
-      'ProjectllvmNamefreshDisplay nameFresh suite',
+      'ProjectllvmNamefreshDisplay nameFresh suiteDefault branchmain',
     )
     expect(rowsOf(await table('Metrics'))).toEqual(['size | integer | Size | -- | Yes | Yes'])
     expect(rowsOf(await table('Machine fields'))).toEqual(['kernel | text | -- | No | No'])
@@ -602,6 +615,7 @@ describe('creating the suite', () => {
     expect(JSON.parse(sent[0].text)).toEqual({
       name: 'empty',
       display_name: null,
+      default_branch: null,
       metrics: [],
       commit_fields: [],
       machine_fields: [],
@@ -858,6 +872,17 @@ describe('Start from', () => {
         .getAllByRole('textbox', { name: /^Name of metric/ })
         .map((i) => i.getAttribute('value')),
     ).toEqual(['execution_time'])
+  })
+
+  it("replaces the default branch with the suite's, clearing it when the suite has none", async () => {
+    await openEditor({ suites: [{ ...SUITE, default_branch: 'main' }, BARE_SUITE] })
+    typeInto(defaultBranchInput(), 'mine')
+
+    await pickSuite('Start from', 'llvm', 'libcxx')
+    expect(defaultBranchInput()).toHaveValue('main')
+
+    await pickSuite('Start from', 'llvm', 'nts')
+    expect(defaultBranchInput()).toHaveValue('')
   })
 
   it('changes nothing from the keyboard while its list is closed', async () => {

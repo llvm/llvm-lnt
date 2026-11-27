@@ -773,7 +773,7 @@ POST   /api/projects/{project}/suites                -- Create a test suite in t
 PATCH  /api/projects/{project}/suites                -- Reorder the project's test suites
 GET    /api/projects/{project}/suites/{suite}        -- Detail
 PATCH  /api/projects/{project}/suites/{suite}        -- Rename, or move to another project
-PATCH  /api/projects/{project}/suites/{suite}/schema -- Add, update, remove or reorder metrics and fields; change the display name or the repository
+PATCH  /api/projects/{project}/suites/{suite}/schema -- Add, update, remove or reorder metrics and fields; change the display name, the default branch or the repository
 DELETE /api/projects/{project}/suites/{suite}        -- Delete a test suite and all its data
 ```
 
@@ -797,8 +797,8 @@ unpaginated envelope, in the order of the project's suites (see D7). A project
 with no suites gives an empty list.
 
 **Create** (`POST /api/projects/{project}/suites`): the body is the schema
-itself: `name`, `display_name`, `metrics`, `commit_fields`, `machine_fields`,
-`repository` (see D4).
+itself: `name`, `display_name`, `default_branch`, `metrics`, `commit_fields`,
+`machine_fields`, `repository` (see D4).
 
 The new suite goes last among the project's suites (see D7).
 
@@ -843,8 +843,9 @@ D7).
 - 409 `retry` if the change could not take the locks it needs.
 
 **Evolve** (`PATCH /api/projects/{project}/suites/{suite}/schema`): changes the
-suite's `display_name`, `metrics`, `commit_fields`, `machine_fields` and/or
-`repository` after creation. D2 gives the semantics; this is the wire format.
+suite's `display_name`, `default_branch`, `metrics`, `commit_fields`,
+`machine_fields` and/or `repository` after creation. D2 gives the semantics;
+this is the wire format.
 
 For each of the three lists, the body may supply any of `add`, `update`,
 `remove` and `order`:
@@ -867,17 +868,17 @@ For each of the three lists, the body may supply any of `add`, `update`,
 - `order` gives the names of all the list's entries, in their new order (see
   D2). It cannot be `null`.
 
-The body may also supply `display_name`, a string or `null`, and `repository`,
-with only the keys being changed, `null` clearing one:
+The body may also supply `display_name` and `default_branch`, each a string or
+`null`, and `repository`, with only the keys being changed, `null` clearing one:
 
 ```json
-{"display_name": "LLVM test-suite", "repository": {"commit_url": "https://github.com/llvm/llvm-project/commit/{commit}", "label": null}}
+{"display_name": "LLVM test-suite", "default_branch": "main", "repository": {"commit_url": "https://github.com/llvm/llvm-project/commit/{commit}", "label": null}}
 ```
 
 Because `remove` destroys data, a request with a non-empty `remove` list
 requires `?confirm=true`. Without it, or with `confirm=false`, the request is
 rejected with 400. An empty `remove` list requires nothing, and neither does a
-change to `display_name` or `repository`. This mirrors
+change to `display_name`, `default_branch` or `repository`. This mirrors
 `DELETE /api/projects/{project}/suites/{suite}`.
 
 - 200 with the suite's detail body. A request that asks for no change is a

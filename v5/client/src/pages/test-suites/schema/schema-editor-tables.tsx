@@ -367,12 +367,15 @@ interface SuiteFieldsProps {
   nameRef?: Ref<HTMLInputElement>
   displayName: string
   onDisplayName(displayName: string): void
+  defaultBranch: string
+  onDefaultBranch(defaultBranch: string): void
   readOnly: boolean
 }
 
 /**
  * The editor's suite, laid out as the viewer's (TS7): its project, and the inputs of its name,
- * checked as it is typed, and of its display name, free text, which the server checks.
+ * checked as it is typed, and of its display name and default branch, free text, which the server
+ * checks.
  */
 export function SuiteFields({
   project,
@@ -382,6 +385,8 @@ export function SuiteFields({
   nameRef,
   displayName,
   onDisplayName,
+  defaultBranch,
+  onDefaultBranch,
   readOnly,
 }: SuiteFieldsProps) {
   return (
@@ -407,6 +412,16 @@ export function SuiteFields({
           spellCheck
           readOnly={readOnly}
           onValue={onDisplayName}
+        />
+      }
+      defaultBranch={
+        <NameInput
+          label="Default branch"
+          className={styles.suiteInput}
+          value={defaultBranch}
+          problem={undefined}
+          readOnly={readOnly}
+          onValue={onDefaultBranch}
         />
       }
     />
