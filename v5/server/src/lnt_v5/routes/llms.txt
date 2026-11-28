@@ -140,6 +140,7 @@ DELETE /api/projects/{project}/suites/{suite}/regressions/{uuid}             tri
 POST   /api/projects/{project}/suites/{suite}/regressions/{uuid}/indicators  triage  Add indicators
 DELETE /api/projects/{project}/suites/{suite}/regressions/{uuid}/indicators  triage  Remove indicators, by UUID
 POST   /api/projects/{project}/suites/{suite}/regressions/indicators/query   read    Indicators across regressions (machine, test, metric, state, commit)
+POST   /api/projects/{project}/suites/{suite}/regressions/resolve            read    Look up many regressions by UUID at once
 
 GET    /api/admin/api-keys                                                   admin   List API keys
 POST   /api/admin/api-keys                                                   admin   Create an API key
@@ -355,7 +356,10 @@ Every key is optional; `machine`, `test` and `state` are lists. It returns the
 matching indicators across all regressions, each as `{uuid, regression_uuid,
 machine, test, metric}`, cursor-paginated with `cursor` and `limit` in the body:
 a (machine, test, metric) it returns is already tracked at that commit. Read a
-regression itself with `GET /regressions/{uuid}`.
+regression itself with `GET /regressions/{uuid}`, or many at once with
+`POST /regressions/resolve` and `{"regressions": ["<uuid>", ...]}`: it returns
+`{"results": {"<uuid>": {...}}, "not_found": [...]}`, each result a regression
+as `GET /regressions` lists it.
 
 **Record a regression** with `POST /regressions`:
 

@@ -41,6 +41,9 @@ from sqlalchemy import (
     Row,
     Select,
     Table,
+    Text,
+    any_,
+    bindparam,
     delete,
     func,
     insert,
@@ -49,6 +52,7 @@ from sqlalchemy import (
     true,
     update,
 )
+from sqlalchemy.dialects.postgresql import ARRAY
 from sqlalchemy.dialects.postgresql import insert as upsert
 
 from lnt_v5 import examples
@@ -182,6 +186,26 @@ _REMOVE_EXAMPLES = {
     "indicators": {
         "summary": "Remove an indicator",
         "value": {"indicator_uuids": [examples.INDICATOR_UUID]},
+    }
+}
+
+# What a regression looks like in a list-shaped response, for the example of the response that
+# carries several.
+_REGRESSION = {
+    "uuid": examples.REGRESSION_UUID,
+    "title": examples.REGRESSION_TITLE,
+    "bug": examples.BUG,
+    "state": "confirmed",
+    "commit": examples.COMMIT,
+    "created_at": examples.MEASURED_AT,
+    "machine_count": 1,
+    "test_count": 2,
+}
+
+_RESOLVE_EXAMPLES = {
+    "regressions": {
+        "summary": "Resolve the regressions an indicator lookup returned",
+        "value": {"regressions": [examples.REGRESSION_UUID]},
     }
 }
 
@@ -450,6 +474,45 @@ class RegressionIndicator(Indicator):
     )
 
 
+class RegressionResolveRequest(BaseModel):
+    """The regressions to look up."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    # Bounded in length but not in what each entry may say, as `POST /commits/resolve` does: a
+    # value that is no UUID at all is still one this suite holds no regression under, and the
+    # contract is to report that under `not_found` rather than fail the whole lookup. A NUL is the
+    # exception, as it is everywhere (D5).
+    regressions: list[UuidKey] = Field(
+        min_length=1,
+        max_length=MAX_LIMIT,
+        description=(
+            f"The UUIDs of the regressions to look up, from 1 to {MAX_LIMIT} of them (not "
+            "case-sensitive). Duplicates are ignored. UUIDs that don't match any regression are "
+            "listed in `not_found`."
+        ),
+    )
+
+
+# A lookup table keyed by UUID rather than one of I2's envelopes, for the reason `ResolvedCommits`
+# is: a client resolving the results of an indicator lookup reads each regression by the UUID it
+# already holds.
+class ResolvedRegressions(BaseModel):
+    """The regressions that were found, and the UUIDs that weren't."""
+
+    results: dict[str, Regression] = Field(
+        description=(
+            "The regressions that were found, as the list returns them, keyed by UUID (in "
+            "lowercase)."
+        ),
+        examples=[{examples.REGRESSION_UUID: _REGRESSION}],
+    )
+    not_found: list[str] = Field(
+        description="The UUIDs, in lowercase, that don't match any regression.",
+        examples=[["6a2f1c3e-9d4b-4e8a-8f55-0c1b7d2e9a10"]],
+    )
+
+
 # A body rather than query parameters, because a list of test names, which may be long and whose
 # names may contain any character, does not fit a query string. The lists are bounded at I2's page
 # ceiling: each expands into one statement, and an unbounded one would carry more bind parameters
@@ -563,6 +626,16 @@ class Regressions:
             .add_columns(self.machine_count, self.test_count)
             .join(self._counts, true())
         )
+
+    def find(self, connection: Connection, uuids: Sequence[str]) -> list[Regression]:
+        """The regressions among these UUIDs, as the list reads them, in no particular order.
+
+        One array parameter rather than `IN`, for the reason `POST /commits/resolve` gives: the
+        statement text is the same whatever the request size.
+        """
+        values = bindparam("values", list(uuids), type_=ARRAY(Text))
+        rows = connection.execute(self.listed().where(self.table.c.uuid == any_(values))).all()
+        return [self.read(row) for row in rows]
 
     def keyset(self, sort: RegressionSort | None) -> Keyset:
         """O5's ordering for this list: the caller's sort, then the internal tiebreaker.
@@ -1271,6 +1344,38 @@ def remove_indicators(
         removed = regressions.remove_indicators(connection, regression, body.indicator_uuids)
         return IndicatorsRemoved(
             removed=removed, indicators=regressions.indicators(connection, regression)
+        )
+
+
+# `read`-scoped despite being a POST, and unpaginated, for the reasons `POST /commits/resolve` is.
+@router.post(
+    "/resolve",
+    dependencies=[require_scope(Scope.READ)],
+    summary="Resolve regressions in bulk",
+    responses=suite_responses(),
+)
+def resolve_regressions(
+    project: ProjectName,
+    testsuite: SuiteName,
+    body: Annotated[RegressionResolveRequest, Body(openapi_examples=_RESOLVE_EXAMPLES)],
+    engine: EngineDep,
+    registry: RegistryDep,
+) -> ResolvedRegressions:
+    """Look up many regressions by UUID in a single request, for example all the regressions that
+    an indicator lookup returned. This is a POST only because the list can be too long for a URL;
+    it doesn't change anything.
+    """
+    with (
+        engine.connect() as connection,
+        suite_scope(registry, connection, project, testsuite) as suite,
+    ):
+        # Deduplicated, keeping the order the request gave, so that a client can read the response
+        # back in the order it asked.
+        requested = list(dict.fromkeys(body.regressions))
+        found = {item.uuid: item for item in Regressions(suite).find(connection, requested)}
+        return ResolvedRegressions(
+            results={uuid: found[uuid] for uuid in requested if uuid in found},
+            not_found=[uuid for uuid in requested if uuid not in found],
         )
 
 

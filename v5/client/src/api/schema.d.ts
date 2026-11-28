@@ -849,6 +849,30 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/projects/{project}/suites/{suite}/regressions/resolve": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Resolve regressions in bulk
+         * @description Look up many regressions by UUID in a single request, for example all the regressions that
+         *     an indicator lookup returned. This is a POST only because the list can be too long for a URL;
+         *     it doesn't change anything.
+         *
+         *     **Authorization:** no API key needed.
+         */
+        post: operations["resolve_regressions"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/projects/{project}/suites/{suite}/regressions/indicators/query": {
         parameters: {
             query?: never;
@@ -2826,6 +2850,17 @@ export interface components {
             cursor: components["schemas"]["PageCursor"];
         };
         /**
+         * RegressionResolveRequest
+         * @description The regressions to look up.
+         */
+        RegressionResolveRequest: {
+            /**
+             * Regressions
+             * @description The UUIDs of the regressions to look up, from 1 to 10000 of them (not case-sensitive). Duplicates are ignored. UUIDs that don't match any regression are listed in `not_found`.
+             */
+            regressions: string[];
+        };
+        /**
          * RegressionStateName
          * @description The state of a regression. `detected` and `confirmed` mean it is still being worked on;
          *     `not_to_be_fixed`, `fixed` and `false_positive` mean it is resolved. A regression can move from
@@ -2981,6 +3016,39 @@ export interface components {
              * @description The values that don't match any commit.
              * @example [
              *       "experiment-find-if-simd"
+             *     ]
+             */
+            not_found: string[];
+        };
+        /**
+         * ResolvedRegressions
+         * @description The regressions that were found, and the UUIDs that weren't.
+         */
+        ResolvedRegressions: {
+            /**
+             * Results
+             * @description The regressions that were found, as the list returns them, keyed by UUID (in lowercase).
+             * @example {
+             *       "c4e1b7a2-9d3f-4a6e-8b5c-2f7e1d9a0b34": {
+             *         "bug": "https://github.com/llvm/llvm-project/issues/160237",
+             *         "commit": "45c41247f82e5691425542de829d568cdc2fb580",
+             *         "created_at": "2026-08-14T02:41:12Z",
+             *         "machine_count": 1,
+             *         "state": "confirmed",
+             *         "test_count": 2,
+             *         "title": "std::find_if slowdown on x86-64",
+             *         "uuid": "c4e1b7a2-9d3f-4a6e-8b5c-2f7e1d9a0b34"
+             *       }
+             *     }
+             */
+            results: {
+                [key: string]: components["schemas"]["Regression"];
+            };
+            /**
+             * Not Found
+             * @description The UUIDs, in lowercase, that don't match any regression.
+             * @example [
+             *       "6a2f1c3e-9d4b-4e8a-8f55-0c1b7d2e9a10"
              *     ]
              */
             not_found: string[];
@@ -6960,6 +7028,71 @@ export interface operations {
                 };
             };
             /** @description The test suite or the regression doesn't exist. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description `retry`: the suite's schema changed while the request was being handled. Send it again. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    resolve_regressions: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The name of the project. */
+                project: string;
+                /** @description The name of the test suite. */
+                suite: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RegressionResolveRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResolvedRegressions"];
+                };
+            };
+            /** @description The request is invalid. This includes query parameters the operation doesn't accept, and single-valued parameters given more than once. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description This operation needs an API key and none was sent, or the key is malformed, unknown or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The project or the test suite doesn't exist. */
             404: {
                 headers: {
                     [name: string]: unknown;
